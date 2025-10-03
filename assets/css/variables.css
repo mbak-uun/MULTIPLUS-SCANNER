@@ -1,0 +1,115 @@
+/* ====== CSS VARIABLES - THEME CONFIGURATION ====== */
+
+:root {
+  /* ====== BRAND COLORS ====== */
+  --brand: #2f9e44;
+  --brand-rgb: 47, 158, 68;
+  --brand-light: #4cd964;
+  --brand-dark: #1f7a33;
+  --ink: #ffffff;
+  --ink-rgb: 255, 255, 255;
+
+  /* ====== LIGHT THEME PALETTE ====== */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-soft: #f6fff6;
+  --bg-accent: #e9ecef;
+
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #adb5bd;
+  --text-inverse: #ffffff;
+
+  --border-light: #dee2e6;
+  --border-medium: #ced4da;
+  --border-dark: #adb5bd;
+
+  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+
+  --radius-base: 12px;
+  --radius-xs: var(--radius-base);
+  --radius-sm: var(--radius-base);
+  --radius-md: var(--radius-base);
+  --radius-lg: var(--radius-base);
+  --radius-xl: var(--radius-base);
+  --radius-pill: 999px;
+
+  /* ====== SEMANTIC COLORS ====== */
+  --success: #198754;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --info: #0dcaf0;
+
+  /* ====== COMPONENT SPECIFIC ====== */
+  --chip-bg: #eef5ee;
+  --chip-text: #1b4332;
+  --card-bg: var(--bg-primary);
+  --card-border: var(--border-light);
+  --input-bg: var(--bg-primary);
+  --input-border: var(--border-medium);
+  --button-secondary-bg: var(--bg-secondary);
+  --button-secondary-text: var(--text-primary);
+  --navbar-bg: rgba(255, 255, 255, 0.95);
+  --sidebar-bg: var(--bg-primary);
+  --table-stripe: rgba(0, 0, 0, 0.025);
+  --table-hover: rgba(0, 0, 0, 0.05);
+
+  --mode-btn-bg: #f1f3f5;
+  --mode-btn-border: #d0d5dd;
+  --mode-btn-text: #1f2933;
+  --mode-btn-hover-bg: #e2e8f0;
+  --mode-btn-active-bg: #4c6ef5;
+  --mode-btn-active-border: #3b5bdb;
+  --mode-btn-active-text: #ffffff;
+  --mode-btn-shadow: 0 0.45rem 1.2rem rgba(76, 110, 245, 0.35);
+}
+
+/* ====== DARK THEME ====== */
+[data-bs-theme="dark"] {
+  --bg-primary: #1a1d29;
+  --bg-secondary: #25293b;
+  --bg-soft: #0f1a12;
+  --bg-accent: #2d3748;
+
+  --text-primary: #f7fafc;
+  --text-secondary: #a0aec0;
+  --text-muted: #718096;
+  --text-inverse: #1a202c;
+
+  --border-light: #4a5568;
+  --border-medium: #718096;
+  --border-dark: #a0aec0;
+
+  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+
+  --success: #68d391;
+  --warning: #f6e05e;
+  --danger: #fc8181;
+  --info: #63b3ed;
+
+  --chip-bg: #20362a;
+  --chip-text: #e6ffe6;
+  --card-bg: var(--bg-primary);
+  --card-border: var(--border-light);
+  --input-bg: var(--bg-secondary);
+  --input-border: var(--border-medium);
+  --button-secondary-bg: var(--bg-secondary);
+  --button-secondary-text: var(--text-primary);
+  --navbar-bg: rgba(26, 29, 41, 0.95);
+  --sidebar-bg: var(--bg-primary);
+  --table-stripe: rgba(255, 255, 255, 0.025);
+  --table-hover: rgba(255, 255, 255, 0.05);
+
+  --mode-btn-bg: #20263a;
+  --mode-btn-border: #2f364c;
+  --mode-btn-text: #e2e8f0;
+  --mode-btn-hover-bg: #2a3148;
+  --mode-btn-active-bg: #5468ff;
+  --mode-btn-active-border: #7c8dff;
+  --mode-btn-active-text: #ffffff;
+  --mode-btn-shadow: 0 0.45rem 1.2rem rgba(84, 104, 255, 0.4);
+}

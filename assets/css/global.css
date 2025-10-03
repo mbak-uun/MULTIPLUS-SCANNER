@@ -1,0 +1,135 @@
+/* ====== GLOBAL STYLES ====== */
+
+[v-cloak] {
+  display: none;
+}
+
+body.app-loading {
+  overflow: hidden;
+}
+
+.app-is-loading {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ====== SCROLLBAR ====== */
+.table-container::-webkit-scrollbar,
+.card-body::-webkit-scrollbar {
+  width: 6px;  /* Lebih ramping */
+  height: 6px; /* Lebih ramping */
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.card-body::-webkit-scrollbar-thumb {
+  background: rgba(var(--brand-rgb), 0.4);
+  border-radius: var(--radius-base);
+}
+
+.table-container::-webkit-scrollbar-track,
+.card-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-base);
+}
+
+/* ====== BOOT OVERLAY ====== */
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 11, 25, 0.92);
+  z-index: 9999;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.boot-overlay--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot-overlay__inner {
+  text-align: center;
+  padding: 2rem 2.5rem;
+  border-radius: var(--radius-lg);
+  background: rgba(17, 24, 39, 0.75);
+  box-shadow: var(--shadow-lg);
+}
+
+.boot-overlay__spinner {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  border: 0.35rem solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--brand, #4c6ef5);
+  animation: boot-spin 0.9s linear infinite;
+  margin: 0 auto;
+}
+
+.boot-overlay__text {
+  margin-top: 1rem;
+  color: #f8fafc;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ====== BLOCKING OVERLAY ====== */
+.blocking-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9998;
+  backdrop-filter: blur(4px);
+}
+
+.blocking-overlay__inner {
+  text-align: center;
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-lg);
+}
+
+.blocking-overlay__spinner {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 0.3rem solid rgba(var(--brand-rgb), 0.2);
+  border-top-color: var(--brand);
+  animation: boot-spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+
+.blocking-overlay__text {
+  margin-top: 1rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.disabled {
+   cursor: not-allowed !important;
+   opacity: 0.2; /* Sedikit lebih terlihat tapi tetap pudar */
+   position: relative;
+   filter: grayscale(50%); /* Mengurangi efek grayscale agar tidak terlalu abu-abu */
+ }
+ 
+ /* Pastikan konten di dalam elemen disabled tidak terpengaruh oleh overlay */
+ .disabled > * {
+   opacity: 1; /* Biarkan konten di dalam memiliki opacity normal */
+ }
+ 
+ /* Khusus untuk tema gelap, gunakan overlay gelap */
+ [data-bs-theme="dark"] .disabled {
+   opacity: 0.5;
+ }
