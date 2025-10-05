@@ -148,71 +148,59 @@ const DatabaseMenu = {
           this.$root.showToast(`Gagal menghapus record: ${error.message}`, 'danger');
         }
       }
-    },
-    async cleanupLegacyRecords() {
-      if (!confirm('Anda yakin ingin menghapus semua record legacy "DATA_KOIN" dari semua tabel KOIN? \n\nRecord ini sudah tidak digunakan lagi dan aman untuk dihapus.')) {
-        return;
-      }
-
-      let deletedCount = 0;
-      let errorCount = 0;
-      const koinStores = this.dbInfo.stores.filter(store => store.name.startsWith('KOIN_'));
-
-      for (const store of koinStores) {
-        try {
-          const data = await DB.getAllData(store.name);
-          const legacyRecord = data.find(record => record.id === 'DATA_KOIN');
-
-          if (legacyRecord) {
-            await DB.deleteData(store.name, 'DATA_KOIN');
-            deletedCount++;
-            console.log(`✓ Deleted DATA_KOIN from ${store.name}`);
-          }
-        } catch (error) {
-          errorCount++;
-          console.error(`✗ Failed to clean ${store.name}:`, error);
-        }
-      }
-
-      if (deletedCount > 0) {
-        this.$root.showToast(`Cleanup selesai: ${deletedCount} record legacy berhasil dihapus, ${errorCount} gagal`, 'success');
-        this.loadDatabaseInfo(); // Refresh database info
-        if (this.selectedStore) {
-          await this.loadStoreData(this.selectedStore); // Refresh current view
-        }
-      } else {
-        this.$root.showToast('Tidak ada record legacy "DATA_KOIN" yang ditemukan', 'info');
-      }
     }
+    
   },
 
   template: `
     <div>
-      <!-- Toolbar & Info -->
-      <div class="card card-soft mb-3">
-        <div class="card-body p-2">
-          <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
-            <h5 class="mb-0 ps-2">Manajemen Database</h5>
-            <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-warning" @click="cleanupLegacyRecords" title="Hapus record legacy DATA_KOIN yang sudah tidak digunakan">
-                <i class="bi bi-broom me-1"></i> Cleanup Legacy
-              </button>
-              <button class="btn btn-sm btn-primary" @click="backupDB"><i class="bi bi-download me-1"></i> Backup</button>
-              <button class="btn btn-sm btn-success" @click="showRestoreModal = true"><i class="bi bi-upload me-1"></i> Restore</button>
-              <button class="btn btn-sm btn-danger" @click="confirmDeleteDB"><i class="bi bi-trash-fill me-1"></i> Hapus DB</button>
+      <!-- REFACTORED: Database Toolbar with Bootstrap -->
+      <div class="card card-body mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-md-6 col-lg">
+            <h5 class="mb-0 d-flex align-items-center gap-2">
+              <i class="bi bi-database"></i>
+              Manajemen Database
+            </h5>
+          </div>
+          <div class="col-12 col-md-6 col-lg-auto">
+            <div class="d-flex justify-content-md-end">
+              <div class="btn-group btn-group-sm" role="group" aria-label="Database actions">
+                <button class="btn btn-sm btn-dark" @click="backupDB">
+                  <i class="bi bi-download me-1"></i> Backup
+                </button>
+
+                <button class="btn btn-sm btn-info" @click="showRestoreModal = true">
+                  <i class="bi bi-upload me-1"></i> Restore
+                </button>
+
+                <button class="btn btn-sm btn-danger" @click="confirmDeleteDB">
+                  <i class="bi bi-trash-fill me-1"></i> Hapus DB
+                </button>
+              </div>
+              
             </div>
+
           </div>
         </div>
       </div>
 
-      <!-- Daftar Store dalam Accordion -->
+      <!-- REFACTORED: Daftar Store menggunakan Bootstrap Accordion -->
       <div class="accordion" id="dbStoreAccordion">
         <div v-for="(store, index) in filteredStores" :key="store.name" class="accordion-item">
           <h2 class="accordion-header" :id="'heading-' + index">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" :data-bs-target="'#collapse-' + index" aria-expanded="false" :aria-controls="'collapse-' + index" @click="loadStoreData(store.name)">
+            <button 
+              class="accordion-button collapsed" 
+              type="button" 
+              data-bs-toggle="collapse" 
+              :data-bs-target="'#collapse-' + index" 
+              aria-expanded="false" 
+              :aria-controls="'collapse-' + index" 
+              @click="loadStoreData(store.name)"
+            >
               <div class="d-flex w-100 justify-content-between align-items-center pe-3">
                 <span class="fw-bold">{{ store.name }}</span>
-                <div>
+                <div class="d-none d-sm-block">
                   <span class="badge bg-primary me-2">Records: {{ store.count }}</span>
                   <span class="badge bg-secondary">Size: {{ store.size }}</span>
                 </div>
@@ -220,27 +208,36 @@ const DatabaseMenu = {
             </button>
           </h2>
           <div :id="'collapse-' + index" class="accordion-collapse collapse" :aria-labelledby="'heading-' + index" data-bs-parent="#dbStoreAccordion">
-            <div class="accordion-body">
+            <div class="accordion-body p-2 p-md-3">
+              <div class="d-block d-sm-none mb-2 text-end">
+                  <span class="badge bg-primary me-2">Records: {{ store.count }}</span>
+                  <span class="badge bg-secondary">Size: {{ store.size }}</span>
+              </div>
+
               <div v-if="loadingStore === store.name" class="text-center p-3">
                 <div class="spinner-border spinner-border-sm" role="status"></div>
                 <span class="ms-2">Memuat data...</span>
               </div>
               <div v-else-if="selectedStore === store.name">
-                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+                <div class="row g-2 align-items-center mb-3">
                   <!-- Search Bar di dalam kartu -->
-                  <div class="input-group input-group-sm" style="max-width: 300px;">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" class="form-control" v-model="searchQueries[store.name]" placeholder="Cari data di dalam tabel...">
+                  <div class="col-12 col-lg">
+                    <div class="input-group input-group-sm w-100" style="max-width: 420px;">
+                      <span class="input-group-text"><i class="bi bi-search"></i></span>
+                      <input type="text" class="form-control" v-model="searchQueries[store.name]" placeholder="Cari data di dalam tabel...">
+                    </div>
                   </div>
-                  <div>
-                    <button class="btn btn-sm btn-outline-danger" @click="clearStoreConfirm(store.name)">
-                      <i class="bi bi-eraser-fill me-1"></i> Kosongkan Store Ini
-                    </button>
+                  <div class="col-12 col-lg-auto text-lg-end">
+                    <div class="d-grid d-lg-inline-flex">
+                      <button class="btn btn-sm btn-outline-danger" @click="clearStoreConfirm(store.name)">
+                        <i class="bi bi-eraser-fill me-1"></i> Kosongkan Store Ini
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <!-- Tampilan Khusus untuk SYNC_KOIN -->
-                <div v-if="store.name.startsWith('SYNC_KOIN_')" class="table-responsive">
+                <div v-if="store.name.startsWith('SYNC_KOIN_')" class="table-responsive" style="max-height: 60vh;">
                   <table class="table table-sm table-bordered table-hover small">
                     <thead class="table-dark">
                       <tr>
@@ -270,7 +267,7 @@ const DatabaseMenu = {
                 </div>
 
                 <!-- Tampilan Khusus untuk KOIN -->
-                <div v-else-if="store.name.startsWith('KOIN_')" class="table-responsive">
+                <div v-else-if="store.name.startsWith('KOIN_')" class="table-responsive" style="max-height: 60vh;">
                   <table class="table table-sm table-bordered table-hover small">
                     <thead class="table-dark">
                       <tr>
@@ -308,7 +305,7 @@ const DatabaseMenu = {
                 </div>
 
                 <!-- Tampilan Khusus untuk RIWAYAT_AKSI -->
-                <div v-else-if="store.name === 'RIWAYAT_AKSI'" class="table-responsive">
+                <div v-else-if="store.name === 'RIWAYAT_AKSI'" class="table-responsive" style="max-height: 60vh;">
                   <table class="table table-sm table-bordered table-hover small">
                     <thead class="table-dark">
                       <tr>
@@ -336,7 +333,7 @@ const DatabaseMenu = {
                 </div>
 
                 <!-- Tampilan Ringkasan untuk SETTING_GLOBAL, SETTING_FILTER, ASET, RIWAYAT_MODAL -->
-                <div v-else-if="store.name.startsWith('SETTING_') || store.name.startsWith('ASET_') || store.name === 'RIWAYAT_MODAL'">
+                <div v-else-if="store.name.startsWith('SETTING_') || store.name.startsWith('ASET_') || store.name === 'RIWAYAT_MODAL'" class="overflow-auto" style="max-height: 60vh;">
                    <div v-if="!filteredRecordData || filteredRecordData.length === 0" class="alert alert-secondary text-center">
                     Tidak ada data yang cocok dengan pencarian.
                   </div>
@@ -356,7 +353,7 @@ const DatabaseMenu = {
                 </div>
 
                 <!-- Tampilan Default (JSON) -->
-                <div v-else>
+                <div v-else class="overflow-auto" style="max-height: 60vh;">
                   <div v-if="!filteredRecordData || filteredRecordData.length === 0" class="alert alert-secondary text-center">
                     Tidak ada data yang cocok dengan pencarian.
                   </div>
@@ -370,13 +367,13 @@ const DatabaseMenu = {
             </div>
           </div>
         </div>
-        <div v-if="filteredStores.length === 0" class="text-center text-muted py-4">
-          <i class="bi bi-inbox"></i> Tidak ada tabel yang cocok dengan pencarian
+        <div v-if="filteredStores.length === 0" class="card card-body text-center text-muted py-4">
+          <i class="bi bi-inbox fs-3"></i> <p class="mb-0 mt-2">Tidak ada tabel yang cocok dengan pencarian.</p>
         </div>
       </div>
 
       <!-- Modal Restore -->
-      <div v-if="showRestoreModal" class="modal d-block" style="background: rgba(0,0,0,0.5);" @click.self="showRestoreModal = false">
+      <div v-if="showRestoreModal" class="modal fade show d-block" style="background: rgba(0,0,0,0.5);" @click.self="showRestoreModal = false" tabindex="-1">
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
@@ -391,8 +388,8 @@ const DatabaseMenu = {
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" @click="showRestoreModal = false">Batal</button>
-              <button type="button" class="btn btn-success" @click="restoreDB" :disabled="!restoreFileData">
+              <button type="button" class="btn btn-sm btn-outline-danger" @click="showRestoreModal = false">Batal</button>
+              <button type="button" class="btn btn-sm btn-success" @click="restoreDB" :disabled="!restoreFileData">
                 <i class="bi bi-upload"></i> Restore Sekarang
               </button>
             </div>

@@ -5,80 +5,82 @@ const ScanningFilterBar = {
   name: 'ScanningFilterBar',
 
   template: `
-    <div class="card card-soft px-2 py-2">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <!-- Favorite Only Toggle -->
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="favoritOnly" 
-              v-model="filters.favoritOnly"
-              @change="saveFilterChange('favoritOnly')">
-            <label class="form-check-label" for="favoritOnly">
-              <i class="bi bi-star-fill text-warning"></i> Favorite
-            </label>
-          </div>
+    <div class="tab-toolbar">
+      <div class="tab-toolbar__left">
+        <h6 class="tab-toolbar__title">
+          <i class="bi bi-radar"></i>
+          Scanning Control
+        </h6>
 
-          <!-- Auto Run Toggle -->
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="autorun" 
-              v-model="filters.autorun"
-              @change="saveFilterChange('autorun')">
-            <label class="form-check-label" for="autorun">
-              <i class="bi bi-play-circle"></i> Run
-            </label>
-          </div>
+        <!-- Toggles -->
+        <label class="filter-toggle-simple" :class="{active: filters.favoritOnly}">
+          <input type="checkbox" v-model="filters.favoritOnly" @change="saveFilterChange('favoritOnly')">
+          <i class="bi bi-star-fill text-warning"></i>
+          Favorite
+        </label>
 
-          <!-- Auto Scroll Toggle -->
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="autoscroll" 
-              v-model="filters.autoscroll"
-              @change="saveFilterChange('autoscroll')">
-            <label class="form-check-label" for="autoscroll">
-              <i class="bi bi-arrow-down-circle"></i>  Scroll
-            </label>
-          </div>
+        <label class="tab-toolbar__toggle" :class="{active: filters.autorun}">
+          <input type="checkbox" v-model="filters.autorun" @change="saveFilterChange('autorun')">
+          <i class="bi bi-play-circle"></i>
+          Auto Run
+        </label>
 
-          <div class="vr"></div>
+        <label class="tab-toolbar__toggle" :class="{active: filters.autoscroll}">
+          <input type="checkbox" v-model="filters.autoscroll" @change="saveFilterChange('autoscroll')">
+          <i class="bi bi-arrow-down-circle"></i>
+          Auto Scroll
+        </label>
 
-          <!-- Min PNL Input -->
-          <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 small">PNL:</label>
-            <input
-              type="number"
-              class="form-control form-control-sm"
-              style="width: 80px;" 
-              v-model.number="filters.minPnl"
-              @change="saveFilterChange('minPnl')"
-              step="0.1"
-              min="0">
-          </div>
+        <div class="tab-toolbar__divider"></div>
 
-          <div class="ms-auto d-flex align-items-center gap-2">
-            <!-- Progress Bar (muncul saat scanning) -->
-            <div v-if="isScanning" class="progress" style="width: 150px; height: 28px;">
-              <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 100%">
-                <small>Scanning...</small>
-              </div>
-            </div>
-
-            <!-- Tombol Start/Stop -->
-            <button
-              class="btn btn-sm"
-              :class="filters.run === 'run' ? 'btn-danger' : 'btn-success'"
-              @click="toggleRun">
-              <i :class="filters.run === 'run' ? 'bi bi-stop-circle' : 'bi bi-play-circle'"></i>
-              {{ filters.run === 'run' ? 'STOP' : 'START' }}
-            </button>
+        <!-- REVISI: Tambahkan input pencarian di sini -->
+        <div class="tab-toolbar__search">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">
+              <i class="bi bi-search"></i>
+            </span>
+            <input type="text" class="form-control" placeholder="Cari token..."
+                   v-model="searchQuery">
           </div>
         </div>
+
+        <!-- Search & PNL Filter -->
+        <div class="tab-toolbar__search">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">
+              <i class="bi bi-percent"></i>
+            </span>
+            <input type="number" class="form-control" placeholder="Min PNL"
+                   v-model.number="filters.minPnl" @change="saveFilterChange('minPnl')"
+                   step="0.1" min="0" style="width: 100px;">
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-toolbar__right">
+        <!-- Sorting Info -->
+        <span class="tab-toolbar__info" v-if="filterSettings.sortDirection">
+          <i class="bi" :class="filterSettings.sortDirection === 'desc' ? 'bi-arrow-down' : 'bi-arrow-up'"></i>
+          Sort: {{ filterSettings.sortDirection.toUpperCase() }}
+        </span>
+
+        <!-- Progress (saat scanning) -->
+        <div v-if="isScanning" class="progress" style="width: 140px; height: 32px; border-radius: var(--radius-lg);">
+          <div class="progress-bar progress-bar-striped progress-bar-animated"
+               :style="{background: 'var(--brand)'}"
+               role="progressbar" style="width: 100%">
+            <small class="fw-semibold">Scanning...</small>
+          </div>
+        </div>
+
+        <!-- Start/Stop Button -->
+        <button class="tab-btn"
+                :class="filters.run === 'run' ? 'tab-btn--danger' : 'tab-btn--success'"
+                @click="toggleRun">
+          <i :class="filters.run === 'run' ? 'bi bi-stop-circle-fill' : 'bi bi-play-circle-fill'"></i>
+          {{ filters.run === 'run' ? 'STOP' : 'START' }}
+        </button>
+      </div>
     </div>
   `,
 
@@ -88,6 +90,11 @@ const ScanningFilterBar = {
     },
     filters() {
       return this.$root.filters || {};
+    },
+    // REVISI: Ambil dan set searchQuery dari root component
+    searchQuery: {
+      get() { return this.$root.searchQuery; },
+      set(value) { this.$root.searchQuery = value; }
     },
     isScanning() {
       return this.filters && this.filters.run === 'run';

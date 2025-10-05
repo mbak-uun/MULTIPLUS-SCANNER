@@ -8,21 +8,55 @@ const HistoryMenu = {
     return {
       riwayat: [],
       searchQuery: '',
+      startDate: '',
+      endDate: '',
+      currentPage: 1,
+      itemsPerPage: 20,
       isLoading: true,
     };
   },
 
   computed: {
     filteredRiwayat() {
-      if (!this.searchQuery) {
-        return this.riwayat;
+      let filtered = this.riwayat;
+
+      // Filter by search query
+      if (this.searchQuery) {
+        const lowerCaseQuery = this.searchQuery.toLowerCase();
+        filtered = filtered.filter(item => {
+          const message = (item.message || '').toLowerCase();
+          const action = (item.action || '').toLowerCase();
+          return message.includes(lowerCaseQuery) || action.includes(lowerCaseQuery);
+        });
       }
-      const lowerCaseQuery = this.searchQuery.toLowerCase();
-      return this.riwayat.filter(item => {
-        const message = (item.message || '').toLowerCase();
-        const action = (item.action || '').toLowerCase();
-        return message.includes(lowerCaseQuery) || action.includes(lowerCaseQuery);
-      });
+
+      // Filter by start date
+      if (this.startDate) {
+        try {
+          const start = new Date(this.startDate);
+          start.setHours(0, 0, 0, 0); // Set to start of the day
+          filtered = filtered.filter(item => new Date(item.timestamp) >= start);
+        } catch (e) { console.error("Invalid start date"); }
+      }
+
+      // Filter by end date
+      if (this.endDate) {
+        try {
+          const end = new Date(this.endDate);
+          end.setHours(23, 59, 59, 999); // Set to end of the day
+          filtered = filtered.filter(item => new Date(item.timestamp) <= end);
+        } catch (e) { console.error("Invalid end date"); }
+      }
+
+      return filtered;
+    },
+    totalPages() {
+      return Math.ceil(this.filteredRiwayat.length / this.itemsPerPage);
+    },
+    paginatedRiwayat() {
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      const end = start + this.itemsPerPage;
+      return this.filteredRiwayat.slice(start, end);
     },
     columnCount() {
       return 5;
@@ -88,6 +122,20 @@ const HistoryMenu = {
   },
 
   watch: {
+    // Reset ke halaman pertama jika filter berubah
+    searchQuery() {
+      this.currentPage = 1;
+    },
+    startDate() {
+      this.currentPage = 1;
+    },
+    endDate() {
+      this.currentPage = 1;
+    },
+    // ... (watcher lama)
+  },
+
+  watch: {
     // Tunggu sampai database di app utama siap
     '$root.dbStatus': {
       handler(newStatus) {
@@ -101,22 +149,56 @@ const HistoryMenu = {
 
   template: `
     <div>
-      <div class="card card-soft mb-3">
-        <div class="card-body p-2">
-          <div class="row g-2 align-items-center">
-            <div class="col">
-              <input type="text" class="form-control" placeholder="Cari riwayat..." v-model="searchQuery">
-            </div>
-            <div class="col-auto">
-              <button class="btn btn-outline-danger" @click="clearAllRiwayat" title="Hapus Semua Riwayat">
-                <i class="bi bi-trash me-1"></i> Hapus Semua
-              </button>
+      <!-- REFACTORED: History Toolbar with Bootstrap -->
+      <div class="card card-body mb-3">
+        <div class="row g-2 align-items-center">
+          <!-- Grup Kiri: Judul dan Total -->
+          <div class="col-12 col-lg d-flex align-items-center gap-3">
+            <h5 class="mb-0">
+              <i class="bi bi-clock-history"></i>
+              Riwayat Aksi
+            </h5>
+            <span class="badge bg-light text-dark border">
+              Total: {{ filteredRiwayat.length }} Data Riwayat
+            </span>
+          </div>
+
+          <!-- Grup Kanan: Pencarian dan Tombol Aksi -->
+          <div class="col-12 col-lg-auto">
+            <div class="row g-2 align-items-center justify-content-lg-end">
+              <div class="col-12 col-sm-auto">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text small">Dari</span>
+                  <input type="date" class="form-control" v-model="startDate" title="Tanggal Mulai">
+                </div>
+              </div>
+              <div class="col-12 col-sm-auto">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text small">Sampai</span>
+                  <input type="date" class="form-control" v-model="endDate" title="Tanggal Akhir">
+                </div>
+              </div>
+              <div class="col-12 col-sm">
+                <div class="input-group input-group-sm w-100" style="max-width: 260px;">
+                  <span class="input-group-text"><i class="bi bi-search"></i></span>
+                  <input type="text" class="form-control" placeholder="Cari riwayat..." v-model="searchQuery">
+                </div>
+              </div>
+
+              <div class="col-12 col-sm-auto">
+                <div class="d-grid d-sm-inline-flex">
+                  <button class="btn btn-sm btn-danger" @click="clearAllRiwayat" title="Hapus Semua Riwayat">
+                    <i class="bi bi-trash"></i> <span class="d-inline d-sm-inline">Kosongkan Riwayat</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="table-responsive">
+
+      <div class="table-responsive" style="max-height: calc(100vh - 250px);">
         <table class="table table-hover table-sm align-middle">
           <thead>
             <tr>
@@ -137,7 +219,7 @@ const HistoryMenu = {
                 Tidak ada data riwayat.
               </td>
             </tr>
-            <tr v-for="item in filteredRiwayat" :key="item.id">
+            <tr v-for="item in paginatedRiwayat" :key="item.id">
               <td class="small text-muted">{{ formatTimestamp(item.timestamp) }}</td>
               <td class="text-uppercase"><span class="badge bg-primary bg-opacity-75">{{ item.action }}</span></td>
               <td><span class="badge" :class="getStatusBadgeClass(item.status)">{{ item.status }}</span></td>
@@ -150,6 +232,23 @@ const HistoryMenu = {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div v-if="totalPages > 1" class="d-flex justify-content-between align-items-center mt-3">
+        <span class="text-muted small">
+          Halaman {{ currentPage }} dari {{ totalPages }}
+        </span>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item" :class="{ disabled: currentPage === 1 }">
+              <a class="page-link" href="#" @click.prevent="currentPage--">Sebelumnya</a>
+            </li>
+            <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+              <a class="page-link" href="#" @click.prevent="currentPage++">Berikutnya</a>
+            </li>
+          </ul>
+        </nav>
       </div>
     </div>
   `

@@ -316,10 +316,11 @@ const settingsMixin = {
 
         this.globalSettings = settings;
         this.isGlobalSettingsValid = this.isGlobalSettingsComplete;
+        // Pastikan status modal mengikuti validasi terbaru
+        this.isGlobalSettingsRequired = !this.isGlobalSettingsValid;
 
         // Jika settings tidak lengkap, paksa user untuk mengisi
         if (!this.isGlobalSettingsValid) {
-          this.isGlobalSettingsRequired = true;
           this.showToast('⚠️ Harap lengkapi Setting Global terlebih dahulu!', 'warning', 8000);
         }
 
@@ -336,21 +337,27 @@ const settingsMixin = {
         const storeName = DB.getStoreNameByChain('SETTING_FILTER', chainKey);
         const storeKey = 'SETTING_FILTER';
 
-        let settings = await DB.getData(storeName, storeKey);
+        let loadedSettings = await DB.getData(storeName, storeKey);
 
-        if (!settings) {
+        if (!loadedSettings) {
           console.log(`📋 Filter ${chainKey} belum ada, generate default...`);
-          settings = this.getDefaultFilterSettings(chainKey);
+          loadedSettings = this.getDefaultFilterSettings(chainKey);
 
-          if (settings) {
-            await DB.saveData(storeName, settings, storeKey);
+          if (loadedSettings) {
+            await DB.saveData(storeName, loadedSettings, storeKey);
           }
         }
 
-        this.filterSettings = settings || {};
+        // REVISI: Langsung update state filterSettings DAN state filters (UI)
+        // Ini adalah langkah kunci untuk memastikan UI selalu sinkron.
+        this.filterSettings = loadedSettings || {};
+        this.filters = { ...this.filters, ...this.filterSettings };
 
-        // Sinkronisasi ke UI filters
-        this.syncFilterSettingsToUI();
+        // Auto-apply dark mode
+        if (this.filterSettings.darkMode !== undefined) {
+          const theme = this.filterSettings.darkMode ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-bs-theme', theme);
+        }
 
         console.log(`✅ Filter settings loaded for ${chainKey}`);
         return this.filterSettings;
@@ -358,34 +365,6 @@ const settingsMixin = {
         console.error(`❌ Error loading filter settings for ${chainKey}:`, error);
         return null;
       }
-    },
-
-    // Sinkronisasi dari filterSettings ke filters (UI)
-    syncFilterSettingsToUI() {
-      if (!this.filterSettings || !this.filters) {
-        return;
-      }
-
-      // Sinkronisasi filter UI dengan data dari filterSettings
-      this.filters.cex = { ...this.filterSettings.cex } || {};
-      this.filters.dex = { ...this.filterSettings.dex } || {};
-      this.filters.chains = { ...this.filterSettings.chains } || {};
-      this.filters.pairs = { ...this.filterSettings.pairs } || {};
-      // REVISI: Sinkronkan juga properti filter dari scanning-filter-bar
-      this.filters.favoritOnly = this.filterSettings.favoritOnly || false;
-      this.filters.autorun = this.filterSettings.autorun || false;
-      this.filters.autoscroll = this.filterSettings.autoscroll || false;
-      this.filters.minPnl = this.filterSettings.minPnl || 0;
-      this.filters.run = this.filterSettings.run || 'stop';
-
-      // Auto-apply dark mode sesuai setting per chain
-      if (this.filterSettings.darkMode !== undefined) {
-        const theme = this.filterSettings.darkMode ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-bs-theme', theme);
-        console.log(`🌙 Dark mode ${this.filterSettings.darkMode ? 'AKTIF' : 'NONAKTIF'} untuk ${this.filterSettings.chainKey}`);
-      }
-
-      console.log('🔄 Filter UI disinkronkan dengan filterSettings');
     },
 
     async loadAllSettings() {
@@ -437,13 +416,20 @@ const settingsMixin = {
       if (!form.nickname || form.nickname.trim() === '') {
         return this.showToast('❌ Nickname tidak boleh kosong!', 'danger');
       }
-      if (!form.walletMeta || form.walletMeta.trim() === '') {
-        return this.showToast('❌ Wallet Meta tidak boleh kosong!', 'danger');
+      const walletMetaTrimmed = form.walletMeta ? form.walletMeta.trim() : '';
+      if (!walletMetaTrimmed) {
+        return this.showToast('❌ Alamat Wallet tidak boleh kosong!', 'danger');
+      }
+      // Validasi format alamat Ethereum
+      const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+      if (!ethAddressRegex.test(walletMetaTrimmed)) {
+        return this.showToast('❌ Format Alamat Wallet tidak valid. Harus alamat Ethereum (0x...).', 'danger');
       }
 
       // Validasi Anggota Grup
-      if (!form.AnggotaGrup || form.AnggotaGrup < 1) {
-        return this.showToast('❌ Anggota Grup minimal 1!', 'danger');
+      const anggotaGrup = Number(form.AnggotaGrup);
+      if (!anggotaGrup || anggotaGrup < 1 || anggotaGrup > 5) {
+        return this.showToast('❌ Anggota Grup harus antara 1 sampai 5!', 'danger');
       }
 
       // Validasi field numerik
@@ -506,6 +492,12 @@ const settingsMixin = {
         this.isGlobalSettingsValid = true;
         this.isGlobalSettingsRequired = false;
 
+        // Log ke riwayat
+        await this.logSettings('save_global', 'success',
+          `Pengaturan global berhasil disimpan dengan ${cleanData.activeCEXs?.length || 0} CEX aktif dan ${cleanData.activeDEXs?.length || 0} DEX aktif`,
+          { chains: cleanData.activeChains, cexs: cleanData.activeCEXs, dexs: cleanData.activeDEXs }
+        );
+
         this.showToast('✅ Pengaturan Global berhasil disimpan!', 'success');
 
         // Langsung arahkan kembali ke menu utama (mode) setelah berhasil menyimpan
@@ -521,6 +513,12 @@ const settingsMixin = {
         if (error.name === 'DataCloneError') {
           errorMsg = 'Data mengandung nilai yang tidak bisa disimpan. Periksa console untuk detail.';
         }
+
+        // Log error ke riwayat
+        await this.logSettings('save_global', 'error',
+          `Gagal menyimpan pengaturan: ${errorMsg}`,
+          { error: error.message }
+        );
 
         this.showToast('Gagal menyimpan pengaturan: ' + errorMsg, 'danger');
       } finally {

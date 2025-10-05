@@ -81,7 +81,7 @@ class CheckWalletExchanger {
     this.Http = httpModule;
     this.secrets = secrets;
     this.config = config;
-    this.proxyPrefix = config.PROXY?.PREFIX || 'https://proxykanan.awokawok.workers.dev/?';
+    this.proxyPrefix = config.PROXY?.PREFIX || config.LIST_PROXY?.SERVERS?.[0] || 'https://server1.ciwayeh967.workers.dev/?';
   }
 
   /**

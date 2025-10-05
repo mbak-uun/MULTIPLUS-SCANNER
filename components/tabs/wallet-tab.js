@@ -206,105 +206,101 @@ const WalletTab = {
           this.fetchProgress = Math.round(((i / totalCEX) * 100));
           const coinList = await fetcher.fetchCoinList(cex, this.activeChain);
 
+          // REVISI: Buat map dari hasil fetch API untuk memudahkan pencarian status pair.
+          // Key: Symbol (uppercase), Value: Objek koin dari API
+          const apiCoinMap = new Map();
+          coinList.forEach(fetchedCoin => {
+            const symbol = String(fetchedCoin.nama_token || fetchedCoin.symbol || '').toUpperCase();
+            if (symbol) apiCoinMap.set(symbol, fetchedCoin);
+          });
+
           // 2. Load semua koin dari tabel KOIN
           this.walletStatusMessage = `Memeriksa tabel KOIN_${this.activeChain}... (${i + 1}/${totalCEX})`;
           this.fetchProgress = Math.round(((i + 0.3) / totalCEX) * 100);
           const allCoinsInDB = await DB.getAllData(storeName);
-          const coinsByKey = new Map();
-
-          // Build index: key = "cex|sc_token" atau "cex|symbol" (menggunakan skema nested)
-          allCoinsInDB.forEach(coin => {
-            if (coin.id === 'DATA_KOIN') return; // Skip snapshot
-
-            // Extract CEX dari nested structure
-            const cexList = coin.cex && typeof coin.cex === 'object' ? Object.keys(coin.cex) : [];
-            const chain = String(coin.chain || this.activeChain).toUpperCase();
-            const sc = String(coin.sc_token || coin.sc || '').toLowerCase();
-            const symbol = String(coin.nama_token || '').toUpperCase();
-
-            // Buat index untuk setiap CEX yang ada di token
-            cexList.forEach(upperCex => {
-              if (sc) {
-                coinsByKey.set(`${upperCex.toUpperCase()}|${chain}|${sc}`, coin);
-              }
-              coinsByKey.set(`${upperCex.toUpperCase()}|${chain}|${symbol}`, coin);
-            });
-          });
 
           // 3. Proses setiap koin dari CEX
-          this.walletStatusMessage = `Memproses ${coinList.length} koin dari ${cex}... (${i + 1}/${totalCEX})`;
+          this.walletStatusMessage = `Memproses ${allCoinsInDB.length} koin dari database... (${i + 1}/${totalCEX})`;
           this.fetchProgress = Math.round(((i + 0.5) / totalCEX) * 100);
           let updatedCount = 0;
           const coinsInDB = []; // Semua koin yang ada di DB
           const problematicCoins = []; // Koin yang ada di DB dan bermasalah
 
-          for (const fetchedCoin of coinList) {
+          // REVISI: Tambahkan Set untuk melacak koin yang sudah ditambahkan ke daftar tampilan
+          // untuk mencegah duplikasi. Kunci bisa berupa sc_token atau nama_token.
+          const displayedCoinsTracker = new Set();
+
+          // REVISI: Iterasi melalui SEMUA koin di database, bukan hasil API.
+          // Ini memastikan semua record di-update, bahkan jika token utamanya tidak muncul di API.
+          for (const coinInDB of allCoinsInDB) {
+            if (coinInDB.id === 'DATA_KOIN') continue; // Skip snapshot
+
             const upperCex = String(cex).toUpperCase();
-            const chain = String(fetchedCoin.chain || this.activeChain).toUpperCase();
-            const sc = String(fetchedCoin.sc || fetchedCoin.sc_token || '').toLowerCase();
-            const symbol = String(fetchedCoin.nama_token || fetchedCoin.symbol || '').toUpperCase();
+            
+            // Hanya proses jika record ini memiliki data untuk CEX yang sedang dicek
+            if (!coinInDB.cex || !coinInDB.cex[upperCex]) continue;
 
-            const hasDeposit = this.hasDeposit(fetchedCoin);
-            const hasWithdraw = this.hasWithdraw(fetchedCoin);
-            const isProblematic = !hasDeposit || !hasWithdraw;
+            // 1. Cari status untuk TOKEN UTAMA dari hasil API
+            const tokenSymbol = String(coinInDB.nama_token || '').toUpperCase();
+            const tokenDataFromApi = apiCoinMap.get(tokenSymbol);
 
-            // Cari koin di DB
-            let coinInDB = null;
-            if (sc) {
-              coinInDB = coinsByKey.get(`${upperCex}|${chain}|${sc}`);
-            }
-            if (!coinInDB && symbol) {
-              coinInDB = coinsByKey.get(`${upperCex}|${chain}|${symbol}`);
-            }
+            let hasDeposit = false;
+            let hasWithdraw = false;
+            let isProblematic = true;
 
-            // Jika koin ada di DB, update data di nested CEX structure
-            if (coinInDB) {
-              // Pastikan struktur cex ada
-              if (!coinInDB.cex) {
-                coinInDB.cex = {};
-              }
+            if (tokenDataFromApi) {
+              hasDeposit = this.hasDeposit(tokenDataFromApi);
+              hasWithdraw = this.hasWithdraw(tokenDataFromApi);
+              isProblematic = !hasDeposit || !hasWithdraw;
 
-              // Update atau create CEX entry
-              if (!coinInDB.cex[upperCex]) {
-                coinInDB.cex[upperCex] = {
-                  status: true,
-                  feeWDToken: null,
-                  feeWDPair: null,
-                  depositToken: false,
-                  withdrawToken: false,
-                  depositPair: false,
-                  withdrawPair: false
-                };
-              }
-
-              // Update data CEX
-              coinInDB.cex[upperCex].feeWDToken = fetchedCoin.feeWD ?? fetchedCoin.withdrawFee ?? coinInDB.cex[upperCex].feeWDToken ?? null;
+              // Update status TOKEN UTAMA
               coinInDB.cex[upperCex].depositToken = hasDeposit;
               coinInDB.cex[upperCex].withdrawToken = hasWithdraw;
-              coinInDB.updatedAt = new Date().toISOString();
+              coinInDB.cex[upperCex].feeWDToken = tokenDataFromApi.feeWD ?? tokenDataFromApi.withdrawFee ?? coinInDB.cex[upperCex].feeWDToken ?? null;
+            } else {
+              // Jika token utama tidak ditemukan di API, set statusnya ke false
+              coinInDB.cex[upperCex].depositToken = false;
+              coinInDB.cex[upperCex].withdrawToken = false;
+            }
 
-              await DB.saveData(storeName, coinInDB);
-              updatedCount++;
+            // 2. Cari status untuk PAIR dari hasil API
+            const pairSymbol = String(coinInDB.nama_pair || '').toUpperCase();
+            const pairDataFromApi = apiCoinMap.get(pairSymbol);
 
-              // Tambahkan ke list koin yang ada di DB
-              const coinData = {
-                // REVISI: Pastikan Nama Koin diambil dari DB atau API, dan Nama Token adalah ticker.
-                nama_koin: coinInDB.nama_koin || fetchedCoin.nama_koin || symbol, // Nama lengkap
-                nama_token: symbol, // Selalu gunakan ticker untuk kolom ini
-                sc_token: coinInDB.sc_token || fetchedCoin.sc_token || sc, // Smart Contract
-                symbol: symbol,
-                deposit: hasDeposit,
-                withdraw: hasWithdraw,
-                feeWD: fetchedCoin.feeWD,
-                isProblematic: isProblematic
-              };
+            if (pairDataFromApi) {
+              // Update status PAIR
+              coinInDB.cex[upperCex].depositPair = this.hasDeposit(pairDataFromApi);
+              coinInDB.cex[upperCex].withdrawPair = this.hasWithdraw(pairDataFromApi);
+            } else {
+              // Jika pair tidak ditemukan di API, set statusnya ke false
+              coinInDB.cex[upperCex].depositPair = false;
+              coinInDB.cex[upperCex].withdrawPair = false;
+            }
 
-              coinsInDB.push(coinData);
+            // 3. Update timestamp dan simpan ke DB
+            coinInDB.updatedAt = new Date().toISOString();
+            await DB.saveData(storeName, coinInDB);
+            updatedCount++;
 
-              // Tambahkan ke list problematic jika bermasalah
+            // 4. Siapkan data untuk ditampilkan di tabel hasil
+            const coinDataForDisplay = {
+              nama_koin: coinInDB.nama_koin || tokenSymbol,
+              nama_token: tokenSymbol,
+              sc_token: coinInDB.sc_token,
+              deposit: hasDeposit,
+              withdraw: hasWithdraw,
+              isProblematic: isProblematic
+            };
+
+            // REVISI: Cek duplikasi sebelum menambahkan ke daftar tampilan.
+            const displayKey = coinDataForDisplay.sc_token || coinDataForDisplay.nama_token;
+            if (displayKey && !displayedCoinsTracker.has(displayKey)) {
+              coinsInDB.push(coinDataForDisplay);
               if (isProblematic) {
-                problematicCoins.push(coinData);
+                problematicCoins.push(coinDataForDisplay);
               }
+              // Tandai koin ini sudah ditampilkan
+              displayedCoinsTracker.add(displayKey);
             }
           }
 
@@ -363,50 +359,58 @@ const WalletTab = {
         </div>
       </div>
 
-      <!-- Toolbar -->
-      <div class="card card-soft mb-3">
-        <div class="card-body p-2">
-          <div class="d-flex flex-wrap align-items-center gap-3">
-            <div class="flex-grow-1 ps-1">
-              <h6 class="mb-0">Daftar Dompet Deposit Exchanger</h6>
-              <small class="text-muted">
-                Menampilkan {{ activeCEXKeys.length }} Exchanger yang aktif dari Setting Global.
-              </small>
+      <!-- Wallet Toolbar -->
+      <div class="card card-body p-2 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-lg">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <h6 class="mb-0 d-flex align-items-center gap-2">
+                <i class="bi bi-wallet2"></i>
+                Dompet Exchanger
+              </h6>
+              <span class="badge bg-light text-dark border">
+                <i class="bi bi-building"></i>
+                {{ activeCEXKeys.length }} Exchanger aktif
+              </span>
             </div>
-            <div class="text-muted small">{{ walletStatusMessage }}</div>
-            <button type="button" class="btn btn-primary btn-sm" @click="handleCheckWallets" :disabled="totalSelected === 0 || isChecking">
-              <i class="bi bi-arrow-repeat me-1"></i>
-              Cek Data Koin ({{ totalSelected }})
-            </button>
+          </div>
+          <div class="col-12 col-lg-auto text-lg-end">
+            <div class="d-grid d-sm-inline-flex justify-content-sm-end">
+              <button class="btn btn-sm btn-success" @click="handleCheckWallets"
+                      :disabled="totalSelected === 0 || isChecking">
+                <i class="bi bi-arrow-repeat"></i>
+                Cek Data Koin ({{ totalSelected }})
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Grid of Wallet Cards -->
-      <div v-if="walletCards.length" class="row g-3">
+      <div v-if="walletCards.length" class="row g-2">
         <div v-for="card in walletCards" :key="card.key" class="col-md-6 col-lg-4">
           <div class="card card-soft h-100">
-            <div class="card-header d-flex align-items-center gap-2">
+            <div class="card-header d-flex align-items-center gap-2 p-2">
               <div class="form-check mb-0">
                 <input class="form-check-input" type="checkbox" :id="'wallet-cex-' + card.key" :value="card.key" v-model="selectedCEXs">
-                <label class="form-check-label" :for="'wallet-cex-' + card.key">
+                <label class="form-check-label small" :for="'wallet-cex-' + card.key">
                   <span class="fw-semibold" :style="{ color: getCexBadgeStyle(card.key).backgroundColor }">{{ card.displayName }}</span>
                 </label>
               </div>
             </div>
-            <div class="card-body">
-              <div class="vstack gap-3">
+            <div class="card-body p-2">
+              <div class="vstack gap-2">
                 <div v-for="chain in card.chainEntries" :key="chain.chainKey" class="wallet-chain-block">
-                  <div class="small text-muted text-uppercase fw-semibold mb-1" :style="{ color: getChainBadgeStyle(chain.chainKey).color }">{{ chain.chainLabel }}</div>
-                  <div class="vstack gap-2">
+                  <div class="small text-muted text-uppercase fw-semibold" :style="{ color: getChainBadgeStyle(chain.chainKey).color }">{{ chain.chainLabel }}</div>
+                  <div class="vstack gap-1">
                     <div
                       v-for="address in chain.addresses"
                       :key="address.key"
                       class="input-group input-group-sm"
                     >
-                      <span class="input-group-text" :style="getChainBadgeStyle(chain.chainKey)">{{ address.label }}</span>
+                      <span class="input-group-text small" :style="getChainBadgeStyle(chain.chainKey)">{{ address.label }}</span>
                       <input type="text" class="form-control" :value="address.address" readonly>
-                      <button class="btn btn-outline-secondary" type="button" @click="copyAddress(address.address)" :title="'Salin ' + address.address">
+                      <button class="btn btn-sm btn-outline-secondary" type="button" @click="copyAddress(address.address)" :title="'Salin ' + address.address">
                         <i class="bi bi-clipboard"></i>
                       </button>
                     </div>
@@ -452,8 +456,8 @@ const WalletTab = {
                                <th style="width: 30%;">Nama Koin</th>
                                <th style="width: 15%;">Token (Ticker)</th>
                                <th style="width: 35%;">Smart Contract</th>
-                               <th class="text-center" style="width: 10%;">Depo</th>
-                               <th class="text-center" style="width: 10%;">WD</th>
+                               <th class="text-center" style="width: 10%;">Deposit</th>
+                               <th class="text-center" style="width: 10%;">Withdraw</th>
                              </tr>
                            </thead>
                            <tbody>
@@ -464,12 +468,10 @@ const WalletTab = {
                                  {{ coin.sc_token || '-' }}
                                </td>
                                <td class="text-center">
-                                 <span v-if="coin.deposit" class="badge bg-success">ON</span>
-                                 <span v-else class="badge bg-danger">OFF</span>
+                                 <span class="badge" :class="coin.deposit ? 'bg-success' : 'bg-danger'">{{ coin.deposit ? 'DP' : 'DX' }}</span>
                                </td>
                                <td class="text-center">
-                                 <span v-if="coin.withdraw" class="badge bg-success">ON</span>
-                                 <span v-else class="badge bg-danger">OFF</span>
+                                 <span class="badge" :class="coin.withdraw ? 'bg-success' : 'bg-danger'">{{ coin.withdraw ? 'WD' : 'WX' }}</span>
                                </td>
                              </tr>
                            </tbody>
@@ -489,8 +491,8 @@ const WalletTab = {
                                <th style="width: 30%;">Nama Koin</th>
                                <th style="width: 15%;">Token (Ticker)</th>
                                <th style="width: 35%;">Smart Contract</th>
-                               <th class="text-center" style="width: 10%;">Depo</th>
-                               <th class="text-center" style="width: 10%;">WD</th>
+                               <th class="text-center" style="width: 10%;">Deposit</th>
+                               <th class="text-center" style="width: 10%;">Withdraw</th>
                              </tr>
                            </thead>
                            <tbody>
@@ -501,12 +503,10 @@ const WalletTab = {
                                  {{ coin.sc_token || '-' }}
                                </td>
                                <td class="text-center">
-                                 <span v-if="coin.deposit" class="badge bg-success">ON</span>
-                                 <span v-else class="badge bg-danger">OFF</span>
+                                 <span class="badge" :class="coin.deposit ? 'bg-success' : 'bg-danger'">{{ coin.deposit ? 'DP' : 'DX' }}</span>
                                </td>
                                <td class="text-center">
-                                 <span v-if="coin.withdraw" class="badge bg-success">ON</span>
-                                 <span v-else class="badge bg-danger">OFF</span>
+                                 <span class="badge" :class="coin.withdraw ? 'bg-success' : 'bg-danger'">{{ coin.withdraw ? 'WD' : 'WX' }}</span>
                                </td>
                              </tr>
                            </tbody>

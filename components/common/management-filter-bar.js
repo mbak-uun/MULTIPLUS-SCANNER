@@ -9,18 +9,16 @@ const ManagementFilterBar = {
       <div class="card-body py-2">
         <div class="d-flex flex-wrap align-items-center gap-2">
          
-          <!-- Favorite Only Toggle -->
-          <div class="form-check form-switch">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="managementFavoritOnly" 
-              v-model="filters.favoritOnly"
-              @change="saveFilter('favoritOnly')">
-            <label class="form-check-label" for="managementFavoritOnly">
+          <!-- Favorite Only Toggle (REVISI: Menggunakan style baru yang konsisten) -->
+          <label class="filter-toggle-simple" :class="{active: filters.favoritOnly}">
+            <input type="checkbox" 
+                   class="form-check-input"
+                   v-model="filters.favoritOnly" 
+                   @change="saveFilter('favoritOnly')">
+            <label class="form-check-label">
               <i class="bi bi-star-fill text-warning"></i> Favorite
             </label>
-          </div>
+          </label>
  
         </div>
       </div>

@@ -7,48 +7,49 @@ const TabNavigation = {
   template: `
     <div class="card card-soft mb-3">
       <div class="card-body py-2">
-       
-
-        <!-- Main Tab Navigation -->
-        <div class="d-flex justify-content-between align-items-center">
-          <!-- Tombol Toggle Filter -->
-          <button v-if="['scan', 'manajemen'].includes(activeTab)"
-                  @click="toggleFilterSidebar"
-                  class="btn btn-sm btn-outline-secondary filter-toggle-btn"
-                  :title="showFilterSidebar ? 'Sembunyikan Filter' : 'Tampilkan Filter'">
-            <i class="bi bi-funnel-fill"></i>
-          </button>
-
-          <ul class="nav nav-pills subtab">
-            <li class="nav-item">
-              <a href="?mode=scan" class="nav-link"
-                      :class="{active: activeTab === 'scan'}"
-                      @click.prevent="setActiveTab('scan')">
-                <i class="bi bi-search"></i> Scanning Harga
-              </a>
-            </li>
-            <li class="nav-item">
-              <a href="?mode=manajemen" class="nav-link"
-                      :class="{active: activeTab === 'manajemen'}"
-                      @click.prevent="setActiveTab('manajemen')">
-                <i class="bi bi-coin"></i> Manajemen Koin
-              </a>
-            </li>
-            <li class="nav-item">
-              <a href="?mode=sync" class="nav-link"
-                      :class="{active: activeTab === 'sync'}"
-                      @click.prevent="setActiveTab('sync')">
-                <i class="bi bi-arrow-repeat"></i> Sinkronisasi Koin
-              </a>
-            </li>
-            <li class="nav-item">
-              <a href="?mode=wallet" class="nav-link"
-                      :class="{active: activeTab === 'wallet'}"
-                      @click.prevent="setActiveTab('wallet')">
-                <i class="bi bi-wallet2"></i> Dompet Exchanger
-              </a>
-            </li>
-          </ul>
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-md-auto" v-if="['scan', 'manajemen'].includes(activeTab)">
+            <div class="d-grid">
+              <button
+                @click="toggleFilterSidebar"
+                class="btn btn-sm btn-outline-secondary filter-toggle-btn"
+                :title="showFilterSidebar ? 'Sembunyikan Filter' : 'Tampilkan Filter'">
+                <i class="bi bi-funnel-fill"></i>
+              </button>
+            </div>
+          </div>
+          <div class="col-12 col-md">
+            <ul class="nav nav-pills subtab justify-content-center justify-content-md-start flex-wrap gap-1">
+              <li class="nav-item">
+                <a href="?mode=scan" class="nav-link"
+                        :class="{active: activeTab === 'scan'}"
+                        @click.prevent="setActiveTab('scan')">
+                  <i class="bi bi-search"></i> Scanning Harga
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="?mode=manajemen" class="nav-link"
+                        :class="{active: activeTab === 'manajemen'}"
+                        @click.prevent="setActiveTab('manajemen')">
+                  <i class="bi bi-coin"></i> Manajemen Koin
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="?mode=sync" class="nav-link"
+                        :class="{active: activeTab === 'sync'}"
+                        @click.prevent="setActiveTab('sync')">
+                  <i class="bi bi-arrow-repeat"></i> Sinkronisasi Koin
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="?mode=wallet" class="nav-link"
+                        :class="{active: activeTab === 'wallet'}"
+                        @click.prevent="setActiveTab('wallet')">
+                  <i class="bi bi-wallet2"></i> Dompet Exchanger
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

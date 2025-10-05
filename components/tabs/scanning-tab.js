@@ -5,9 +5,7 @@
 // untuk menyederhanakan alur data dan memperbaiki fungsionalitas.
 const ScanningTab = {
   name: 'ScanningTab',
-  components: {
-    'scanning-filter-bar': ScanningFilterBar,
-  },
+  mixins: [filterMixin], // Gunakan filter mixin
   // Mendeklarasikan event yang akan di-emit ke parent (app.js)
   emits: ['show-toast', 'copy-to-clipboard'],
 
@@ -24,6 +22,7 @@ const ScanningTab = {
         successCount: 0,
         avgResponseTime: 0
       },
+      searchQuery: '', // Search query untuk filter mixin
     };
   },
 
@@ -54,72 +53,12 @@ const ScanningTab = {
         // 1. Filter hanya DEX yang dicentang (statusnya true)
         .filter(dexKey => this.filters.dex[dexKey])
         // 2. Ubah format agar sesuai dengan yang dibutuhkan template
-        .map(dexKey => ({ key: dexKey, name: dexKey.toUpperCase() }));
+      .map(dexKey => ({ key: dexKey, name: dexKey.toUpperCase() }))
     },
-
-    // --- LOGIKA DARI SCANNING-TABLE ---
+    // Tambahkan properti ini untuk memperbaiki warning di template
     columnCount() {
       // 1 (orderbook kiri) + activeDex*2 + 1 (detail) + 1 (orderbook kanan)
       return 1 + (this.activeDexList.length * 2) + 1 + 1;
-    },
-    filteredTokens() {
-      if (!this.tokens || !this.filters) return [];
-
-      let filtered = [...this.tokens];
-      console.log(`[Scanning] 1. Initial tokens (${this.$root.activeChain}):`, filtered.length, JSON.parse(JSON.stringify(filtered)));
-
-      // 1. Terapkan filter favorit (support both isFavorite dan isFavorit untuk backward compatibility)
-      if (this.filters.favoritOnly) { // REVISI: Gunakan this.filters
-        filtered = filtered.filter(token => token.isFavorite || token.isFavorit);
-      }
-
-      console.log('[Scanning] 2. After favorite filter:', filtered.length);
-
-      // 2. Terapkan filter chain
-      if (this.$root.activeChain === 'multi' && this.filters.chains) { // REVISI: Gunakan this.filters
-        const activeChains = Object.keys(this.filters.chains).filter(
-          chain => this.filters.chains[chain] === true
-        );
-        if (activeChains.length > 0) {
-          filtered = filtered.filter(token =>
-            activeChains.includes(token.chain.toLowerCase())
-          );
-        }
-      } else if (this.$root.activeChain !== 'multi') {
-        filtered = filtered.filter(token => token.chain.toLowerCase() === this.$root.activeChain);
-      }
-
-      console.log('[Scanning] 3. After chain filter:', filtered.length);
-
-      // 3. Terapkan filter CEX (menggunakan skema nested token.cex)
-      if (this.filters.cex) { // REVISI: Gunakan this.filters
-        const activeCex = Object.keys(this.filters.cex).filter(
-          cex => this.filters.cex[cex] === true
-        );
-        if (activeCex.length > 0) {
-          filtered = filtered.filter(token => {
-            const tokenCexList = this.getTokenCEXList(token);
-            // REVISI: Ubah kedua sisi menjadi lowercase untuk perbandingan yang konsisten.
-            const lowerActiveCex = activeCex.map(c => c.toLowerCase());
-            return tokenCexList.some(cexKey =>
-              lowerActiveCex.includes(cexKey.toLowerCase())
-            );
-          });
-        }
-      }
-
-      console.log('[Scanning] 4. After CEX filter:', filtered.length);
-
-      // 4. Terapkan pengurutan (sorting)
-      if (this.filterSettings.sortDirection === 'asc') { // Sorting tetap dari filterSettings
-        filtered.sort((a, b) => (a.from || a.nama_koin).localeCompare(b.from || a.nama_koin));
-      } else { // 'desc'
-        filtered.sort((a, b) => (b.from || b.nama_koin).localeCompare(a.from || a.nama_koin));
-      }
-
-      console.log('[Scanning] 5. Final sorted tokens:', filtered.length, JSON.parse(JSON.stringify(filtered)));
-
-      return filtered;
     },
 
     scanStatusText() {
@@ -134,11 +73,10 @@ const ScanningTab = {
   },
 
   methods: {
-    // --- HELPER METHOD UNTUK EXTRACT DATA DARI SKEMA NESTED ---
-    getTokenCEXList(token) {
-      // Ambil list CEX dari object token.cex
-      if (!token.cex || typeof token.cex !== 'object') return [];
-      return Object.keys(token.cex);
+    toggleScan() {
+      const newStatus = this.isScanning ? 'stop' : 'run';
+      this.filters.run = newStatus;
+      this.saveFilter('run');
     },
     getTokenPrimaryCEX(token) {
       // Ambil CEX pertama dari object token.cex
@@ -183,57 +121,55 @@ const ScanningTab = {
       this.tokens = allTokens;
 
       // TAMPILKAN DATA KOIN DALAM CONSOLE TABLE
-      console.log(`\n========== DATA KOIN TAB SCANNING (${this.$root.activeChain.toUpperCase()}) ==========`);
-      console.log(`Total tokens loaded: ${allTokens.length}`);
+      // console.log(`\n========== DATA KOIN TAB SCANNING (${this.$root.activeChain.toUpperCase()}) ==========`);
+      // console.log(`Total tokens loaded: ${allTokens.length}`);
 
-      if (allTokens.length > 0) {
-        // Format data untuk console.table
-        const tableData = allTokens.map((token, index) => {
-          // Extract CEX list
-          const cexList = token.cex ? Object.keys(token.cex).join(', ') : 'N/A';
-          // Extract DEX list
-          const dexList = token.dex ? Object.keys(token.dex).filter(dex => token.dex[dex].status).join(', ') : 'N/A';
-          // Get primary CEX data
-          const primaryCex = token.cex ? Object.keys(token.cex)[0] : null;
-          const cexData = primaryCex ? token.cex[primaryCex] : null;
+      // if (allTokens.length > 0) {
+      //   // Format data untuk console.table
+      //   const tableData = allTokens.map((token, index) => {
+      //     // Extract CEX list
+      //     const cexList = token.cex ? Object.keys(token.cex).join(', ') : 'N/A';
+      //     // Extract DEX list
+      //     const dexList = token.dex ? Object.keys(token.dex).filter(dex => token.dex[dex].status).join(', ') : 'N/A';
+      //     // Get primary CEX data
+      //     const primaryCex = token.cex ? Object.keys(token.cex)[0] : null;
+      //     const cexData = primaryCex ? token.cex[primaryCex] : null;
 
-          return {
-            '#': index + 1,
-            'Chain': token.chain,
-            'Nama Koin': token.nama_koin || 'N/A',
-            'Token': token.nama_token || 'N/A',
-            'Pair': token.nama_pair || 'N/A',
-            'CEX': cexList,
-            'DEX': dexList,
-            'Favorit': token.isFavorite || token.isFavorit ? '⭐' : '-',
-            'Status': token.status ? '✓' : '✗',
-            'Deposit': cexData?.depositToken ? '✓' : '✗',
-            'Withdraw': cexData?.withdrawToken ? '✓' : '✗'
-          };
-        });
+      //     return {
+      //       '#': index + 1,
+      //       'Chain': token.chain,
+      //       'Nama Koin': token.nama_koin || 'N/A',
+      //       'Token': token.nama_token || 'N/A',
+      //       'Pair': token.nama_pair || 'N/A',
+      //       'CEX': cexList,
+      //       'DEX': dexList,
+      //       'Favorit': token.isFavorite || token.isFavorit ? '⭐' : '-',
+      //       'Status': token.status ? '✓' : '✗',
+      //       'Deposit': cexData?.depositToken ? '✓' : '✗',
+      //       'Withdraw': cexData?.withdrawToken ? '✓' : '✗'
+      //     };
+      //   });
 
-        console.table(tableData);
+      //   console.table(tableData);
 
-        // Tampilkan detail lengkap 3 token pertama
-        console.log('\n========== DETAIL 3 TOKEN PERTAMA ==========');
-        allTokens.slice(0, 3).forEach((token, idx) => {
-          console.log(`\n--- Token #${idx + 1}: ${token.nama_token}/${token.nama_pair} ---`);
-          console.log('ID:', token.id);
-          console.log('Chain:', token.chain);
-          console.log('Nama Koin:', token.nama_koin);
-          console.log('Smart Contract Token:', token.sc_token);
-          console.log('Decimals Token:', token.des_token);
-          console.log('Smart Contract Pair:', token.sc_pair);
-          console.log('Decimals Pair:', token.des_pair);
-          console.log('CEX Config:', JSON.stringify(token.cex, null, 2));
-          console.log('DEX Config:', JSON.stringify(token.dex, null, 2));
-          console.log('Created At:', token.createdAt);
-          console.log('Updated At:', token.updatedAt);
-        });
-      } else {
-        console.warn('⚠️ Tidak ada data token yang dimuat!');
-      }
-      console.log('========================================\n');
+      //   // Tampilkan detail lengkap 3 token pertama
+      //   console.log('\n========== DETAIL 3 TOKEN PERTAMA ==========');
+      //   allTokens.slice(0, 3).forEach((token, idx) => {
+      //     console.log(`\n--- Token #${idx + 1}: ${token.nama_token}/${token.nama_pair} ---`);
+      //     console.log('ID:', token.id);
+      //     console.log('Chain:', token.chain);
+      //     console.log('Nama Koin:', token.nama_koin);
+      //     console.log('Smart Contract Token:', token.sc_token);
+      //     console.log('Decimals Token:', token.des_token);
+      //     console.log('Smart Contract Pair:', token.sc_pair);
+      //     console.log('Decimals Pair:', token.des_pair);
+      //     console.log('CEX Config:', JSON.stringify(token.cex, null, 2));
+      //     console.log('DEX Config:', JSON.stringify(token.dex, null, 2));
+      //     console.log('Created At:', token.createdAt);
+      //     console.log('Updated At:', token.updatedAt);
+      //   });
+      // }  
+     // console.log('========================================\n');
     },
     // Method untuk mengubah arah sorting
     toggleSortDirection() {
@@ -252,11 +188,8 @@ const ScanningTab = {
 
     // --- LOGIKA DARI SIGNAL-CARDS ---
     getDexCardClass(dexKey) {
-      const colorMap = {
-        'okxdex': 'border-warning', 'dzap': 'border-warning', 'kyber': 'border-warning',
-        'odos': 'border-warning', '0x': 'border-warning', 'para': 'border-warning'
-      };
-      return colorMap[dexKey] || 'border-secondary';
+      // Semua DEX cards menggunakan border dengan warna chain brand
+      return 'dex-card-border';
     },
     getSignalsForDex(dexKey) {
       return this.signals.filter(signal => {
@@ -372,34 +305,36 @@ const ScanningTab = {
     },
 
     // Generate link deposit CEX
-    getCexDepositLink(token) {
+    getCexDepositLink(token, symbol) {
       const cexKey = this.getTokenPrimaryCEX(token);
-      if (!cexKey) return '#';
+      if (!cexKey || !symbol) return '#';
 
       const cexConfig = this.$root.config?.CEX?.[cexKey.toUpperCase()];
       const urlTemplate = cexConfig?.URLS?.DEPOSIT;
 
       if (!urlTemplate) return '#';
 
-      // Ganti placeholder {token} dan {pair}
+      // REVISI: Ganti placeholder {token} dengan simbol yang relevan.
+      // Placeholder {pair} juga diganti dengan simbol untuk fleksibilitas template.
       return urlTemplate
-        .replace('{token}', token.nama_token || '')
-        .replace('{pair}', token.nama_pair || '');
+        .replace(/{token}/g, symbol)
+        .replace(/{pair}/g, symbol);
     },
 
     // Generate link withdraw CEX
-    getCexWithdrawLink(token) {
+    getCexWithdrawLink(token, symbol) {
       const cexKey = this.getTokenPrimaryCEX(token);
-      if (!cexKey) return '#';
+      if (!cexKey || !symbol) return '#';
 
       const cexConfig = this.$root.config?.CEX?.[cexKey.toUpperCase()];
       const urlTemplate = cexConfig?.URLS?.WITHDRAW;
 
       if (!urlTemplate) return '#';
 
+      // REVISI: Ganti placeholder {token} dan {pair} dengan simbol yang relevan.
       return urlTemplate
-        .replace('{token}', token.nama_token || '')
-        .replace('{pair}', token.nama_pair || '');
+        .replace(/{token}/g, symbol)
+        .replace(/{pair}/g, symbol);
     },
 
     // Generate link DEX aggregator alternatif
@@ -424,22 +359,12 @@ const ScanningTab = {
 
     // Helper: Get chain ID untuk OKX
     getChainId(chain) {
-      const chainIds = {
-        'bsc': '56',
-        'polygon': '137',
-        'arbitrum': '42161',
-        'base': '8453',
-        'ethereum': '1',
-        'eth': '1'
-      };
-      return chainIds[chain.toLowerCase()] || '1';
+      const chainKey = String(chain || '').toLowerCase();
+      const chainConfig = this.$root.config?.CHAINS?.[chainKey];
+      // Fallback ke '1' (Ethereum) jika tidak ditemukan
+      return chainConfig?.KODE_CHAIN || '1';
     },
     // --- END LOGIKA DARI SCANNING-TABLE ---
-    // Helper untuk mendapatkan warna CEX
-    getCexColorStyles(cexKey, variant) {
-      return this.$root.getColorStyles('cex', cexKey, variant);
-    },
-
     getWXBadgeClass(token, type) {
       const wx = type === 'from' ? token.fromWX : token.toWX;
       if (wx === 'WX') return 'bg-danger';
@@ -512,19 +437,72 @@ const ScanningTab = {
   // REVISI: Template digabungkan menjadi satu.
   template: `
     <div class="scanning-tab">
-      <!-- Bar Kontrol dan Filter -->
-      <div class="card mb-3">
-        <div class="card-body p-0">
-          <!-- FIX: Memanggil komponen filter bar yang benar untuk tab scanning -->
-          <!-- Komponen ini sudah memiliki card-nya sendiri, jadi kita tidak perlu membungkusnya lagi -->
-          <scanning-filter-bar></scanning-filter-bar>
+      
+      <!-- REFACTORED: Scanning Toolbar dengan layout Bootstrap yang lebih baik -->
+      <div class="card card-body p-2 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-xl">
+            <div class="row g-2 align-items-center">
+              <div class="col-12 col-md-auto">
+                <h6 class="mb-0 d-flex align-items-center gap-2">
+                  <i class="bi bi-broadcast"></i>
+                  Scanning Control
+                </h6>
+              </div>
+              <!-- REVISI: Mengembalikan input pencarian -->
+              <div class="col-12 col-sm-auto">
+                <div class="input-group input-group-sm w-100" style="max-width: 220px;">
+                  <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                  </span>
+                  <input type="text" class="form-control" placeholder="Cari token..."
+                         v-model="searchQuery">
+                </div>
+              </div>
+              <div class="col-12 col-sm-auto">
+                <label class="form-check form-check-inline mb-0 align-items-center d-flex gap-1">
+                  <input class="form-check-input" type="checkbox" v-model="filters.favoritOnly" @change="saveFilter('favoritOnly')">
+                  <span class="small fw-semibold text-warning"><i class="bi bi-star-fill"></i> Favorite</span>
+                </label>
+              </div>
+              <div class="col-12 col-sm-auto">
+                <div class="input-group input-group-sm w-100" style="max-width: 150px;">
+                  <span class="input-group-text">
+                    <i class="bi bi-percent"></i>
+                  </span>
+                  <input type="number" class="form-control" placeholder="Min PNL"
+                         v-model.number="filters.minPnl" @change="saveFilter('minPnl')"
+                         step="0.1" min="0">
+                </div>
+              </div>
+              <div class="col-6 col-sm-auto">
+                <div class="form-check form-switch" title="Toggle Autorun">
+                  <input class="form-check-input" type="checkbox" role="switch" id="autorunSwitch" v-model="filters.autorun" @change="saveFilter('autorun')">
+                  <label class="form-check-label small" for="autorunSwitch">Autorun</label>
+                </div>
+              </div>
+              <div class="col-6 col-sm-auto">
+                <div class="form-check form-switch" title="Toggle Autoscroll">
+                  <input class="form-check-input" type="checkbox" role="switch" id="autoscrollSwitch" v-model="filters.autoscroll" @change="saveFilter('autoscroll')">
+                  <label class="form-check-label small" for="autoscrollSwitch">Autoscroll</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-xl-auto">
+            <div class="d-grid d-sm-inline-flex gap-2 justify-content-sm-end">
+              <button class="btn btn-sm" :class="isScanning ? 'btn-danger' : 'btn-success'" @click="toggleScan">
+                <i :class="isScanning ? 'bi bi-stop-circle-fill' : 'bi bi-play-circle-fill'"></i> {{ isScanning ? 'Stop Scan' : 'Start Scan' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- TEMPLATE DARI SIGNAL-CARDS -->
-      <!-- REVISI: Menghapus kelas row-cols-* agar lebar kolom diatur secara otomatis oleh flexbox -->
-      <div class="row g-2 mb-3">
-        <div v-for="dex in activeDexList" :key="dex.key" class="col">
+      <!-- Responsive grid: 2 cols mobile, 3 cols tablet, 4 cols desktop, 5+ cols wide -->
+      <div class="row g-2 mb-3" v-if="activeDexList.length > 0">
+        <div v-for="dex in activeDexList" :key="dex.key" class="col-6 col-md-4 col-lg-3 col-xl">
           <div class="card h-100" :class="getDexCardClass(dex.key)">
             <div class="card-body p-2">
               <h6 class="card-title text-center mb-2 fw-bold">{{ dex.name }}</h6>
@@ -546,10 +524,10 @@ const ScanningTab = {
       </div>
 
       <!-- TEMPLATE DARI SCANNING-TABLE -->
-      <div class="table-responsive">
+      <div class="table-responsive" style="max-height: calc(100vh - 300px);">
         <table class="table table-sm table-hover align-middle">
           <thead class="sticky-top">
-            <tr class="text-center" style="background-color: var(--bs-warning);">
+            <tr class="text-center" :style="$root.getColorStyles('chain', $root.activeChain, 'solid')">
               <th class="text-dark fw-bold">ORDERBOOK</th>
               <th v-for="dex in activeDexList" :key="'left-' + dex.key" class="text-dark fw-bold">{{ dex.name }}</th>
               <th class="text-dark fw-bold" style="cursor: pointer;" @click="toggleSortDirection">
@@ -567,15 +545,14 @@ const ScanningTab = {
           <tbody>
             <tr v-if="filteredTokens.length === 0">
               <td :colspan="columnCount" class="text-center text-muted py-5">
-                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                <i class="bi bi-inbox-fill fs-1 d-block mb-2"></i>
                 <span>Tidak ada data token. Silakan tambahkan di menu Manajemen Koin.</span>
               </td>
             </tr>
             <tr v-for="token in filteredTokens" :key="token.id" class="token-row">
               <td class="text-center">
-                <a href="#" @click.prevent="openOrderbook(token, 'left')" 
-                   class="text-decoration-none" 
-                   :style="getCexColorStyles(getTokenPrimaryCEX(token), 'solid')"
+                <a :href="getCexTradeLink(token, token.nama_token)" target="_blank" @click.prevent="openOrderbook(token, 'left')" 
+                   class="btn btn-sm btn-outline-primary text-uppercase"
                    :title="'Orderbook ' + getTokenPrimaryCEX(token)">
                   {{ getTokenPrimaryCEX(token) }}
                 </a>
@@ -589,7 +566,7 @@ const ScanningTab = {
               <td class="token-detail">
                 <div class="d-flex flex-column align-items-center">
                   <!-- Header: Nomor urutan + Token/Pair (CLICKABLE LINK) -->
-                  <div class="mb-1">
+                  <div class="mb-1 small">
                     <span class="badge bg-secondary me-1">[{{ filteredTokens.indexOf(token) + 1 }}]</span>
                     <a :href="getCexTradeLink(token, token.nama_token)" target="_blank" class="fw-bold text-primary text-decoration-none" :title="'Trade ' + token.nama_token + ' di ' + getTokenPrimaryCEX(token)">
                       {{ token.nama_token }}
@@ -602,30 +579,30 @@ const ScanningTab = {
                   </div>
 
                   <!-- Baris 2: CEX on Chain + Status badges -->
-                  <div class="small mb-1">
+                  <div class="small mb-1" style="font-size: 0.75rem;">
                     <span class="badge bg-warning text-dark me-1">{{ getTokenPrimaryCEX(token) || 'N/A' }}</span>
                     <span class="text-muted">on</span>
-                    <span class="badge bg-secondary ms-1">{{ token.chain.toUpperCase() }}</span>
+                    <span class="badge ms-1" :style="$root.getColorStyles('chain', token.chain, 'solid')">{{ token.chain.toUpperCase() }}</span>
                   </div>
 
                   <!-- Baris 3: Status WD/Depo TOKEN + Badges (CLICKABLE) -->
                   <div class="mb-1 small">
                     <a :href="getExplorerLink(token, token.sc_token)" target="_blank" class="fw-semibold me-1 text-decoration-none" :title="'Explorer: ' + token.nama_koin">
-                      {{ token.nama_koin }}
+                      {{ token.nama_token }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
-                          :href="getCexWithdrawLink(token)" target="_blank"
+                          :href="getCexWithdrawLink(token, token.nama_token)" target="_blank"
                           class="badge me-1 text-decoration-none small"
                           :class="getTokenCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'bg-success' : 'bg-danger'"
                           :title="'Withdraw ' + token.nama_token">
-                      WD
+                      {{ getTokenCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'WD' : 'WX' }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
-                          :href="getCexDepositLink(token)" target="_blank"
+                          :href="getCexDepositLink(token, token.nama_token)" target="_blank"
                           class="badge me-1 text-decoration-none small"
                           :class="getTokenCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'bg-success' : 'bg-danger'"
                           :title="'Deposit ' + token.nama_token">
-                      DP
+                      {{ getTokenCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'DP' : 'DX' }}
                     </a>
                     <a :href="getCexWalletBalanceLink(token, token.sc_token, 1)" target="_blank" class="badge bg-info text-dark me-1 text-decoration-none small" :title="'Cek Saldo ' + token.nama_token + ' di Wallet ' + getTokenPrimaryCEX(token) + ' #1'">
                       <i class="bi bi-wallet2"></i>
@@ -638,18 +615,18 @@ const ScanningTab = {
                       {{ token.nama_pair }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
-                          :href="getCexWithdrawLink(token)" target="_blank"
+                          :href="getCexWithdrawLink(token, token.nama_pair)" target="_blank"
                           class="badge me-1 text-decoration-none small"
                           :class="getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'bg-success' : 'bg-danger'"
                           :title="'Withdraw ' + token.nama_pair">
-                      WD
+                      {{ getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'WD' : 'WX' }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
-                          :href="getCexDepositLink(token)" target="_blank"
+                          :href="getCexDepositLink(token, token.nama_pair)" target="_blank"
                           class="badge me-1 text-decoration-none small"
                           :class="getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'bg-success' : 'bg-danger'"
                           :title="'Deposit ' + token.nama_pair">
-                      DP
+                      {{ getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'DP' : 'DX' }}
                     </a>
                     <a :href="getCexWalletBalanceLink(token, token.sc_pair, 1)" target="_blank" class="badge bg-info text-dark me-1 text-decoration-none small" :title="'Cek Saldo ' + token.nama_pair + ' di Wallet ' + getTokenPrimaryCEX(token) + ' #1'">
                       <i class="bi bi-wallet2"></i>
@@ -657,27 +634,27 @@ const ScanningTab = {
                   </div>
 
                   <!-- Baris 5: Hashtags DEX Alternatif (CLICKABLE LINK) -->
-                  <div class="small mb-1">
-                    <a :href="getDexAggregatorLink(token, 'UNX')" target="_blank" class="badge bg-light text-dark border  text-decoration-none" title="Swap di Unidex">
+                  <div class="d-flex gap-1 mb-2">
+                    <a :href="getDexAggregatorLink(token, 'UNX')" target="_blank" class="btn btn-light btn-sm py-0 px-2" title="Swap di Unidex">
                       #UNX
                     </a>
-                    <a :href="getDexAggregatorLink(token, 'OKX')" target="_blank" class="badge bg-light text-dark border text-decoration-none" title="Swap di OKX DEX">
+                    <a :href="getDexAggregatorLink(token, 'OKX')" target="_blank" class="btn btn-light btn-sm py-0 px-2" title="Swap di OKX DEX">
                       #OKX
                     </a>
-                    <a :href="getDexAggregatorLink(token, 'DFL')" target="_blank" class="badge bg-light text-dark border  text-decoration-none" title="Swap di DefiLlama">
+                    <a :href="getDexAggregatorLink(token, 'DFL')" target="_blank" class="btn btn-light btn-sm py-0 px-2" title="Swap di DefiLlama">
                       #DFL
                     </a>
-                    <a :href="getDexAggregatorLink(token, 'JMX')" target="_blank" class="badge bg-light text-dark border  text-decoration-none" title="Swap di Jumper Exchange">
+                    <a :href="getDexAggregatorLink(token, 'JMX')" target="_blank" class="btn btn-light btn-sm py-0 px-2" title="Swap di Jumper Exchange">
                       #JMX
                     </a>
                   </div>
 
                   <!-- Baris 6: Action buttons -->
                   <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-secondary" @click="copyTokenAddress(token)" title="Copy Address"><i class="bi bi-clipboard"></i></button>
-                    <button class="btn" :class="(token.isFavorite || token.isFavorit) ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleTokenFavorit(token)" title="Toggle Favorit"><i class="bi bi-star-fill"></i></button>
-                    <button class="btn btn-outline-success" @click="openChart(token)" title="Open Chart"><i class="bi bi-graph-up"></i></button>
-                    <button class="btn btn-outline-danger" @click="deleteToken(token)" title="Delete"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" @click="copyTokenAddress(token)" title="Copy Address"><i class="bi bi-clipboard"></i></button>
+                    <button class="btn btn-sm py-0 px-2" :class="(token.isFavorite || token.isFavorit) ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleTokenFavorit(token)" title="Toggle Favorit"><i class="bi bi-star-fill"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" @click="openChart(token)" title="Open Chart"><i class="bi bi-graph-up"></i></button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2" @click="deleteToken(token)" title="Delete"><i class="bi bi-trash"></i></button>
                   </div>
                 </div>
               </td>
@@ -688,9 +665,8 @@ const ScanningTab = {
                 <div v-else class="small text-muted">-</div>
               </td>
               <td class="text-center">
-                <a href="#" @click.prevent="openOrderbook(token, 'right')" 
-                   class="text-decoration-none" 
-                   :style="getCexColorStyles(getTokenPrimaryCEX(token), 'solid')"
+                <a :href="getCexTradeLink(token, token.nama_token)" target="_blank" @click.prevent="openOrderbook(token, 'right')" 
+                   class="btn btn-sm btn-outline-primary text-uppercase"
                    :title="'Orderbook ' + getTokenPrimaryCEX(token)">
                   {{ getTokenPrimaryCEX(token) }}
                 </a>

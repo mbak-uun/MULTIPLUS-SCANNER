@@ -23,6 +23,50 @@ const databaseMixin = {
       return new TextEncoder().encode(JSON.stringify(object)).length;
     },
 
+    async dbGet(storeName, key) {
+      if (!storeName) {
+        throw new Error('Nama store IndexedDB wajib diisi.');
+      }
+
+      if (typeof DB === 'undefined' || typeof DB.getData !== 'function') {
+        throw new Error('Modul database belum dimuat.');
+      }
+
+      const root = this.$root || this;
+      if (root.dbStatus && root.dbStatus !== 'success') {
+        throw new Error('Database belum siap digunakan.');
+      }
+
+      try {
+        return await DB.getData(storeName, key);
+      } catch (error) {
+        console.error(`Gagal mengambil data dari store ${storeName} (key: ${key}):`, error);
+        throw error;
+      }
+    },
+
+    async dbSet(storeName, data, key) {
+      if (!storeName) {
+        throw new Error('Nama store IndexedDB wajib diisi.');
+      }
+
+      if (typeof DB === 'undefined' || typeof DB.saveData !== 'function') {
+        throw new Error('Modul database belum dimuat.');
+      }
+
+      const root = this.$root || this;
+      if (root.dbStatus && root.dbStatus !== 'success') {
+        throw new Error('Database belum siap digunakan.');
+      }
+
+      try {
+        return await DB.saveData(storeName, data, key);
+      } catch (error) {
+        console.error(`Gagal menyimpan data ke store ${storeName}:`, error);
+        throw error;
+      }
+    },
+
     async loadDatabaseInfo() {
       if (this.$root.dbStatus !== 'success') {
         this.showToast('Database tidak aktif.', 'danger');
@@ -107,11 +151,26 @@ const databaseMixin = {
         this.$root.isLoading = true;
         this.$root.loadingText = 'Me-restore database...';
         try {
+          const storeCount = Object.keys(this.restoreFileData).length;
           await DB.restoreDatabase(this.restoreFileData);
+
+          // Log ke riwayat
+          await this.$root.logDatabase('restore', 'success',
+            `Database berhasil di-restore dengan ${storeCount} tabel`,
+            { stores: Object.keys(this.restoreFileData) }
+          );
+
           this.showToast('Database berhasil di-restore. Muat ulang halaman...', 'success');
           setTimeout(() => window.location.reload(), 2000);
         } catch (error) {
           console.error('Gagal me-restore database:', error);
+
+          // Log error ke riwayat
+          await this.$root.logDatabase('restore', 'error',
+            `Gagal me-restore database: ${error.message}`,
+            { error: error.message }
+          );
+
           this.showToast('Gagal me-restore database.', 'danger');
           this.$root.isLoading = false;
         }
@@ -119,20 +178,34 @@ const databaseMixin = {
     },
 
     async confirmDeleteDB() {
-      if (prompt('Ini akan menghapus SEMUA data aplikasi. Ketik "HAPUS" untuk konfirmasi.') === 'HAPUS') {
+      if (prompt('Ini akan menghapus SEMUA data aplikasi. Ketik "HAPUS SEMUA" untuk konfirmasi.') === 'HAPUS SEMUA') {
         this.$root.isLoading = true;
         this.$root.loadingText = 'Menghapus database...';
         try {
           await DB.deleteDatabase();
+
+          // Log ke riwayat (akan hilang setelah reload karena DB dihapus)
+          await this.$root.logDatabase('delete_store', 'success',
+            'Seluruh database berhasil dihapus',
+            { action: 'full_delete' }
+          );
+
           this.showToast('Database berhasil dihapus. Muat ulang halaman...', 'success');
           setTimeout(() => window.location.reload(), 2000);
         } catch (error) {
           console.error('Gagal menghapus database:', error);
+
+          // Log error ke riwayat
+          await this.$root.logDatabase('delete_store', 'error',
+            `Gagal menghapus database: ${error.message}`,
+            { error: error.message }
+          );
+
           this.showToast('Gagal menghapus database.', 'danger');
           this.$root.isLoading = false;
         }
       } else {
-        this.showToast('Penghapusan dibatalkan.', 'info');
+        this.showToast('Penghapusan dibatalkan.', 'danger');
       }
     },
 

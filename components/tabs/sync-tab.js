@@ -18,9 +18,6 @@ const SyncTab = {
       syncSearchQuery: '',
       syncStatusFilter: 'all', // 'all', 'new'
 
-      isLoading: false,
-      isInitializing: false,
-      loadingMessage: 'Memuat data...',
 
       showImportModal: false,
       importConfig: {
@@ -115,11 +112,17 @@ const SyncTab = {
     // =================================================================
     // Computed Properties - Button States
     // =================================================================
+    isLoading() {
+      return this.$root.isLoading;
+    },
+    loadingMessage() {
+      return this.$root.loadingText;
+    },
     canSyncCex() {
       return this.selectedCexFilters.length > 0 && !this.isLoading;
     },
     canManageSelection() {
-      return this.selectedTokenCount > 0 && !this.isLoading;
+      return this.selectedTokenCount > 0 && !this.isLoading; // Tetap menggunakan isLoading dari computed
     },
 
     // =================================================================
@@ -323,19 +326,16 @@ const SyncTab = {
     // =================================================================
 
     async initialize() {
-      if (!this.activeChain || this.isInitializing) return;
-      if (this.isInitializing) return;
-      this.isInitializing = true;
-      this.isLoading = true;
-      this.loadingMessage = 'Inisialisasi data sinkronisasi...';
+      if (!this.activeChain || this.$root.isLoading) return;
+      this.$root.isLoading = true;
+      this.$root.loadingText = 'Inisialisasi data sinkronisasi...';
 
       try {
         await this.loadCacheFromDB();
         await this.ensureCacheAvailability();
         await this.updateSyncDataView();
       } finally {
-        this.isLoading = false;
-        this.isInitializing = false;
+        this.$root.isLoading = false;
       }
     },
 
@@ -385,8 +385,8 @@ const SyncTab = {
 
       if (cexWithoutData.length === 0) return;
 
-      this.isLoading = true;
-      this.loadingMessage = `Cache kosong, mengambil data awal dari server...`;
+      this.$root.isLoading = true;
+      this.$root.loadingText = `Cache kosong, mengambil data awal dari server...`;
 
       let successCount = 0;
       let errorCount = 0;
@@ -426,7 +426,7 @@ const SyncTab = {
       } catch (error) {
         this.$emit('show-toast', `Auto-fetch gagal: ${error.message}`, 'danger');
       } finally {
-        this.isLoading = false;
+        this.$root.isLoading = false;
       }
     },
 
@@ -532,7 +532,7 @@ const SyncTab = {
             normalized.des_token = syncExisting.des_token;
           } else if (normalized.sc_token && window.web3Fetcher) {
             try {
-              this.loadingMessage = `Mencari desimal untuk ${normalized.nama_koin}...`;
+              this.$root.loadingText = `Mencari desimal untuk ${normalized.nama_koin}...`;
               normalized.des_token = await window.web3Fetcher.getDecimals(this.activeChain, normalized.sc_token);
               this.$emit('show-toast', `✓ WEB3js: Desimal ${normalized.nama_koin} ditemukan`, 'success');
             } catch (decError) {
@@ -579,10 +579,10 @@ const SyncTab = {
       return {
         ...item,
         cex,
-        chain,
-        nama_koin: item.nama_koin || item.name || item.nama_token || '',
-        nama_token: item.nama_token || item.ticker || item.symbol || '',
-        sc_token: item.sc_token || item.sc || item.contract || '',
+        chain: String(chain),
+        nama_koin: String(item.nama_koin || item.name || item.nama_token || ''),
+        nama_token: String(item.nama_token || item.ticker || item.symbol || ''),
+        sc_token: String(item.sc_token || item.sc || item.contract || ''),
         des_token: Number(item.des_token ?? item.des ?? item.decimals ?? 18),
         feeWD: item.feeWD ?? item.fee_wd ?? null,
         deposit: item.deposit,
@@ -597,10 +597,10 @@ const SyncTab = {
       const chain = this.activeChain.toUpperCase();
       return {
         cex,
-        chain,
-        nama_koin: item.nama_token || item.name || '', // Dari JSON, 'nama_token' adalah nama koin
-        nama_token: item.ticker || item.symbol || '', // 'ticker' adalah ticker
-        sc_token: item.sc || item.contract || '',
+        chain: String(chain),
+        nama_koin: String(item.nama_token || item.name || ''), // Dari JSON, 'nama_token' adalah nama koin
+        nama_token: String(item.ticker || item.symbol || ''), // 'ticker' adalah ticker
+        sc_token: String(item.sc || item.contract || ''),
         des_token: Number(item.des ?? item.decimals ?? 0),
         // Default values as requested
         feeWD: 0,
@@ -614,8 +614,8 @@ const SyncTab = {
 
     // Helper untuk fetch dari JSON (untuk auto-fetch awal)
     async fetchRemoteJsonData() {
-      this.loadingMessage = 'Mengambil data dari server...';
       const url = this.config.CHAINS?.[this.activeChain]?.DATAJSON;
+      this.$root.loadingText = `Mengambil data dari ${url}...`;
       if (!url) {
         throw new Error(`URL DATAJSON tidak ditemukan untuk chain ${this.activeChain}`);
       }
@@ -696,8 +696,8 @@ const SyncTab = {
       }
 
       aggregated.sort((a, b) => {
-        const nameA = (a.nama_koin || a.nama_token || '').toLowerCase();
-        const nameB = (b.nama_koin || b.nama_token || '').toLowerCase();
+        const nameA = String(a.nama_koin || a.nama_token || '').toLowerCase();
+        const nameB = String(b.nama_koin || b.nama_token || '').toLowerCase();
         return nameA.localeCompare(nameB);
       });
 
@@ -748,8 +748,8 @@ const SyncTab = {
     async syncSelectedCex() {
       if (!this.canSyncCex) return;
 
-      this.isLoading = true;
-      this.loadingMessage = 'Sinkronisasi data CEX...';
+      this.$root.isLoading = true;
+      this.$root.loadingText = 'Sinkronisasi data CEX...';
 
       let successCount = 0;
       let errorCount = 0;
@@ -757,7 +757,7 @@ const SyncTab = {
       try {
         for (const cex of this.selectedCexFilters) {
           try {
-            this.loadingMessage = `Checking CEX: ${cex}...`;
+            this.$root.loadingText = `Checking CEX: ${cex}...`;
             await this.fetchAndMergeCex(cex);
             successCount++;
             this.$emit('show-toast', `✓ CEX ${cex}: Proses berhasil`, 'success');
@@ -783,8 +783,8 @@ const SyncTab = {
       } catch (error) {
         this.$emit('show-toast', `Sinkronisasi CEX gagal: ${error.message}`, 'danger');
       } finally {
-        this.isLoading = false;
-        this.loadingMessage = '';
+        this.$root.isLoading = false;
+        this.$root.loadingText = '';
       }
     },
 
@@ -796,7 +796,7 @@ const SyncTab = {
         return;
       }
 
-      this.loadingMessage = `Menyimpan ${selectedTokens.length} token...`;
+      this.$root.loadingText = `Menyimpan ${selectedTokens.length} token...`;
       const storeName = DB.getStoreNameByChain('SYNC_KOIN', this.activeChain);
       const now = new Date().toISOString();
 
@@ -825,7 +825,7 @@ const SyncTab = {
 
       if (!confirm(`Hapus ${selectedTokens.length} token dari cache sinkronisasi?`)) return;
 
-      this.loadingMessage = `Menghapus ${selectedTokens.length} token...`;
+      this.$root.loadingText = `Menghapus ${selectedTokens.length} token...`;
       const storeName = DB.getStoreNameByChain('SYNC_KOIN', this.activeChain);
       for (const token of selectedTokens) {
         if (!token.id) continue;
@@ -1122,7 +1122,31 @@ const SyncTab = {
       } else {
         this.$emit('show-toast', 'Tidak ada perubahan', 'info');
       }
+
+      // Catat ke riwayat aksi
+      if (imported > 0 || updated > 0) {
+          this.logAction('IMPORT_KOIN', {
+            message: `Berhasil import ${imported} koin baru dan update ${updated} koin dari Sync ke Manajemen (Chain: ${this.activeChain.toUpperCase()}).`,
+            chain: this.activeChain,
+            imported,
+            updated
+          });
+      }
     },
+
+    // Helper untuk mencatat aksi ke riwayat global
+    async logAction(action, details) {
+      try {
+          await DB.saveData('RIWAYAT_AKSI', {
+              timestamp: new Date().toISOString(),
+              action,
+              status: 'success',
+              ...details
+          });
+      } catch (error) {
+          console.error('Gagal mencatat riwayat aksi:', error);
+      }
+    }
   },
 
   async activated() {
@@ -1132,73 +1156,76 @@ const SyncTab = {
 
   template: `
     <div class="sync-tab">
-      <!-- Overlay Loading -->
-      <div v-if="isLoading" class="sync-overlay">
-        <div class="sync-overlay-content">
-          <div class="spinner-border text-light mb-3" role="status"></div>
-          <div class="text-light fw-semibold">{{ loadingMessage }}</div>
+      <!-- REFACTORED: Sync Toolbar with Bootstrap -->
+      <div class="card card-body p-2 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-lg">
+            <h6 class="mb-0 d-flex align-items-center gap-2">
+              <i class="bi bi-arrow-repeat"></i>
+              Sinkronisasi Koin Exchanger
+            </h6>
+          </div>
+          <div class="col-12 col-lg-auto">
+            <div class="d-grid d-sm-inline-flex gap-2 justify-content-sm-end">
+                <button class="btn btn-sm btn-success" @click="syncSelectedCex" :disabled="!canSyncCex">
+                  <i class="bi bi-lightning-charge-fill"></i> Sync CEX
+                </button>
+                <button class="btn btn-sm" :class="syncStatusFilter === 'new' ? 'btn-light' : 'btn-info'"
+                        @click="syncStatusFilter = (syncStatusFilter === 'new' ? 'all' : 'new')" :disabled="isLoading">
+                  <i class="bi bi-stars"></i> NEW
+                  <span class="badge bg-dark ms-1">{{ newCoinCount }}</span>
+                </button>
+            </div>
+          </div>
+          
         </div>
       </div>
 
-      <div class="card card-soft mb-3">
-        <div class="card-body py-3">
-          <div class="d-flex flex-wrap align-items-center gap-3">
-            <div class="fw-semibold text-uppercase small text-muted">PILIH CEX</div>
-            <label v-for="cex in activeCEXs"
-                   :key="cex"
-                   class="sync-cex-toggle">
-              <input type="checkbox"
-                     class="form-check-input"
-                     :value="normalizeCex(cex)"
-                     :checked="isCexSelected(cex)"
-                     @change="toggleCexSelection(cex)"
-                     :disabled="isLoading">
-              <span class="sync-cex-label">
-                <span class="sync-cex-name" :style="getColorStyles('cex', cex, 'solid')">{{ normalizeCex(cex) }}</span>
-                <span class="sync-cex-count">{{ (cexDataStatus[normalizeCex(cex)]?.count) || 0 }} koin</span>
-              </span>
-            </label>
-
-            <div class="ms-auto d-flex flex-wrap gap-2 sync-main-actions">
-              <button class="btn btn-sm btn-primary" @click="syncSelectedCex" :disabled="!canSyncCex">
-                <i class="bi bi-lightning-charge-fill me-1"></i>Sync CEX
-              </button>
-              <button class="btn btn-sm btn-warning text-dark" type="button" @click="syncStatusFilter = (syncStatusFilter === 'new' ? 'all' : 'new')" :class="{'active': syncStatusFilter === 'new'}" :disabled="isLoading">
-                <i class="bi bi-stars me-1"></i>NEW <span class="badge text-bg-dark ms-1">{{ newCoinCount }}</span>
-              </button>
-              <button class="btn btn-sm btn-danger" type="button" @click="removeSelectedTokens" :disabled="!canManageSelection">
-                <i class="bi bi-trash me-1"></i>Hapus
-              </button>
-              <button class="btn btn-sm btn-success" type="button" @click="saveSelectedTokens" :disabled="!canManageSelection">
-                <i class="bi bi-save me-1"></i>Simpan
-              </button>
+      <!-- CEX Filter Bar -->
+      <div class="card card-body p-2 mb-3">
+        <div class="row g-2 align-items-center">
+          <div v-for="cex in activeCEXs" :key="cex" class="col-6 col-md-auto">
+            <div class="form-check form-check-inline m-0">
+              <input class="form-check-input" type="checkbox" :id="'cex-filter-' + cex" :value="normalizeCex(cex)" :checked="isCexSelected(cex)" @change="toggleCexSelection(cex)" :disabled="isLoading" autocomplete="off">
+              <label class="form-check-label fw-semibold" :for="'cex-filter-' + cex" :style="getColorStyles('cex', cex, 'text')">
+                {{ normalizeCex(cex) }} <span class="badge bg-light text-dark border ms-1">{{ (cexDataStatus[normalizeCex(cex)]?.count) || 0 }}</span>
+              </label>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <div class="flex-grow-1">
-          <input type="text"
-                 class="form-control form-control-sm"
-                 placeholder="Cari token / pair / smart contract..."
-                 v-model="syncSearchQuery"
-                 :disabled="isLoading">
+      <!-- Table Actions -->
+      <div class="row g-2 align-items-center mb-2">
+        <div class="col-12 col-lg">
+          <div class="input-group input-group-sm w-100" style="max-width: 320px;">
+            <span class="input-group-text">
+              <i class="bi bi-search"></i>
+            </span>
+            <input type="text" class="form-control" placeholder="Cari token..."
+                   v-model="syncSearchQuery" :disabled="isLoading">
+          </div>
         </div>
-        <div class="sync-total text-end">
-          <div class="small text-muted">Total: {{ displayedTotal }} Koin</div>
+        <div class="col-12 col-lg-auto">
+          <div class="d-grid d-sm-inline-flex align-items-center gap-2 justify-content-sm-end">
+            <span v-if="selectedTokenCount > 0" class="text-muted small d-inline-flex align-items-center gap-1">
+              <i class="bi bi-check-square"></i> {{ selectedTokenCount }} koin dipilih
+            </span>
+            <div class="vr mx-2 d-none d-sm-block"></div>
+            <button class="btn btn-sm btn-outline-primary" @click="openImportModal" :disabled="!canManageSelection">
+              <i class="bi bi-box-arrow-in-down"></i> Import
+            </button>
+            <button class="btn btn-sm btn-outline-success" @click="saveSelectedTokens" :disabled="!canManageSelection">
+              <i class="bi bi-save"></i> Save
+            </button>
+            <button class="btn btn-sm btn-outline-danger" @click="removeSelectedTokens" :disabled="!canManageSelection">
+              <i class="bi bi-trash"></i> Delete
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
-        <button class="btn btn-sm btn-info text-white" type="button" @click="openImportModal" :disabled="!canManageSelection">
-          <i class="bi bi-box-arrow-in-down me-1"></i>Import ke Manajemen
-        </button>
-        <button class="btn btn-sm btn-outline-danger" type="button" @click="clearSelection" :disabled="!canManageSelection">
-          <i class="bi bi-x-circle me-1"></i>Bersihkan Pilihan
-        </button>
-      </div>
-
+      <!-- Table -->
       <div class="table-responsive sync-table-wrapper">
         <table class="table table-sm align-middle sync-table">
           <thead>
@@ -1387,12 +1414,11 @@ const SyncTab = {
                                        :value="getDexModal(dex.key).modalKiri"
                                        @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)"
                                        placeholder="100" min="1">
-                                       <span class="input-group-text">$</span>
-
                               </div>
                             </div>
                             <div class="col-6">
                               <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
                                 <input type="number" class="form-control"
                                        :value="getDexModal(dex.key).modalKanan"
                                        @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)"
@@ -1456,10 +1482,10 @@ const SyncTab = {
 
             <!-- Footer -->
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" @click="closeImportModal" :disabled="importConfig.isSubmitting">
+              <button type="button" class="btn btn-sm btn-outline-danger" @click="closeImportModal" :disabled="importConfig.isSubmitting">
                 <i class="bi bi-x-lg me-1"></i>Batal
               </button>
-              <button type="button" class="btn btn-primary" @click="importNow"
+              <button type="button" class="btn btn-sm btn-success" @click="importNow"
                       :disabled="syncSelectedTokens.length === 0 || (importConfig.selectedDex.length === 0 && !isNonPair) || importConfig.isSubmitting">
                 <span v-if="importConfig.isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
                 <i v-else class="bi bi-download me-1"></i>Import Sekarang
@@ -1470,5 +1496,10 @@ const SyncTab = {
         </div>
       </div>
     </div>
-  `
+  `,
+
+  async activated() {
+    await this.initialize();
+    //this.$emit('show-toast', 'Tab Sinkronisasi dimuat.', 'info');
+  }
 };

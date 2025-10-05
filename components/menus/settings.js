@@ -6,13 +6,27 @@ const SettingsMenu = {
 
   template: `
     <div v-if="settingsForm">
+      <!-- Settings Toolbar -->
+      <div class="card card-body mb-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+          <h5 class="mb-0">
+            <i class="bi bi-gear"></i>
+            Pengaturan Global
+          </h5>
+          <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <button type="button" @click="handleSaveSettings" class="btn btn-success btn-sm">
+              <i class="bi bi-save"></i>
+              <span>Simpan Pengaturan</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <form @submit.prevent="handleSaveSettings">
         <div class="card card-soft">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-gear-wide-connected"></i> Pengaturan Global</h5>
-            <button type="submit" class="btn btn-success">
-              <i class="bi bi-save"></i> Simpan Pengaturan
-            </button>
+          <div class="card-header">
+            <i class="bi bi-gear-wide-connected text-dark me-2"></i>
+            <span class="fw-bold text-dark">Form Pengaturan</span>
           </div>
           <div class="card-body">
             <div class="row g-4">
@@ -24,14 +38,14 @@ const SettingsMenu = {
                   <small class="text-muted">Nama pengguna untuk identifikasi</small>
                 </div>
                 <div class="mb-3">
-                  <label class="form-label fw-bold">Wallet Meta <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" v-model="settingsForm.walletMeta" placeholder="0x..." required>
+                  <label class="form-label fw-bold">Alamat Wallet <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" v-model="settingsForm.walletMeta" placeholder="0x..." required pattern="^0x[a-fA-F0-9]{40}$" title="Masukkan alamat wallet Ethereum yang valid (contoh: 0x...).">
                   <small class="text-muted">Alamat wallet MetaMask Anda</small>
                 </div>
                 <div class="mb-3">
                   <label class="form-label fw-bold">Anggota Grup <span class="text-danger">*</span></label>
-                  <input type="number" class="form-control" v-model.number="settingsForm.AnggotaGrup" min="1" required>
-                  <small class="text-muted">Jumlah anggota per grup (minimal 1)</small>
+                  <input type="number" class="form-control" v-model.number="settingsForm.AnggotaGrup" min="1" max="5" required>
+                  <small class="text-muted">Jumlah anggota per grup (antara 1-5)</small>
                 </div>
               </div>
               <!-- Kolom Pengaturan Timing -->
@@ -128,6 +142,6 @@ const SettingsMenu = {
     },
     handleSaveSettings() {
       this.$parent.saveGlobalSettings();
-    }
+    } 
   }
 };

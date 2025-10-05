@@ -51,19 +51,18 @@ class PortfolioWeb3Helper {
   }
 
   /**
-   * Get USDT contract address dari config
+   * REVISI: Get all relevant token contracts from config (excluding 'NON')
    */
-  _getUSDTAddress(chainKey) {
+  _getRelevantTokenContracts(chainKey) {
     const chainConfig = this.config?.CHAINS?.[chainKey.toLowerCase()];
+    if (!chainConfig || !chainConfig.PAIR_DEXS) return [];
 
-    // Cari di PAIR_DEXS dengan key 'USDT'
-    if (chainConfig?.PAIR_DEXS?.USDT) {
-      const usdtPair = chainConfig.PAIR_DEXS.USDT;
-      // Gunakan SC_ADDRESS_PAIR atau USDT_ADDRESS
-      return usdtPair.SC_ADDRESS_PAIR || usdtPair.USDT_ADDRESS;
-    }
-
-    throw new Error(`USDT address not found for chain: ${chainKey}`);
+    return Object.entries(chainConfig.PAIR_DEXS)
+      .filter(([key]) => key.toUpperCase() !== 'NON')
+      .map(([, pairInfo]) => ({
+        symbol: pairInfo.SYMBOL_PAIR,
+        address: pairInfo.SC_ADDRESS_PAIR
+      })).filter(t => t.address && t.address !== '0x');
   }
 
   /**
@@ -118,13 +117,13 @@ class PortfolioWeb3Helper {
   }
 
   /**
-   * Get balances (USDT + Gas) - Compatible dengan Portfolio
+   * REVISI: Get balances for all relevant tokens + Gas
    *
    * @param {Object} options
    * @param {string} options.chain - Chain ID (lowercase)
    * @param {string} options.address - Wallet address
    * @param {Object} options.rates - Token rates { BTC: 50000, ETH: 3000, BNB: 300, ... }
-   * @returns {Object} { chain, address, assetAmount, assetValue, gasAmount, gasValue, total, ... }
+   * @returns {Object} { chain, address, total, raw_assets, ... }
    */
   async getBalances(options) {
     const { chain, address, rates = {} } = options;
@@ -133,47 +132,44 @@ class PortfolioWeb3Helper {
     if (!address) throw new Error('getBalances: "address" is required');
 
     const chainKey = chain.toLowerCase();
-
-    // Get USDT contract address
-    const usdtAddress = this._getUSDTAddress(chainKey);
-
-    // Get native symbol (BNB, ETH, MATIC, etc)
     const gasSymbol = this._getNativeSymbol(chainKey);
 
-    // Fetch balances in parallel
-    const [assetAmount, gasAmount] = await Promise.all([
-      this.getTokenBalance(chainKey, usdtAddress, address),
-      this.getNativeBalance(chainKey, address)
-    ]);
-
-    // Calculate USD values
-    const assetRate = 1; // USDT always 1
+    // 1. Get native gas balance
+    const gasAmount = await this.getNativeBalance(chainKey, address);
     const gasRate = rates[gasSymbol] || 0;
-
-    const assetValue = assetAmount * assetRate;
     const gasValue = gasAmount * gasRate;
-    const total = assetValue + gasValue;
+
+    let totalValue = gasValue;
+    const raw_assets = [];
+
+    // 2. Get all relevant token contracts
+    const tokensToCheck = this._getRelevantTokenContracts(chainKey);
+
+    // 3. Fetch balance for each token
+    for (const token of tokensToCheck) {
+      try {
+        const amount = await this.getTokenBalance(chainKey, token.address, address);
+        if (amount > 0.00001) {
+          const rate = rates[token.symbol] || (token.symbol === 'USDT' ? 1 : 0);
+          const value = amount * rate;
+          totalValue += value;
+          raw_assets.push({ symbol: token.symbol, amount, value, contract: token.address });
+        }
+      } catch (e) {
+        console.warn(`Could not fetch balance for ${token.symbol} on ${chainKey}:`, e.message);
+      }
+    }
 
     return {
       chain: chainKey,
       address,
-      tokenSymbol: 'USDT',
-      tokenAddress: usdtAddress,
-      assetAmount,
-      assetValue,
-      assetRate,
+      assetValue: totalValue - gasValue, // Total value of all tokens
       gasAmount,
       gasValue,
       gasRate,
       gasSymbol,
-      total,
-      raw_assets: [
-        {
-          symbol: 'USDT',
-          amount: assetAmount,
-          value: assetValue
-        }
-      ],
+      total: totalValue,
+      raw_assets,
       fetchedAt: new Date().toISOString()
     };
   }

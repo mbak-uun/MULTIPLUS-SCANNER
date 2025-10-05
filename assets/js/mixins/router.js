@@ -29,15 +29,27 @@ const routerMixin = {
       window.history.pushState({}, '', url);
     },
     setActiveMenu(menu, defaultTab = null) {
-      this.activeMenu = menu;
+      // Jika menu yang diklik berbeda dengan menu aktif, reload untuk konsistensi data
+      if (this.activeMenu !== menu) {
+        const newMode = menu === 'mode' ? (defaultTab || this.activeTab) : menu;
+        this.updateURL('mode', newMode);
 
-      // Jika menu adalah 'mode' dan ada defaultTab, set activeTab
-      if (menu === 'mode' && defaultTab) {
-        this.activeTab = defaultTab;
+        // Tampilkan overlay loading
+        this.isLoading = true;
+        this.loadingText = 'Memuat halaman...';
+
+        // Reload halaman untuk refresh data
+        setTimeout(() => {
+          window.location.reload();
+        }, 200);
+      } else {
+        // Jika menu sama, hanya update tab jika ada defaultTab
+        if (menu === 'mode' && defaultTab) {
+          this.activeTab = defaultTab;
+        }
+        const newMode = menu === 'mode' ? this.activeTab : menu;
+        this.updateURL('mode', newMode);
       }
-
-      const newMode = menu === 'mode' ? this.activeTab : menu;
-      this.updateURL('mode', newMode);
     },
     setActiveTab(tab) {
       // Jika tab yang diklik berbeda dengan tab aktif, reload halaman.

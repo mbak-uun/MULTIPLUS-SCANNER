@@ -18,10 +18,47 @@ const themeMixin = {
     }
   },
   methods: {
-    toggleTheme() {
+    async toggleTheme() {
       if (!this.filterSettings) return;
-      // Cukup ubah state. Watcher di app.js akan menangani perubahan UI.
-      this.filterSettings.darkMode = !this.filterSettings.darkMode;
+
+      const nextValue = !this.filterSettings.darkMode;
+      this.filterSettings.darkMode = nextValue;
+
+      if (this.filters) {
+        this.filters.darkMode = nextValue;
+      }
+
+      const theme = nextValue ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-bs-theme', theme);
+
+      const chainKey = this.filterSettings.chainKey;
+      if (!chainKey) {
+        console.warn('Chain key tidak ditemukan saat menyimpan preferensi tema.');
+        return;
+      }
+
+      try {
+        const storeName = DB.getStoreNameByChain('SETTING_FILTER', chainKey);
+        const storeKey = 'SETTING_FILTER';
+        const cleanSettings = this.cleanDataForDB(this.filterSettings);
+        await DB.saveData(storeName, cleanSettings, storeKey);
+
+        if (typeof this.showToast === 'function') {
+          this.showToast(`Mode ${nextValue ? 'gelap' : 'terang'} diaktifkan.`, 'success', 2000);
+        }
+
+        if (typeof this.logAction === 'function') {
+          this.logAction('UPDATE_THEME', {
+            chain: chainKey,
+            darkMode: nextValue
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error saving theme preference:', error);
+        if (typeof this.showToast === 'function') {
+          this.showToast('Gagal menyimpan preferensi tema.', 'danger');
+        }
+      }
     },
     normalizeHex(hex) {
       if (!hex) return '#6c757d';
@@ -87,8 +124,9 @@ const themeMixin = {
       // 3. Tentukan gaya background dan border
       // Background diatur ke transparan agar menggunakan warna default dari card.
       // Border akan selalu menggunakan warna tema chain.
+      //console.log(`[DEBUG getColorStyles] Menerapkan background: var(--brand-soft-bg) dan border: ${themeColorInfo.color}`);
       const backgroundStyles = {
-        backgroundColor: 'transparent',
+        backgroundColor: 'var(--brand-soft-bg)', // REVISI: Gunakan variabel latar belakang tema
         borderColor: themeColorInfo.color
       };
 
@@ -144,18 +182,32 @@ const themeMixin = {
       const brandRgb = this.hexToRgb(normalizedBrand);
       const contrastColor = this.getContrastYIQ(normalizedBrand);
 
+      // ===== DEBUGGING LOG =====
+      console.group(`[DEBUG updateThemeColor] Chain: ${this.activeChain.toUpperCase()}`);
+      console.log(`🎨 Warna dasar diambil: ${brandColor} (dinormalisasi menjadi ${normalizedBrand})`);
+      console.log(`🎨 Variabel CSS --brand-soft-bg diatur ke: rgba(${brandRgb}, 0.15)`);
+
+      // Brand colors
       root.style.setProperty('--brand', normalizedBrand);
       root.style.setProperty('--brand-rgb', brandRgb);
       root.style.setProperty('--brand-contrast', contrastColor);
-      root.style.setProperty('--brand-soft-bg', `rgba(${brandRgb}, 0.12)`);
-      root.style.setProperty('--brand-soft-border', `rgba(${brandRgb}, 0.32)`);
+      root.style.setProperty('--brand-soft-bg', `rgba(${brandRgb}, 0.15)`); /* REVISI: Tingkatkan opasitas dari 0.12 */
+      root.style.setProperty('--brand-soft-border', `rgba(${brandRgb}, 0.40)`); /* REVISI: Tingkatkan opasitas dari 0.32 */
       root.style.setProperty('--brand-soft-text', normalizedBrand);
       root.style.setProperty('--brand-strong-bg', normalizedBrand);
       root.style.setProperty('--brand-strong-text', contrastColor);
       root.style.setProperty('--brand-soft-gradient', `linear-gradient(135deg, rgba(${brandRgb}, 0.22) 0%, rgba(${brandRgb}, 0.06) 100%)`);
 
+      // Background colors with chain theme
+      root.style.setProperty('--bg-chain-primary', `rgba(${brandRgb}, 0.08)`); /* REVISI: Tingkatkan opasitas dari 0.03 */
+      root.style.setProperty('--bg-chain-secondary', `rgba(${brandRgb}, 0.12)`); /* REVISI: Tingkatkan opasitas dari 0.08 */
+      root.style.setProperty('--bg-chain-soft', `rgba(${brandRgb}, 0.10)`); /* REVISI: Tingkatkan opasitas dari 0.05 */
+      root.style.setProperty('--bg-chain-accent', `rgba(${brandRgb}, 0.20)`); /* REVISI: Tingkatkan opasitas dari 0.15 */
+
       document.body.classList.toggle('theme-multi-chain', isMulti);
       document.body.classList.toggle('theme-single-chain', !isMulti);
+
+      console.groupEnd();
     },
     getChainColor(chainKey) { return this.getColorInfo('chain', chainKey).color; },
     getCexColor(cexKey) { return this.getColorInfo('cex', cexKey).color; },

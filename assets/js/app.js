@@ -10,6 +10,7 @@ const app = createApp({
     utilitiesMixin,
     notificationsMixin,
     telegramMixin,
+    historyLoggerMixin,
     routerMixin,
     themeMixin,
     // Mixin untuk fitur/menu
@@ -31,9 +32,7 @@ const app = createApp({
     'wallet-tab': WalletTab,
     // Common components
     'filter-settings': FilterSettings,
-    'tab-navigation': TabNavigation,
-    'scanning-filter-bar': ScanningFilterBar,
-    'management-filter-bar': ManagementFilterBar,
+    'tab-navigation': TabNavigation
     // Komponen anak scanning sudah digabung ke dalam scanning-tab
   },
 
@@ -48,11 +47,16 @@ const app = createApp({
       showFilterSidebar: true, // Untuk toggle filter sidebar
 
       // Loading States
-      isLoading: false,
-      loadingText: 'Loading...',
+      searchQuery: '', // REVISI: Dipindahkan ke root untuk bisa diakses global
+      isLoading: true, // Start with true untuk boot overlay
+      isBooting: true, // Flag untuk boot state
+      loadingText: 'Menyiapkan aplikasi...',
 
       // Database Status
       dbStatus: 'pending', // 'pending', 'success', 'error'
+
+      // Initialization flag
+      isAppInitialized: false,
 
       // Filters
       filters: {
@@ -75,25 +79,26 @@ const app = createApp({
   async mounted() {
     // Inisialisasi Database
     try {
+      console.log('⚙️ [1/5] Menginisialisasi Database...');
       await DB.initDB();
       this.dbStatus = 'success';
 
-      // Tampilkan info store yang dibuat
       const allStores = DB.getAllStoreNames();
-      console.log('📦 Database berhasil dimuat dengan stores:', allStores);
-      console.log(`✅ Total ${allStores.length} stores dibuat`);
+    //  console.log('📦 Database berhasil dimuat dengan stores:', allStores);
+     // console.log(`✅ Total ${allStores.length} stores dibuat`);
 
      // this.showToast('Database berhasil dimuat.', 'success');
 
       // Muat semua pengaturan setelah DB siap
+      console.log('⚙️ [2/5] Memuat semua pengaturan...');
       await this.loadAllSettings();
 
-      // ⚠️ GUARD: Jika global settings tidak valid, paksa ke menu settings
+      // ⚠️ GUARD: Jika global settings tidak valid, tampilkan modal
       if (!this.isGlobalSettingsValid) {
-        console.warn('⚠️ Global settings tidak lengkap, redirect ke Settings');
-        this.activeMenu = 'settings';
+        console.warn('🔴 [CHECK FAILED] Pengaturan global tidak lengkap atau tidak valid. Menampilkan modal.');
         this.isGlobalSettingsRequired = true;
-        this.loadSettingsForm(); // Load form untuk first-time setup
+      } else {
+        console.log('🟢 [CHECK OK] Pengaturan global valid.');
       }
 
     } catch (error) {
@@ -103,24 +108,40 @@ const app = createApp({
     }
 
     // Proses parameter URL untuk mengatur state awal (hanya jika settings valid)
+    console.log('⚙️ [3/5] Memproses parameter URL...');
     if (this.isGlobalSettingsValid) {
       this.processURLParams();
+      // SOLUSI 1: Panggil updateThemeColor() secara eksplisit setelah URL diproses.
+      // Ini memastikan tema diterapkan dengan benar saat halaman pertama kali dimuat dengan parameter chain.
+      this.updateThemeColor();
       // Load coins untuk filter count
+      console.log('⚙️ [4/5] Memuat data koin untuk filter...');
       await this.loadCoinsForFilter();
+    } else {
+      console.log('🟡 [SKIP] Melewatkan pemrosesan URL dan pemuatan koin karena pengaturan global tidak valid.');
     }
 
     // Hide boot overlay
     setTimeout(() => {
-      const bootOverlay = document.getElementById('boot-overlay');
-      if (bootOverlay) {
-        bootOverlay.classList.add('boot-overlay--hidden');
-        document.body.classList.remove('app-loading');
-      }
+      this.isBooting = false;
+      this.isLoading = false;
+      document.body.classList.remove('app-loading');
     }, 500);
+
+    // Tandai bahwa inisialisasi selesai
+    this.isAppInitialized = true;
+    console.log('🚀 [5/5] Aplikasi selesai dimuat!');
   },
 
   watch: {
     async activeChain(newValue, oldValue) {
+      // Jangan jalankan watcher ini selama proses inisialisasi awal
+      if (!this.isAppInitialized) {
+        console.log('🔄 [WATCHER-CHAIN] Ditunda, aplikasi belum terinisialisasi.');
+        return;
+      }
+      console.log(`🔄 [WATCHER-CHAIN] Chain berubah dari '${oldValue}' ke '${newValue}'.`);
+
       // Guard: Jika global settings tidak valid, block
       if (!this.isGlobalSettingsValid) {
         console.warn('⚠️ Global settings belum valid, block navigation');
@@ -138,6 +159,10 @@ const app = createApp({
         // Reload halaman saat ganti chain untuk refresh data
         this.isLoading = true;
         this.loadingText = `Memuat data untuk ${newValue.toUpperCase()}...`;
+
+        // SOLUSI 2: Panggil updateThemeColor() SEBELUM me-reload halaman.
+        // Ini memberikan feedback visual instan kepada pengguna bahwa chain telah berganti.
+        this.updateThemeColor();
 
         this.updateURL('chain', newValue);
 
@@ -168,13 +193,6 @@ const app = createApp({
     },
 
     activeMenu(newValue) {
-      // Guard: Hanya izinkan menu 'settings' jika global settings belum valid
-      if (!this.isGlobalSettingsValid && newValue !== 'settings') {
-        this.showToast('⚠️ Harap lengkapi Setting Global terlebih dahulu!', 'warning');
-        this.activeMenu = 'settings';
-        return;
-      }
-
       if (newValue === 'settings') {
         this.loadSettingsForm();
       } else if (newValue === 'db') {
@@ -182,16 +200,19 @@ const app = createApp({
       }
     },
 
-    activeTab(newValue) {
-      // Guard: Block akses tab jika global settings belum valid
-      if (!this.isGlobalSettingsValid) {
-        console.warn('⚠️ Global settings belum valid, block tab navigation');
-        return;
-      }
-    }
   },
 
   computed: {
+    // --- Computed untuk info chain aktif ---
+    activeChainInfo() {
+      if (!this.config) return { key: '...', name: '...' };
+      if (!this.activeChain || !this.config.CHAINS) return { key: 'multi', name: 'Multi Chain' };
+      if (this.activeChain === 'multi') return { key: 'multi', name: 'Multi Chain' };
+
+      const chainConfig = this.config.CHAINS[this.activeChain];
+      return chainConfig ? { key: this.activeChain, name: chainConfig.NAMA_CHAIN } : { key: this.activeChain, name: this.activeChain.toUpperCase() };
+    },
+
     // --- Computed Properties untuk Konten Dinamis ---
     chainList() {
       return Object.keys(this.config.CHAINS).map(key => ({
@@ -304,19 +325,52 @@ const app = createApp({
     // Computed: Count koin per Pair (format: chain.pair)
     coinCountByPair() {
       const counts = {};
+
+      // 1. Dapatkan daftar semua pair yang terdefinisi per chain (tidak termasuk 'NON')
+      const definedPairsByChain = {};
+      if (this.config && this.config.CHAINS) {
+        Object.keys(this.config.CHAINS).forEach(chainKey => {
+          const chainConf = this.config.CHAINS[chainKey];
+          if (chainConf && chainConf.PAIR_DEXS) {
+            definedPairsByChain[chainKey.toLowerCase()] = Object.values(chainConf.PAIR_DEXS)
+              .map(p => p.SYMBOL_PAIR.toLowerCase())
+              .filter(p => p !== 'non');
+          }
+        });
+      }
+
+      // 2. Iterasi semua koin untuk menghitung
       this.allCoins.forEach(coin => {
         if (coin.id === 'DATA_KOIN') return;
         const chain = String(coin.chain || '').toLowerCase();
         const pair = String(coin.nama_pair || '').toLowerCase();
+
         if (chain && pair) {
-          const pairKey = `${chain}.${pair}`;
-          counts[pairKey] = (counts[pairKey] || 0) + 1;
+          const definedPairs = definedPairsByChain[chain] || [];
+          // Jika pair token tidak ada di daftar pair terdefinisi, hitung sebagai 'NON'
+          if (!definedPairs.includes(pair)) {
+            const nonPairKey = `${chain}.non`;
+            counts[nonPairKey] = (counts[nonPairKey] || 0) + 1;
+          } else {
+            // Jika terdefinisi, hitung sebagai pair biasa
+            const pairKey = `${chain}.${pair}`;
+            counts[pairKey] = (counts[pairKey] || 0) + 1;
+          }
         }
       });
       return counts;
     }
   },
   methods: {
+    // Handler untuk tombol "Mulai Isi Setting" di modal
+    handleStartSettings() {
+      console.log('🔘 Tombol "Mulai Isi Setting" diklik.');
+      this.isGlobalSettingsRequired = false; // Sembunyikan modal
+      this.activeMenu = 'settings'; // Tampilkan menu settings
+      this.loadSettingsForm(); // Pastikan form settings dimuat
+      console.log('➡️ Mengarahkan ke menu pengaturan.');
+    },
+
     // Initialize Filters
     initializeFilters() {
       // REVISI: Fungsi ini sekarang hanya me-reset struktur objek filter.
@@ -409,6 +463,14 @@ const app = createApp({
         this.showToast(message, 'success', 2000);
 
         console.log(`✅ Filter ${filterType} disimpan untuk ${chainKey}`);
+
+        // Log aksi perubahan filter
+        if (['cex', 'dex', 'chains', 'pairs'].includes(filterType)) {
+            this.logAction('UPDATE_FILTER', {
+                message: `Filter '${filterType}' untuk chain '${chainKey.toUpperCase()}' telah diubah.`,
+                chain: chainKey
+            });
+        }
       } catch (error) {
         console.error('❌ Error saving filter:', error);
         this.showToast('Gagal menyimpan filter!', 'danger');
@@ -419,10 +481,52 @@ const app = createApp({
       const filterData = this.filters[filterType];
       if (typeof filterData === 'boolean') {
         return `Filter ${filterType} ${filterData ? 'diaktifkan' : 'dinonaktifkan'}`;
-      }
-      return `Filter ${filterType} berhasil diubah`;
-    }
+      }      return `Filter ${filterType} berhasil diubah`;
+    },
 
+    updateCoinDataInRoot(updatedToken) {
+      const index = this.allCoins.findIndex(c => c.id === updatedToken.id);
+      if (index !== -1) {
+        this.allCoins.splice(index, 1, updatedToken);
+      }
+    },
+
+    // REVISI: Method baru untuk reload halaman dan ganti tema
+    async reloadAndToggleTheme() {
+      // 1. Toggle status darkMode di filterSettings
+      const newDarkModeStatus = !this.filterSettings.darkMode;
+      this.filterSettings.darkMode = newDarkModeStatus;
+
+      // 2. Simpan perubahan filter (termasuk darkMode) ke DB
+      // Ini memastikan tema yang baru akan dimuat setelah reload
+      await this.saveFilterChange('darkMode');
+
+      // 3. Tampilkan loading overlay
+      this.isLoading = true;
+      this.loadingText = 'Memuat ulang & mengganti tema...';
+
+      // 4. Beri jeda singkat agar user melihat feedback
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 5. Reload halaman
+      window.location.reload();
+    },
+
+
+    // Method global untuk mencatat riwayat aksi
+    async logAction(actionType, details) {
+      try {
+        await DB.saveData('RIWAYAT_AKSI', {
+          timestamp: new Date().toISOString(),
+          action: actionType,
+          status: 'success',
+          message: details.message || `${actionType} action performed`,
+          ...details
+        });
+      } catch (error) {
+        console.error('Error logging action:', error);
+      }
+    }
   }
 });
 

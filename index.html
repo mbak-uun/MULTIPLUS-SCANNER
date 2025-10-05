@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<html lang="id" data-bs-theme="light">
+<html lang="id" data-bs-theme="light" data-theme="default">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MultiPlus Scanner — CEX ⇄ DEX</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -16,33 +21,15 @@
 
   <!-- Favicon -->
   <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2550/2550289.png">
-
-  <!-- Custom Overrides for Portfolio Component -->
-  <style>
-    .wallet-icon {
-      width: 25px !important;
-      height: 25px !important;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-  </style>
 </head>
 <body class="app-loading">
-  <!-- Boot Overlay -->
-  <div id="boot-overlay" class="boot-overlay">
-    <div class="boot-overlay__inner">
-      <div class="boot-overlay__spinner"></div>
-      <p class="boot-overlay__text">Menyiapkan aplikasi...</p>
-    </div>
-  </div>
-
   <!-- Vue App -->
-  <div id="app" class="container-fluid py-3" v-cloak>
-    <!-- Blocking Overlay untuk Loading -->
-    <div v-if="isLoading" class="blocking-overlay">
-      <div class="blocking-overlay__inner">
-        <div class="blocking-overlay__spinner"></div>
-        <p class="blocking-overlay__text">{{ loadingText }}</p>
+  <div id="app" class="container-fluid pt-3" v-cloak>
+    <!-- Unified Overlay untuk semua loading state -->
+    <div v-if="isLoading" class="unified-overlay" :class="{'unified-overlay--boot': isBooting}">
+      <div class="unified-overlay__inner">
+        <div class="unified-overlay__spinner"></div>
+        <p class="unified-overlay__text">{{ loadingText }}</p>
       </div>
     </div>
 
@@ -51,74 +38,77 @@
       <!-- Toasts akan muncul di sini -->
     </div>
 
-    <!-- Header Toolbar -->
-    <div class="header-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
-      <h4 class="d-flex align-items-center gap-2 flex-grow-1 mb-0">
-        <span class="header-subtitle fs-4">MultiPlus Scanning Price</span>
-        <span class="badge brand-chip fs-6">CEX ⇄ DEX</span>
-      </h4>
+    <!-- REFACTORED: Header Toolbar dengan Bootstrap Navbar yang lebih responsif -->
+    <nav class="navbar navbar-expand-lg app-navbar mb-3">
+      <div class="container-fluid px-0">
+        <!-- Judul Aplikasi -->
+        <a class="navbar-brand" href="#">
+          <span class="header-subtitle me-2">MULTIPLUS SCANNER</span>
+          <span class="fw-bolder" :style="getColorStyles('chain', activeChain, 'text')">[ {{ activeChainInfo.key.toUpperCase() }} ]</span>
+        </a>
 
-      <nav class="header-nav d-flex">
-        <a href="?mode=scan" class="nav-button" :class="{active: activeMenu === 'mode'}" @click.prevent="setActiveMenu('mode', 'scan')">
-          <i class="bi bi-grid-3x3-gap"></i> Mode Chain
-        </a>
-        <a href="?mode=db" class="nav-button" :class="{active: activeMenu === 'db'}" @click.prevent="setActiveMenu('db')">
-          <i class="bi bi-database"></i> Database
-        </a>
-        <a href="?mode=settings" class="nav-button" :class="{active: activeMenu === 'settings'}" @click.prevent="setActiveMenu('settings')">
-          <i class="bi bi-gear"></i> Settings
-        </a>
-        <a href="?mode=history" class="nav-button" :class="{active: activeMenu === 'history'}" @click.prevent="setActiveMenu('history')">
-          <i class="bi bi-clock-history"></i> History
-        </a>
-        <a href="?mode=portfolio" class="nav-button" :class="{active: activeMenu === 'portfolio'}" @click.prevent="setActiveMenu('portfolio')">
-          <i class="bi bi-briefcase"></i> Portfolio
-        </a>
-      </nav>
-    </div>
+        <!-- Tombol Toggle untuk Mobile -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Konten Navbar yang bisa di-collapse -->
+        <div class="collapse navbar-collapse" id="mainNavbar">
+          <!-- REVISI: ms-auto akan mendorong menu ke kanan -->
+          <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'mode' }" href="#" @click.prevent="setActiveMenu('mode', 'scan')"><i class="bi bi-grid-3x3-gap me-1"></i>Mode Chain</a></li>
+            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'db' }" href="#" @click.prevent="setActiveMenu('db')"><i class="bi bi-database me-1"></i>Database</a></li>
+            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'settings' }" href="#" @click.prevent="setActiveMenu('settings')"><i class="bi bi-gear me-1"></i>Settings</a></li>
+            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'history' }" href="#" @click.prevent="setActiveMenu('history')"><i class="bi bi-clock-history me-1"></i>History</a></li>
+            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'portfolio' }" href="#" @click.prevent="setActiveMenu('portfolio')"><i class="bi bi-cash-stack me-1"></i>Portfolio</a></li>
+            <!-- REVISI: Ganti menu teks menjadi tombol ikon dinamis untuk tema -->
+            <li class="nav-item">
+              <a class="nav-link" href="#" @click.prevent="reloadAndToggleTheme" :title="isDarkMode ? 'Reload & Ganti ke Tema Terang' : 'Reload & Ganti ke Tema Gelap'">
+                <i class="bi me-1" :class="isDarkMode ? 'bi-sun-fill' : 'bi-moon-fill'"></i>
+                <span>{{ isDarkMode ? 'Terang' : 'Gelap' }}</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
 
     <!-- Mode Operations Panel -->
     <div v-show="activeMenu === 'mode'">
-      <!-- Chain Picker Card -->
-      <div class="card card-soft mb-3">
-        <div class="card-body d-flex flex-wrap align-items-center gap-2">
-          <!-- Chain Icons -->
-          <div class="d-flex align-items-center flex-wrap gap-2 flex-grow-1">
-            <div v-for="chain in chainList"
-                 :key="chain.key"
-                 class="chainicon" 
-                 :class="{
-                   active: activeChain === chain.key,
-                   disabled: !activeChains.includes(chain.key)
-                 }"
-                 :style="getColorStyles('chain', chain.key, activeChain === chain.key ? 'soft' : 'outline')"
-                 @click="activeChains.includes(chain.key) ? (activeChain = chain.key) : null"
-                 :title="chain.NAMA_CHAIN + (!activeChains.includes(chain.key) ? ' (Non-aktif)' : '')">
-              <img :src="chain.ICON" :alt="chain.NAMA_CHAIN" :title="chain.NAMA_CHAIN"/>
+      <!-- REFACTORED: Mode Chain Toolbar with Bootstrap -->
+      <div class="card card-body p-2 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-lg" role="group" aria-label="Chain Picker">
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+          <!-- Chain Picker -->
+          <div v-for="chain in chainList"
+               :key="chain.key"
+               class="btn btn-sm d-inline-flex align-items-center"
+               :class="[activeChain === chain.key ? 'btn-primary' : 'btn-outline-secondary', { disabled: !activeChains.includes(chain.key) }]"
+               @click="activeChains.includes(chain.key) ? (activeChain = chain.key) : null"
+               :title="chain.NAMA_CHAIN + (!activeChains.includes(chain.key) ? ' (Non-aktif)' : '')">
+            <img :src="chain.ICON" :alt="chain.NAMA_CHAIN" style="width: 20px; height: 20px;"/>
+          </div>
             </div>
           </div>
-
-          <!-- Action Buttons -->
-          <div class="d-flex align-items-center mode-toggle">
-        <div class="active-mode-indicator" :style="activeChainColor">
-          <i class="bi bi-hdd-stack"></i>
-          Mode Chain: <strong>{{ activeChain.toUpperCase() }}</strong>
-        </div>
-            <button class="btn mode-icon" 
-                    :class="{'btn-success active': activeChain === 'multi'}"
-                    @click="activeChain = 'multi'" 
-                    title="Multi Chain">
-              <i class="bi bi-bounding-box"></i>
-            </button>
-            <button class="btn btn-success mode-icon" @click="reloadActiveTab" title="Refresh">
-              <i class="bi bi-arrow-clockwise"></i>
-            </button>
-            <button class="btn mode-icon" @click="toggleTheme" title="Toggle Theme">
-              <i :class="isDarkMode ? 'bi bi-moon-fill' : 'bi bi-sun-fill'"></i>
-            </button>
+          <div class="col-12 col-lg-auto">
+            <div class="d-flex flex-wrap justify-content-lg-end align-items-center gap-2">
+              <div class="fw-bold small text-uppercase">
+                <span class="text-muted">Chain:</span>
+                <span>{{ activeChainInfo.key }}</span>
+              </div>
+              <div class="btn-group btn-group-sm">
+                <button class="btn" :class="activeChain === 'multi' ? 'btn-success' : 'btn-outline-success'" @click="activeChain = 'multi'" title="Multi Chain">
+                  <i class="bi bi-bounding-box"></i>
+                </button>
+                
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+     
 
       <!-- Main Content Layout: Sidebar + Tabs -->
       <div class="row g-3">
@@ -126,7 +116,7 @@
         <filter-settings></filter-settings>
 
         <!-- Right Content: Sub-Menu Tabs + Tab Content -->
-        <div :class="shouldShowFilterPanel ? 'col-lg-9' : 'col-lg-12'">
+        <div :class="shouldShowFilterPanel ? 'col-lg-10' : 'col-lg-12'">
           <!-- Sub-Menu Pills (Component) -->
           <tab-navigation></tab-navigation>
 
@@ -167,7 +157,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-warning" @click="isGlobalSettingsRequired = false">
+            <button type="button" class="btn btn-warning" @click="handleStartSettings">
               <i class="bi bi-pencil-square me-1"></i> Mulai Isi Setting Sekarang
             </button>
           </div>
@@ -176,7 +166,7 @@
     </div>
 
     <!-- Settings Menu -->
-    <settings-menu v-if="activeMenu === 'settings' && settingsForm" :settings-form="settingsForm"></settings-menu>
+    <settings-menu v-if="activeMenu === 'settings' && settingsForm" :settings-form="settingsForm" @save-settings="saveGlobalSettings"></settings-menu>
 
     <!-- History Menu -->
     <history-menu v-if="activeMenu === 'history'"></history-menu>
@@ -205,12 +195,21 @@
   <script src="assets/js/mixins/CheckWalletExchanger.js"></script>
   <script src="assets/js/portfolio-web3-helper.js"></script>
 
+  <!-- 3. Muat semua Mixin -->
+  <script src="assets/js/mixins/utilities.js"></script>
+  <script src="assets/js/mixins/notifications.js"></script>
+  <script src="assets/js/mixins/telegram.js"></script>
+  <script src="assets/js/mixins/history-logger.js"></script>
+  <script src="assets/js/mixins/settings.js"></script>
+  <script src="assets/js/mixins/router.js"></script>
+  <script src="assets/js/mixins/filter.js"></script>
+  <script src="assets/js/mixins/theme.js"></script>
+  <script src="assets/js/mixins/database.js"></script>
+
   <!-- 2. Muat semua komponen APLIKASI -->
   <!-- 2.1 Komponen Umum (Common) -->
   <script src="components/common/filter-settings.js"></script>
   <script src="components/common/tab-navigation.js"></script>
-  <script src="components/common/scanning-filter-bar.js"></script>
-  <script src="components/common/management-filter-bar.js"></script>
 
   <!-- 2.2 Komponen Tab Utama -->
   <script src="components/tabs/scanning-tab.js"></script>
@@ -223,15 +222,6 @@
   <script src="components/menus/database.js"></script>
   <script src="components/menus/history.js"></script>
   <script src="components/menus/portfolio.js"></script>
-
-  <!-- 3. Muat semua Mixin -->
-  <script src="assets/js/mixins/utilities.js"></script>
-  <script src="assets/js/mixins/notifications.js"></script>
-  <script src="assets/js/mixins/telegram.js"></script>
-  <script src="assets/js/mixins/settings.js"></script>
-  <script src="assets/js/mixins/router.js"></script>
-  <script src="assets/js/mixins/theme.js"></script>
-  <script src="assets/js/mixins/database.js"></script>
 
   <!-- 4. Terakhir, muat file app.js utama yang akan menggabungkan semuanya. INI HARUS PALING AKHIR. -->
   <script src="assets/js/app.js"></script>
