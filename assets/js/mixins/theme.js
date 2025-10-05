@@ -121,23 +121,22 @@ const themeMixin = {
       // Untuk varian 'outline', gunakan warna teks sebagai border
       if (variant === 'outline') return { color: textColor, borderColor: textColor, backgroundColor: 'transparent' };
 
-      // 3. Tentukan gaya background dan border
-      // Background diatur ke transparan agar menggunakan warna default dari card.
-      // Border akan selalu menggunakan warna tema chain.
-      //console.log(`[DEBUG getColorStyles] Menerapkan background: var(--brand-soft-bg) dan border: ${themeColorInfo.color}`);
-      const backgroundStyles = {
-        backgroundColor: 'var(--brand-soft-bg)', // REVISI: Gunakan variabel latar belakang tema
-        borderColor: themeColorInfo.color
-      };
-
-      // 4. Untuk varian 'soft' (tidak dicentang), buat warna teks sedikit lebih pudar
-      // dan border lebih tipis. Untuk 'solid' (dicentang), buat lebih tegas.
-      if (variant === 'soft') {
-        return { ...backgroundStyles, color: textColor, borderWidth: '1px' };
+      // Untuk varian 'solid' (header tabel, item terpilih), gunakan background solid.
+      if (variant === 'solid') {
+        return {
+          backgroundColor: themeColorInfo.color,
+          color: themeColorInfo.contrast,
+          borderColor: themeColorInfo.color
+        };
       }
 
-      // Untuk 'solid' (dicentang), gunakan warna teks yang lebih kuat dan border lebih tebal.
-      return { ...backgroundStyles, color: textColor, borderWidth: '2px' };
+      // Default ke varian 'soft' (item tidak terpilih)
+      return {
+        backgroundColor: 'var(--brand-soft-bg)',
+        borderColor: themeColorInfo.color,
+        color: textColor,
+        borderWidth: '1px'
+      };
     },
     getPairColorStyles(uniquePairKey, isChecked) {
       if (!uniquePairKey) return {};

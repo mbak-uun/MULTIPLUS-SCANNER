@@ -61,10 +61,20 @@ const SyncTab = {
     },
 
     availableDexOptions() {
-      return Object.keys(this.config.DEXS || {}).map(dexKey => ({
-        key: dexKey,
-        name: dexKey.toUpperCase(),
-        color: this.config.DEXS[dexKey]?.WARNA || '#0d6efd'
+      // REVISI: Ambil daftar DEX yang aktif dari SETTING_GLOBAL, bukan dari filter chain.
+      const dexGlobalConfig = this.$root.globalSettings?.config_dex;
+      const activeDexKeys = dexGlobalConfig
+        ? Object.keys(dexGlobalConfig).filter(key => dexGlobalConfig[key]?.status === true)
+        : [];
+
+      // Console log untuk debugging
+      console.log('[SyncTab] DEX aktif dari SETTING_GLOBAL:', activeDexKeys);
+
+      // Bangun opsi berdasarkan DEX yang aktif
+      return activeDexKeys.map(dexKey => ({
+          key: dexKey,
+          name: dexKey.toUpperCase(),
+          color: this.config.DEXS?.[dexKey]?.WARNA || '#0d6efd'
       }));
     },
 
@@ -317,8 +327,32 @@ const SyncTab = {
       const cex = this.normalizeCex(token.cex);
       const chain = this.chainLabel(token);
       const contract = (token.sc_token || token.contract || '').toLowerCase();
-      const ticker = (token.nama_token || token.symbol || '').toLowerCase();
+      const ticker = String(token.nama_token || token.symbol || '').toLowerCase();
       return [cex, chain, contract || ticker].join('|');
+    },
+
+    // REFACTOR: Fungsi ini ditambahkan kembali untuk memperbaiki error.
+    // Fungsi ini memformat ticker sesuai aturan CEX dari config.json.
+    _formatCexTicker(cex, baseTicker) {
+      if (!cex || !baseTicker) return (baseTicker || '').toUpperCase();
+
+      const cexConfig = this.config.CEX?.[cex.toUpperCase()];
+      const tradeUrl = cexConfig?.URLS?.TRADE_TOKEN;
+
+      if (!tradeUrl) return `${baseTicker.toUpperCase()}USDT`; // Fallback jika URL tidak ada
+
+      // Ekstrak format dari URL
+      if (tradeUrl.includes('{token}_USDT')) {
+        return `${baseTicker.toUpperCase()}_USDT`;
+      }
+      if (tradeUrl.includes('{token}-USDT')) {
+        return `${baseTicker.toUpperCase()}-USDT`;
+      }
+      if (tradeUrl.includes('{token}IDR')) {
+        return `${baseTicker.toUpperCase()}IDR`;
+      }
+      // Default ke format tanpa pemisah (paling umum untuk USDT)
+      return `${baseTicker.toUpperCase()}USDT`;
     },
 
     // =================================================================
@@ -430,13 +464,14 @@ const SyncTab = {
       }
     },
 
-    // Langkah 3 (Manual Sync): Fetch dari API CEX, filter, simpan ke DB, lalu tampilkan
+    // REFACTOR: Metode ini adalah implementasi alur baru.
+    // Fetch dari CEX -> Cek & Lengkapi Desimal via Web3 -> Bandingkan dengan KOIN -> Simpan ke SYNC_KOIN.
     async fetchAndMergeCex(cex) {
       const upperCex = this.normalizeCex(cex);
       const syncStoreName = DB.getStoreNameByChain('SYNC_KOIN', this.activeChain);
       const koinStoreName = DB.getStoreNameByChain('KOIN', this.activeChain);
 
-      // Load data dari SYNC_KOIN (untuk cek decimals) dan KOIN (untuk cek isNew)
+      // Muat data dari SYNC_KOIN (untuk mempertahankan ID) dan KOIN (untuk cek isNew)
       let syncData = [];
       let koinData = [];
       try {
@@ -446,26 +481,18 @@ const SyncTab = {
         console.warn('Gagal membaca data dari database:', error);
       }
 
-      // DIAGNOSTIK: Tampilkan data dari DB
-      console.log(`[DIAGNOSTIC - ${upperCex}] Data dari tabel SYNC_KOIN:`, JSON.parse(JSON.stringify(syncData)));
-      console.log(`[DIAGNOSTIC - ${upperCex}] Data dari tabel KOIN:`, JSON.parse(JSON.stringify(koinData)));
+      // Buat Map untuk pencarian cepat
+      // Kunci untuk syncData: 'CEX|CHAIN|SC_TOKEN'
+      const syncMap = new Map(syncData.map(item => [this.buildTokenKey(item), item]));
+      // Kunci untuk koinData: 'CEX|SC_TOKEN'
+      const koinMap = new Map(
+        koinData
+          .filter(c => c.id !== 'DATA_KOIN')
+          .map(c => [`${(c.cex_name || '').toUpperCase()}|${(c.sc_token || '').toLowerCase()}`, c])
+      );
 
-      // Build map untuk cek data lama
-      const syncByKey = new Map(syncData.filter(item => item.cex === upperCex).map(item => [this.buildTokenKey(item), item]));
-      const koinByKey = new Map();
-      koinData.forEach(coin => {
-        if (coin.id === 'DATA_KOIN') return; // Skip snapshot
-        // Di tabel KOIN, CEX disimpan di dalam nested object coin.cex[CEX_NAME]
-        // Kita perlu cek apakah coin ini punya data untuk CEX yang sedang di-fetch
-        const coinCexKeys = Object.keys(coin.cex || {});
-        if (coinCexKeys.includes(upperCex)) {
-          const tokenKey = (coin.nama_koin || '').toUpperCase();
-          const key = `${upperCex}|${tokenKey}`;
-          koinByKey.set(key, coin);
-        }
-      });
 
-      // Fetch list coin dari CEX
+      // Langkah 1: EXTRACT - Ambil data dari API CEX
       let rawList = [];
       let getPrice = null;
       let hasTrade = null;
@@ -477,13 +504,8 @@ const SyncTab = {
         const secrets = this.buildSecretsFromConfig();
         const fetcher = new CheckWalletExchanger(secrets, this.config, window.Http);
 
-        // Fetch coin list
+        // Fetch semua data detail dari CEX (list, price, trade status)
         rawList = await fetcher.fetchCoinList(upperCex, this.activeChain);
-
-        // DIAGNOSTIK: Tampilkan respon mentah dari CEX
-        console.log(`[DIAGNOSTIC - ${upperCex}] Respon mentah dari fetchCoinList:`, JSON.parse(JSON.stringify(rawList)));
-
-        // Fetch price dan trade status untuk SEMUA koin
         getPrice = await fetcher.fetchPrices([upperCex]);
         hasTrade = await fetcher.fetchTradeStatus([upperCex]);
       } catch (error) {
@@ -493,97 +515,92 @@ const SyncTab = {
       }
 
       const now = new Date().toISOString();
-
-      console.log(`[fetchAndMergeCex] ${upperCex}: Total rawList dari API: ${rawList.length}`);
-
-      let skipCount = { noTrade: 0, noSC: 0, noPriceAndFee: 0 };
+      let processedCount = 0;
       let savedCount = 0;
 
-      // Proses semua koin dari rawList
+      // Langkah 2: TRANSFORM & LOAD - Proses setiap koin dari hasil fetch
       for (const remoteItem of rawList) {
-        const normalized = this.normalizeRemoteToken(remoteItem, upperCex);
+        processedCount++;
+        this.$root.loadingText = `[${upperCex}] Memproses ${processedCount}/${rawList.length}...`;
 
-        // Tambahkan price dan trade dari fetcher
-        normalized.price = getPrice(upperCex, normalized.nama_token);
-        normalized.trade = hasTrade(upperCex, normalized.nama_token);
+        const record = this.normalizeRemoteToken(remoteItem, upperCex);
 
-        // Apply filter: trade ON, ada SC, ada price > 0 ATAU feeWD
-        const hasTradeFlag = normalized.trade === true;
-        const hasSC = normalized.sc || normalized.sc_token || normalized.contract;
-        const hasPrice = normalized.price !== null && normalized.price !== undefined && normalized.price > 0;
-        const hasFeeWD = normalized.feeWD !== null && normalized.feeWD !== undefined;
-
-        const passFilter = hasTradeFlag && hasSC && (hasPrice || hasFeeWD);
-
-        if (!passFilter) {
-          // Skip koin yang tidak lolos filter - tracking untuk debugging
-          if (!hasTradeFlag) skipCount.noTrade++;
-          else if (!hasSC) skipCount.noSC++;
-          else if (!hasPrice && !hasFeeWD) skipCount.noPriceAndFee++;
+        // Filter awal: Hanya proses koin yang punya Smart Contract
+        if (!record.sc_token) {
           continue;
         }
 
-        const key = this.buildTokenKey(normalized);
-        const syncExisting = syncByKey.get(key);
+        // Tambahkan price dan trade status
+        record.price = getPrice(upperCex, record.nama_token);
+        record.trade = hasTrade(upperCex, record.nama_token);
 
-        // Fallback desimal dari SYNC_KOIN atau fetch web3
-        if (!normalized.des_token || normalized.des_token === 18) {
-          if (syncExisting && syncExisting.des_token) {
-            normalized.des_token = syncExisting.des_token;
-          } else if (normalized.sc_token && window.web3Fetcher) {
+        // REVISI: Filter utama. Hanya simpan koin yang bisa ditradingkan.
+        // Ini mencegah tabel SYNC dipenuhi oleh koin yang tidak relevan.
+        if (!record.trade) {
+          continue; // Lewati koin ini jika tidak bisa ditradingkan
+        }
+
+        // Tambahkan ticker CEX
+        record.cex_ticker = this._formatCexTicker(upperCex, record.nama_token);
+
+        // Cek desimal. Jika tidak ada atau 0, coba fetch dari web3.
+        if (!record.des_token && record.sc_token) {
+          if (window.web3Fetcher) {
             try {
-              this.$root.loadingText = `Mencari desimal untuk ${normalized.nama_koin}...`;
-              normalized.des_token = await window.web3Fetcher.getDecimals(this.activeChain, normalized.sc_token);
-              this.$emit('show-toast', `✓ WEB3js: Desimal ${normalized.nama_koin} ditemukan`, 'success');
+              this.$root.loadingText = `[${upperCex}] Mencari desimal untuk ${record.nama_token}...`;
+              record.des_token = await window.web3Fetcher.getDecimals(this.activeChain, record.sc_token);
             } catch (decError) {
-              this.$emit('show-toast', `✗ WEB3js: Gagal mencari desimal ${normalized.nama_koin}`, 'warning');
+              console.warn(`Gagal fetch desimal untuk ${record.nama_token}:`, decError.message);
+              record.des_token = 18; // Fallback
             }
+          } else {
+            record.des_token = 18; // Fallback jika web3Fetcher tidak ada
           }
         }
 
-        // Cek apakah koin sudah ada di KOIN (untuk isNew)
-        const koinKey = `${upperCex}|${(normalized.nama_koin || normalized.nama_token || '').toUpperCase()}`;
-        const isNew = !koinByKey.has(koinKey);
+        // Tentukan status 'isNew' dengan membandingkan ke tabel KOIN
+        const koinKey = `${upperCex}|${(record.sc_token || '').toLowerCase()}`;
+        record.isNew = !koinMap.has(koinKey);
 
-        // Build record untuk disimpan
-        const record = {
-          id: syncExisting?.id || (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`),
-          ...normalized,
-          isNew,
-          createdAt: syncExisting?.createdAt || now,
-          updatedAt: now
-        };
-
-        // DIAGNOSTIK: Tampilkan record yang akan disimpan
-        console.log(`[DIAGNOSTIC - ${upperCex}] Record siap disimpan:`, JSON.parse(JSON.stringify(record)));
+        // Pertahankan ID dan createdAt dari cache sinkronisasi sebelumnya jika ada
+        const syncKey = this.buildTokenKey(record);
+        const existingSync = syncMap.get(syncKey);
+        if (existingSync) {
+          record.id = existingSync.id;
+          record.createdAt = existingSync.createdAt;
+        } else {
+          record.id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+          record.createdAt = now;
+        }
+        record.updatedAt = now;
 
         // Simpan ke database SYNC_KOIN
         try {
           await DB.saveData(syncStoreName, record);
           savedCount++;
         } catch (error) {
-          console.warn('Gagal menyimpan token:', error);
+          console.warn(`Gagal menyimpan token ${record.nama_token} ke SYNC_KOIN:`, error);
         }
       }
 
-      console.log(`[fetchAndMergeCex] ${upperCex}: Total lolos filter & disimpan: ${savedCount}`);
-      console.log(`[fetchAndMergeCex] ${upperCex}: Skip karena - noTrade: ${skipCount.noTrade}, noSC: ${skipCount.noSC}, noPriceAndFee: ${skipCount.noPriceAndFee}`);
+      this.$emit('show-toast', `[${upperCex}] Sinkronisasi selesai. ${savedCount} koin disimpan/diperbarui.`, 'success');
 
-      // Reload cache dari database
+      // Muat ulang cache dari database untuk memperbarui UI
       await this.loadCacheFromDB();
     },
 
     // Helper untuk fetch dari API CEX (menggunakan CheckWalletExchanger)
     normalizeRemoteToken(item, cex) {
       const chain = (item.chain || item.network || this.activeChain || '').toUpperCase();
+      const baseTicker = String(item.nama_token || item.symbol || '').replace(/USDT|IDR|BUSD/g, '');
       return {
         ...item,
         cex,
         chain: String(chain),
-        nama_koin: String(item.nama_koin || item.name || item.nama_token || ''),
-        nama_token: String(item.nama_token || item.ticker || item.symbol || ''),
+        nama_koin: String(item.nama_koin || item.name || ''),
+        nama_token: baseTicker,
         sc_token: String(item.sc_token || item.sc || item.contract || ''),
-        des_token: Number(item.des_token ?? item.des ?? item.decimals ?? 18),
+        des_token: Number(item.des_token ?? item.des ?? item.decimals ?? 0), // Default 0 agar Web3 fetch terpicu
         feeWD: item.feeWD ?? item.fee_wd ?? null,
         deposit: item.deposit,
         withdraw: item.withdraw,
@@ -595,11 +612,15 @@ const SyncTab = {
     // Helper untuk normalisasi data dari JSON (untuk auto-fetch awal)
     _normalizeJsonToken(item, cex) {
       const chain = this.activeChain.toUpperCase();
+      // REFACTOR: Gunakan 'nama_token' dari JSON sebagai base ticker (e.g., "SLP")
+      const baseTicker = String(item.nama_token || item.ticker || item.symbol || '').toUpperCase();
+
       return {
         cex,
         chain: String(chain),
-        nama_koin: String(item.nama_token || item.name || ''), // Dari JSON, 'nama_token' adalah nama koin
-        nama_token: String(item.ticker || item.symbol || ''), // 'ticker' adalah ticker
+        nama_koin: String(item.nama_koin || item.name || ''), // 'nama_koin' adalah nama lengkap
+        nama_token: baseTicker, // Ticker dasar (e.g., "CAKE")
+        cex_ticker: this._formatCexTicker(cex, baseTicker), // REFACTOR: Gunakan format ticker yang benar dari config
         sc_token: String(item.sc || item.contract || ''),
         des_token: Number(item.des ?? item.decimals ?? 0),
         // Default values as requested
@@ -755,29 +776,24 @@ const SyncTab = {
       let errorCount = 0;
 
       try {
-        for (const cex of this.selectedCexFilters) {
+        for (const cexKey of this.selectedCexFilters) {
           try {
-            this.$root.loadingText = `Checking CEX: ${cex}...`;
-            await this.fetchAndMergeCex(cex);
+            this.$root.loadingText = `Memproses CEX: ${cexKey}...`;
+            await this.fetchAndMergeCex(cexKey); // Panggil metode baru
             successCount++;
-            this.$emit('show-toast', `✓ CEX ${cex}: Proses berhasil`, 'success');
           } catch (cexError) {
             errorCount++;
-            this.$emit('show-toast', `✗ CEX ${cex}: ${cexError.message || 'Error'}`, 'danger');
+            this.$emit('show-toast', `✗ CEX ${cexKey}: ${cexError.message || 'Error'}`, 'danger');
           }
         }
 
         // REVISI: Muat ulang cache dari DB setelah semua CEX selesai disinkronkan.
-        // Ini memastikan data yang baru disimpan akan muncul di tabel.
-        // `resetFilters: false` (default) akan mempertahankan pilihan CEX pengguna.
         await this.loadCacheFromDB({ resetFilters: false });
 
         // Update tampilan dengan data dari database
-        console.log('[syncSelectedCex] Sebelum updateSyncDataView, syncData.length:', this.syncData.length);
         await this.updateSyncDataView();
-        console.log('[syncSelectedCex] Setelah updateSyncDataView, syncData.length:', this.syncData.length);
 
-        if (successCount > 0) {
+        if (errorCount === 0) {
           this.$emit('show-toast', `Sinkronisasi selesai: ${successCount} CEX berhasil, ${errorCount} gagal. Data sudah tersimpan ke database.`, successCount > errorCount ? 'success' : 'warning');
         }
       } catch (error) {
@@ -1002,13 +1018,12 @@ const SyncTab = {
       const existingCoins = await DB.getAllData(storeName);
       const existingByKey = new Map();
 
+      // REFACTOR: Kunci duplikat sekarang berdasarkan kombinasi CEX, SC Token, dan SC Pair.
       existingCoins.forEach(coin => {
         if (coin.id === 'DATA_KOIN') return; // Skip snapshot
-        // Key: "exchange|token|pair" (case-insensitive)
-        const key = `${String(coin.exchange || '').toUpperCase()}|${String(coin.from || '').toUpperCase()}|${String(coin.to || '').toUpperCase()}`;
+        const key = `${(coin.cex_name || '').toUpperCase()}|${(coin.sc_token || '').toLowerCase()}|${(coin.sc_pair || '').toLowerCase()}`;
         existingByKey.set(key, coin);
       });
-
       let imported = 0;
       let updated = 0;
 
@@ -1052,39 +1067,35 @@ const SyncTab = {
       // Import Token (Regular & NON sama prosesnya)
       // ========================================
       for (const token of selectedTokens) {
-          const exchange = this.normalizeCex(token.cex);
-          const koinName = token.nama_koin || token.name || token.nama_token || '';
-          const pairName = pairInfo.symbol || '';
+          const cexName = this.normalizeCex(token.cex);
 
           // Cek apakah sudah ada
-          const dupKey = `${exchange.toUpperCase()}|${koinName.toUpperCase()}|${pairName.toUpperCase()}`;
+          const dupKey = `${cexName.toUpperCase()}|${(token.sc_token || '').toLowerCase()}|${(pairInfo.address || '').toLowerCase()}`;
           const existing = existingByKey.get(dupKey);
 
-          // Build CEX config (nested structure sesuai skema)
-          const cexConfig = {
-            [exchange]: {
-              status: true,
-              feeWDToken: token.feeWD ?? null,
-              feeWDPair: null,
-              depositToken: this.normalizeFlag(token.deposit),
-              withdrawToken: this.normalizeFlag(token.withdraw),
-              depositPair: false,
-              withdrawPair: false
-            }
-          };
-
+          // REFACTOR: Membuat record "flat" sesuai skema baru.
           const record = {
+            // Info Aset On-Chain
             chain: this.activeChain.toUpperCase(),
-            nama_koin: koinName.toUpperCase(),
-            nama_token: (token.nama_token || '').toUpperCase(), // Ticker
+            nama_koin: (token.nama_koin || token.name || token.nama_token || '').toUpperCase(),
+            nama_token: (token.nama_token || '').toUpperCase(), // REVISI: Tambahkan nama_token
             sc_token: token.sc_token || '',
             des_token: Number(token.des_token ?? token.decimals ?? 18),
-            nama_pair: pairName,
+            // Info Spesifik CEX
+            cex_name: cexName,
+            cex_ticker_token: (token.cex_ticker || token.nama_token || '').toUpperCase(), // Gunakan cex_ticker dari SYNC_KOIN, fallback ke nama_token
+            cex_fee_wd: token.feeWD ?? null,
+            cex_deposit_status: this.normalizeFlag(token.deposit),
+            cex_withdraw_status: this.normalizeFlag(token.withdraw),
+            // Info Pair On-Chain
+            nama_pair: pairInfo.symbol || '',
             sc_pair: pairInfo.address,
             des_pair: Number(pairInfo.decimals ?? 18),
+            cex_pair_deposit_status: false, // Default, akan diupdate oleh Wallet Tab
+            cex_pair_withdraw_status: false, // Default, akan diupdate oleh Wallet Tab
+            // Konfigurasi & Metadata
             status: true,
             isFavorite: existing ? (existing.isFavorite || existing.isFavorit) : false, // Preserve favorit status
-            cex: cexConfig,
             dex: dexConfig,
             updatedAt: now
           };
@@ -1208,8 +1219,8 @@ const SyncTab = {
         </div>
         <div class="col-12 col-lg-auto">
           <div class="d-grid d-sm-inline-flex align-items-center gap-2 justify-content-sm-end">
-            <span v-if="selectedTokenCount > 0" class="text-muted small d-inline-flex align-items-center gap-1">
-              <i class="bi bi-check-square"></i> {{ selectedTokenCount }} koin dipilih
+            <span v-if="selectedTokenCount > 0" class="text-danger small d-inline-flex align-items-center gap-1">
+              <i class="bi bi-check-square"></i> {{ selectedTokenCount }} Koin dipilih
             </span>
             <div class="vr mx-2 d-none d-sm-block"></div>
             <button class="btn btn-sm btn-outline-primary" @click="openImportModal" :disabled="!canManageSelection">
@@ -1226,18 +1237,19 @@ const SyncTab = {
       </div>
 
       <!-- Table -->
-      <div class="table-responsive sync-table-wrapper">
+      <div class="table-responsive sync-table-wrapper" style="max-height: calc(100vh - 350px);">
         <table class="table table-sm align-middle sync-table">
-          <thead>
+          <thead class="sticky-top">
             <tr>
               <th style="width: 30px;"><input type="checkbox" class="form-check-input" v-model="syncSelectAll" @change="toggleSelectAll" :disabled="isLoading || filteredSyncData.length === 0"></th>
               <th style="width: 40px;">No</th>
               <th>CEX</th>
               <th>Chain</th>
-              <th>Nama Koin</th>
-              <th>Nama Token (Ticker)</th>
+              <th>Nama KOIN</th>
+              <th>Ticker CEX</th>
+              <th>Nama Token</th>
               <th>Smart Contract</th>
-              <th>Decimals</th>
+              <th class="text-center">Decimals</th>
               <th>Fee WD</th>
               <th>Trade</th>
               <th>Deposit</th>
@@ -1252,12 +1264,13 @@ const SyncTab = {
               <td><span class="sync-chip" :style="getColorStyles('cex', item.cex, 'solid')">{{ normalizeCex(item.cex) }}</span></td>
               <td class="text-uppercase fw-semibold">{{ chainLabel(item) }}</td>
               <td class="fw-semibold">
-                {{ item.nama_koin || item.name || '-' }}
+                {{ item.nama_koin || item.name || item.nama_token || '-' }}
                 <span v-if="item.isNew" class="badge bg-warning text-dark ms-2" title="Koin baru yang belum ada di cache">NEW</span>
               </td>
-              <td>{{ item.nama_token || item.symbol || '-' }}</td>
+              <td class="fw-bold">{{ item.cex_ticker || item.nama_token || '-' }}</td>
+              <td>{{ item.nama_token || '-' }}</td>
               <td class="text-truncate" style="max-width: 220px;">{{ item.sc_token || '-' }}</td>
-              <td>{{ item.des_token ?? '-' }}</td>
+              <td class="text-center">{{ item.des_token ?? '-' }}</td>
               <td>{{ formatDecimal(item.feeWD) }}</td>
               <td><span :class="statusPillClass(hasTrade(item))">{{ statusPillLabel(hasTrade(item)) }}</span></td>
               <td><span :class="statusPillClass(hasDeposit(item))">{{ statusPillLabel(hasDeposit(item)) }}</span></td>
@@ -1301,7 +1314,7 @@ const SyncTab = {
                       <label class="form-label small fw-semibold">Pilih Pair</label>
                       <select class="form-select form-select-sm" v-model="importConfig.selectedPairType" @change="onPairChange">
                         <option v-for="pair in availablePairOptions" :key="pair.key" :value="pair.key">{{ pair.symbol }}</option>
-                        <option value="NON">NON (Input Pair Manual)</option>
+                       
                       </select>
                     </div>
 
@@ -1392,42 +1405,34 @@ const SyncTab = {
 
                 <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
                   <div class="row">
-                    <div class="col-md-6" v-for="dex in dexByCategory.DEX" :key="dex.key">
-                      <div class="card mb-2" :class="{ 'border-primary': importConfig.selectedDex.includes(dex.key) }">
-                        <div class="card-body p-2">
-                          <!-- Checkbox DEX -->
-                          <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" :id="'dex-' + dex.key"
-                                   :checked="importConfig.selectedDex.includes(dex.key)"
-                                   @change="toggleDexSelection(dex.key)">
-                            <label class="form-check-label fw-semibold small" :for="'dex-' + dex.key" :style="{ color: dex.color }">
-                              {{ dex.name }}
-                            </label>
-                          </div>
-
-                          <!-- Input Modal (muncul jika DEX dipilih) -->
-                          <div v-if="importConfig.selectedDex.includes(dex.key)" class="row g-1">
-                            <div class="col-6">
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control"
-                                       :value="getDexModal(dex.key).modalKiri"
-                                       @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)"
-                                       placeholder="100" min="1">
-                              </div>
-                            </div>
-                            <div class="col-6">
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control"
-                                       :value="getDexModal(dex.key).modalKanan"
-                                       @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)"
-                                       placeholder="100" min="1">
-                                <span class="input-group-text">$</span>
-                              </div>
-                            </div>
-                          </div>
+                    <div class="col-12" v-for="dex in dexByCategory.DEX" :key="dex.key">
+                      <div class="d-flex align-items-center gap-2 border rounded p-2 mb-2" :class="{ 'border-primary bg-primary-subtle': importConfig.selectedDex.includes(dex.key) }">
+                        <!-- Checkbox dan Label -->
+                        <div class="form-check flex-grow-1">
+                          <input class="form-check-input" type="checkbox" :id="'dex-' + dex.key"
+                                 :checked="importConfig.selectedDex.includes(dex.key)"
+                                 @change="toggleDexSelection(dex.key)">
+                          <label class="form-check-label fw-semibold small" :for="'dex-' + dex.key" :style="{ color: dex.color }">
+                            {{ dex.name }}
+                          </label>
                         </div>
+                        <!-- Grup Input Modal -->
+                        <div v-if="importConfig.selectedDex.includes(dex.key)" class="d-flex gap-2" style="width: 200px;">
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control"
+                                   :value="getDexModal(dex.key).modalKiri"
+                                   @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)"
+                                   placeholder="100" min="1">
+                          </div>
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control"
+                                   :value="getDexModal(dex.key).modalKanan"
+                                   @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)"
+                                   placeholder="100" min="1">
+                            </div>
+                          </div>
                       </div>
                     </div>
                   </div>
@@ -1482,7 +1487,7 @@ const SyncTab = {
 
             <!-- Footer -->
             <div class="modal-footer">
-              <button type="button" class="btn btn-sm btn-outline-danger" @click="closeImportModal" :disabled="importConfig.isSubmitting">
+              <button type="button" class="btn btn-sm btn-danger" @click="closeImportModal" :disabled="importConfig.isSubmitting">
                 <i class="bi bi-x-lg me-1"></i>Batal
               </button>
               <button type="button" class="btn btn-sm btn-success" @click="importNow"

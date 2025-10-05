@@ -165,9 +165,9 @@ const settingsMixin = {
       return {
         nickname: '',
         walletMeta: '',
-        AnggotaGrup: 1,
-        jedaTimeGroup: 1000,
-        jedaPerAnggota: 200,
+        AnggotaGrup: 3,
+        jedaTimeGroup: 1700,
+        jedaPerAnggota: 600,
         WaktuTunggu: 5000,
         config_cex,
         config_dex,

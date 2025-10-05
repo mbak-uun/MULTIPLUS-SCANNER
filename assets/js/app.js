@@ -294,12 +294,10 @@ const app = createApp({
     coinCountByCex() {
         const counts = {};
         this.allCoins.forEach(coin => {
-            if (coin.id === 'DATA_KOIN' || !coin.cex || typeof coin.cex !== 'object') return;
-            // Iterasi melalui semua CEX yang ada di dalam objek coin.cex
-            Object.keys(coin.cex).forEach(cexKey => {
-                const lowerCexKey = cexKey.toLowerCase();
-                counts[lowerCexKey] = (counts[lowerCexKey] || 0) + 1;
-            });
+            if (coin.id === 'DATA_KOIN' || !coin.cex_name) return;
+            // REFACTOR: Langsung baca dari field cex_name
+            const lowerCexKey = coin.cex_name.toLowerCase();
+            counts[lowerCexKey] = (counts[lowerCexKey] || 0) + 1;
         });
         return counts;
     },
@@ -420,7 +418,15 @@ const app = createApp({
           const chainCoins = await DB.getAllData(storeName);
           // REVISI: Tambahkan properti 'chain' ke setiap koin.
           // Ini penting agar computed properties (coinCountByCex, coinCountByPair) bisa bekerja.
-          const coinsWithChain = chainCoins.map(coin => ({ ...coin, chain: coin.chain || chainKey }));
+          const coinsWithChain = chainCoins.map(coin => {
+            // SOLUSI: Pastikan `nama_token` ada untuk konsistensi, ambil dari `cex_ticker_token`.
+            // Skema baru tidak memiliki `nama_token` di root, jadi kita buat dari ticker.
+            const namaTokenFromTicker = (coin.cex_ticker_token || '').replace(/USDT|IDR|BUSD/g, '');
+            return { ...coin, 
+              chain: coin.chain || chainKey,
+              nama_token: coin.nama_token || namaTokenFromTicker
+            };
+          });
           allCoins.push(...coinsWithChain);
 
         } catch (error) {

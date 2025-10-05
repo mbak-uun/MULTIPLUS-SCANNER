@@ -19,6 +19,40 @@ body {
   margin: 0;
   padding: 0;
   transition: background-color var(--transition-base), color var(--transition-base);
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  width: min(60vw, 520px);
+  height: min(60vw, 520px);
+  border-radius: 999px;
+  background: radial-gradient(circle at center, var(--surface-glass-accent) 0%, transparent 70%);
+  filter: blur(90px);
+  opacity: 0.55;
+  z-index: -2;
+  pointer-events: none;
+  transition: opacity var(--transition-base), transform var(--transition-slow);
+}
+
+body::before {
+  top: -22vh;
+  left: -12vw;
+}
+
+body::after {
+  bottom: -28vh;
+  right: -18vw;
+}
+
+html[data-bs-theme="dark"] body::before,
+html[data-bs-theme="dark"] body::after {
+  filter: blur(120px);
+  opacity: 0.35;
 }
 
 /* ====== TYPOGRAPHY SCALE ====== */
@@ -117,20 +151,20 @@ body.app-loading {
 .btn {
   font-weight: 600;
   font-size: var(--font-size-sm);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-interactive);
   padding: var(--btn-padding-y) var(--btn-padding-x);
 }
 
 .btn-sm {
   font-size: var(--font-size-xs);
   padding: calc(var(--btn-padding-y) - 0.15rem) calc(var(--btn-padding-x) - 0.2rem);
-  border-radius: 0.45rem;
+  border-radius: calc(var(--radius-interactive) - 0.15rem);
 }
 
 .form-control,
 .form-select {
   font-size: var(--font-size-sm);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-interactive);
   padding: var(--input-padding-y) var(--input-padding-x);
   background-color: var(--input-bg);
   border-color: var(--input-border);
@@ -151,7 +185,7 @@ body.app-loading {
 .badge {
   font-size: var(--badge-font-size);
   font-weight: 600;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .card-title {

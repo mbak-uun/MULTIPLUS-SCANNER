@@ -89,8 +89,25 @@ const PortfolioMenu = {
     lastRefreshLabel() {
       return this.formatPnlTimestamp(this.lastRefresh);
     },
-    isPnlPositive() {
-      return (this.portfolioPerformance?.pnl || 0) >= 0;
+    pnlState() {
+      const value = Number(this.portfolioPerformance?.pnl || 0);
+      if (value > 0.0001) return 'positive';
+      if (value < -0.0001) return 'negative';
+      return 'neutral';
+    },
+    pnlCardClass() {
+      return {
+        'summary-pnl-card--positive': this.pnlState === 'positive',
+        'summary-pnl-card--negative': this.pnlState === 'negative',
+        'summary-pnl-card--neutral': this.pnlState === 'neutral'
+      };
+    },
+    pnlValueClass() {
+      return {
+        'summary-pnl-value--positive': this.pnlState === 'positive',
+        'summary-pnl-value--negative': this.pnlState === 'negative',
+        'summary-pnl-value--neutral': this.pnlState === 'neutral'
+      };
     },
     displayRates() {
       return [
@@ -203,6 +220,98 @@ const PortfolioMenu = {
       if (wallet?.icon) return 'bi-wallet2';
       return 'bi-link-45deg';
     },
+    resolveTokenRate(symbol, rates = {}, idrRate = null, fallbackRate = null) {
+      const upper = String(symbol || '').toUpperCase();
+      if (!upper) return null;
+
+      if (fallbackRate != null && !Number.isNaN(fallbackRate)) {
+        return Number(fallbackRate);
+      }
+
+      if (upper === 'USDT' || upper === 'USDC' || upper === 'BUSD') return 1;
+      if (upper === 'IDR') {
+        if (!idrRate || Number.isNaN(idrRate) || idrRate === 0) return null;
+        return 1 / idrRate;
+      }
+
+      const direct = rates[upper];
+      if (direct != null) return Number(direct);
+
+      const pairKey = `${upper}USDT`;
+      if (rates[pairKey] != null) return Number(rates[pairKey]);
+
+      if (upper.startsWith('W')) {
+        const stripped = upper.slice(1);
+        if (rates[stripped] != null) return Number(rates[stripped]);
+      }
+
+      if (upper === 'POL') {
+        if (rates.POL != null) return Number(rates.POL);
+        if (rates.MATIC != null) return Number(rates.MATIC);
+      }
+
+      return null;
+    },
+    buildAssetsFromTokenMap(tokens = [], rates = {}, idrRate = null, options = {}) {
+      const mapped = tokens
+        .map((token, index) => {
+          const symbol = String(token?.symbol || '').toUpperCase();
+          const amount = Number(token?.amount ?? 0);
+          if (!symbol) return null;
+
+          const explicitRate = token?.rate != null ? Number(token.rate) : null;
+          const explicitValue = token?.usdValue != null ? Number(token.usdValue) : null;
+          const inferredRate = explicitRate != null
+            ? explicitRate
+            : (explicitValue != null && amount ? explicitValue / amount : null);
+
+          const usdRate = this.resolveTokenRate(symbol, rates, idrRate, inferredRate);
+          const usdValue = usdRate != null ? amount * usdRate : explicitValue;
+
+          return {
+            id: `${symbol}-${index}`,
+            symbol,
+            amount,
+            usdRate,
+            usdValue,
+            rawValue: token?.value != null ? Number(token.value) : explicitValue,
+            icon: token?.icon || null,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (Number(b.usdValue || 0) - Number(a.usdValue || 0)) || (Number(b.amount || 0) - Number(a.amount || 0)));
+
+      const limit = options.limit;
+      if (Number.isFinite(limit) && limit > 0) {
+        return mapped.slice(0, limit);
+      }
+      return mapped;
+    },
+    normalizeExchangeResult(exchangeId, result = {}, rates = {}, idrRate = null) {
+      const fallbackAssets = Array.isArray(result.assets) ? result.assets : [];
+      const rawAssetsInput = fallbackAssets.length ? fallbackAssets : (Array.isArray(result.raw_assets) ? result.raw_assets : []);
+      const builtAssets = this.buildAssetsFromTokenMap(rawAssetsInput, rates, idrRate, { limit: 6 });
+
+      // Jika handler tidak menyediakan assets mentah, coba gunakan properti helper
+      let assets = builtAssets;
+      if (!assets.length && Array.isArray(result.tokens)) {
+        assets = this.buildAssetsFromTokenMap(result.tokens, rates, idrRate, { limit: 6 });
+      }
+
+      if (!assets.length && result.total != null) {
+        const totalValue = Number(result.total) || 0;
+        assets = [{ id: `${exchangeId}-fallback`, symbol: 'USDT', amount: totalValue, usdRate: 1, usdValue: totalValue }];
+      }
+
+      const total = assets.reduce((sum, asset) => sum + (Number(asset.usdValue) || 0), 0);
+
+      return {
+        total: Number.isFinite(total) && total >= 0 ? total : Number(result.total || 0),
+        assets,
+        raw_assets: rawAssetsInput,
+        display: result.display || null,
+      };
+    },
     getDefaultGasSymbol(chainId) {
       const lower = String(chainId || '').toLowerCase();
       const chainConfig = this.$root.config?.CHAINS?.[lower] || {};
@@ -219,49 +328,123 @@ const PortfolioMenu = {
       }
       return '#';
     },
+    tokenColorClass(symbol) {
+      const upper = String(symbol || '').toUpperCase();
+      switch (upper) {
+        case 'ETH':
+        case 'BTC':
+        case 'WETH':
+          return 'text-primary';
+        case 'BNB':
+        case 'SOL':
+        case 'WBNB':
+          return 'text-warning';
+        case 'IDR':
+          return 'text-danger';
+        case 'USDT':
+        case 'USDC':
+        case 'BUSD':
+        case 'DAI':
+          return 'text-success';
+        case 'MATIC':
+        case 'POL':
+        case 'ARB':
+        case 'AVAX':
+          return 'text-info';
+        default:
+          return 'text-secondary';
+      }
+    },
     buildWalletResult(wallet, source = {}) {
       const chainId = String(wallet?.id || source.chain || '').toLowerCase();
       const address = wallet?.address || source.address || '';
-      const rawAssets = Array.isArray(source.raw_assets) ? source.raw_assets : []; // Ini sudah benar
+      const rawAssetsInput = Array.isArray(source.raw_assets) ? source.raw_assets : [];
+      const primaryAsset = rawAssetsInput.length > 0 ? rawAssetsInput[0] : {};
 
-      // REVISI: Hapus logika yang hanya mengambil satu aset.
-      // Nilai-nilai ini akan dihitung dari total `raw_assets`.
-      const tokenSymbol = 'MULTI'; // Tidak lagi relevan untuk satu token
-      const assetValue = rawAssets.reduce((sum, asset) => sum + (asset.value || 0), 0);
-      const assetAmount = assetValue; // Gunakan nilai total sebagai "amount" utama
+      let normalizedAssets = rawAssetsInput
+        .map((asset, index) => {
+          const symbol = String(asset?.symbol || asset?.tokenSymbol || '').toUpperCase();
+          if (!symbol) return null;
+          const amount = Number(asset?.amount ?? asset?.qty ?? 0);
+          const addressToken = asset?.address || asset?.tokenAddress || asset?.contract || null;
+          let rate = asset?.rate != null ? Number(asset.rate) : null;
+          let value = Number(asset?.value ?? asset?.usdValue ?? 0);
+
+          if ((!value || Number.isNaN(value)) && amount) {
+            const impliedRate = rate != null ? rate : this.resolveTokenRate(symbol, this.rates, this.rates?.idr);
+            if (impliedRate != null) {
+              rate = impliedRate;
+              value = amount * impliedRate;
+            }
+          }
+
+          return {
+            id: asset?.id || `${symbol}-${index}`,
+            symbol,
+            amount,
+            value: Number.isFinite(value) ? value : 0,
+            rate: rate != null ? rate : null,
+            address: addressToken
+          };
+        })
+        .filter(asset => asset && (asset.amount > 0 || asset.value > 0));
+
+      normalizedAssets.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
+
+      if (!normalizedAssets.length) {
+        const fallbackSymbol = (source.tokenSymbol || primaryAsset.symbol || 'USDT').toUpperCase();
+        const fallbackAmount = Number(source.assetAmount ?? primaryAsset.amount ?? 0);
+        let fallbackValue = Number(source.assetValue ?? primaryAsset.value ?? 0);
+        let fallbackRate = source.assetRate != null ? Number(source.assetRate) : null;
+        if ((!fallbackValue || Number.isNaN(fallbackValue)) && fallbackAmount) {
+          const impliedRate = fallbackRate != null ? fallbackRate : this.resolveTokenRate(fallbackSymbol, this.rates, this.rates?.idr);
+          if (impliedRate != null) {
+            fallbackRate = impliedRate;
+            fallbackValue = fallbackAmount * impliedRate;
+          }
+        }
+        normalizedAssets = [{
+          id: `${chainId}-${fallbackSymbol}-fallback`,
+          symbol: fallbackSymbol,
+          amount: fallbackAmount,
+          value: Number.isFinite(fallbackValue) ? fallbackValue : 0,
+          rate: fallbackRate,
+          address: source.tokenAddress || primaryAsset.contract || null
+        }];
+      }
+
+      const assetValue = normalizedAssets.reduce((sum, asset) => sum + (Number(asset.value) || 0), 0);
 
       const gasAmount = Number(source.gasAmount ?? 0);
       let gasValue = Number(source.gasValue ?? 0);
-      const gasRate = source.gasRate != null ? Number(source.gasRate) : null;
+      let gasRate = source.gasRate != null ? Number(source.gasRate) : null;
       const gasSymbol = (source.gasSymbol || this.getDefaultGasSymbol(chainId)).toUpperCase();
       if ((!gasValue || Number.isNaN(gasValue)) && gasAmount) {
-        const ratesMap = this.rates || {};
-        const impliedGasRate = gasRate != null ? gasRate : ratesMap[gasSymbol] ?? null;
+        const impliedGasRate = gasRate != null ? gasRate : this.resolveTokenRate(gasSymbol, this.rates, this.rates?.idr);
         if (impliedGasRate != null) {
+          gasRate = impliedGasRate;
           gasValue = gasAmount * impliedGasRate;
         }
       }
 
-      const total = Number(source.total ?? (assetValue + gasValue));
+      const total = assetValue + (Number.isFinite(gasValue) ? gasValue : 0);
       const walletLink = source.walletLink || this.buildWalletLink(chainId, address);
-
-      // REVISI: Hapus `displayData` yang sudah tidak relevan.
-      // Data akan diformat langsung di template.
 
       return {
         chain: chainId,
         address,
-        tokenSymbol,
-        assetAmount,
+        tokenSymbol: normalizedAssets[0]?.symbol || (source.tokenSymbol || 'USDT').toUpperCase(),
+        tokenAddress: normalizedAssets[0]?.address || source.tokenAddress || primaryAsset.contract || null,
+        assetAmount: assetValue,
         assetValue,
-        // assetRate tidak lagi relevan untuk satu token
+        assetRate: normalizedAssets[0]?.rate ?? null,
         gasAmount,
         gasValue,
         gasRate,
         gasSymbol,
         total,
         walletLink,
-        raw_assets: rawAssets,
+        raw_assets: normalizedAssets,
         fetchedAt: source.fetchedAt || new Date().toISOString()
       };
     },
@@ -406,6 +589,7 @@ const PortfolioMenu = {
             id: exchange.id,
             name: exchange.name,
             total: 0,
+            assets: [],
             display: '<span class="text-muted">Belum dicek</span>'
           });
         }
@@ -503,12 +687,10 @@ const PortfolioMenu = {
       }, 700);
     },
     saveExchangeState(exchange) {
-      // REVISI: Simpan juga monitoredAssets
       try {
         const state = {
           enabled: exchange.enabled,
-          fields: exchange.fields.map(f => ({ key: f.key, value: f.value })),
-          monitoredAssets: exchange.monitoredAssets || ['USDT']
+          fields: exchange.fields.map(f => ({ key: f.key, value: f.value }))
         };
         localStorage.setItem(`portfolio_exchange_${exchange.id}`, JSON.stringify(state));
         this.notify(`Pengaturan ${exchange.name} tersimpan`, 'success');
@@ -565,15 +747,11 @@ const PortfolioMenu = {
       this.$root.loadingText = 'Mengecek exchange...';
 
       try {
-        // REVISI: Kumpulkan semua aset yang dipantau dari semua CEX untuk fetch rates
-        // REVISI: Hapus kondisi `if (!walletToCheck)` yang salah. Fetch rate selalu diperlukan di sini.
-        const allMonitoredAssets = this._getAllMonitoredCexAssets();
-        const rates = await this.fetchRates(this.config, allMonitoredAssets);
+        const rates = await this.fetchRates(this.config);
         const idrRate = await this.fetchIndodaxRate(this.config);
 
         Object.assign(this.rates, rates);
         this.rates.idr = idrRate;
-        this.rates['USDT'] = 1; // Pastikan rate USDT selalu 1
 
         this.activeExchangeSummaries = [];
         let totalCex = 0;
@@ -596,18 +774,19 @@ const PortfolioMenu = {
             }
             
             if (exchange.id === 'indodax') {
-                result = await handler(exchange, activeConfig, exchange.monitoredAssets, rates, idrRate);
+                result = await handler(exchange, activeConfig, rates, idrRate);
             } else {
-                // REVISI: Kirim monitoredAssets spesifik untuk exchange ini dan rates global
-                result = await handler(exchange, activeConfig, exchange.monitoredAssets, rates);
+                result = await handler(exchange, activeConfig, rates, idrRate);
             }
 
             exchange.status = 'success';
             exchange.lastResult = result;
 
+            const normalized = this.normalizeExchangeResult(exchange.id, result, rates, idrRate);
+
             const dbData = {
               name_cex: exchange.id,
-              snapshot: { totalBalance: result.total, assets: result.raw_assets || [] },
+              snapshot: { totalBalance: normalized.total, assets: normalized.raw_assets || [] },
               lastUpdated: new Date().toISOString()
             };
             await this.dbSet('ASET_EXCHANGER', dbData);
@@ -615,12 +794,13 @@ const PortfolioMenu = {
             this.activeExchangeSummaries.push({
               id: exchange.id,
               name: exchange.name,
-              total: result.total,
-              display: result.display
+              total: normalized.total,
+              assets: normalized.assets,
+              display: normalized.display
             });
 
-            totalCex += result.total;
-            console.log(`✅ ${exchange.name}: $${result.total.toFixed(2)}`);
+            totalCex += normalized.total;
+            console.log(`✅ ${exchange.name}: $${normalized.total.toFixed(2)}`);
           } catch (error) {
             exchange.status = 'error';
             exchange.error = error.message;
@@ -631,7 +811,7 @@ const PortfolioMenu = {
         this.portfolioBreakdown.cex = totalCex;
         this.portfolioBreakdown.total = totalCex + this.portfolioBreakdown.wallet;
         this.portfolioPerformance.pnl = this.portfolioBreakdown.total - this.pnl.modalAwal;
-        this.totalCexWithCurrency = `${totalCex.toFixed(2)} $`;
+        this.totalCexWithCurrency = this.formatUsd(totalCex);
         this.activeExchangeCount = this.activeExchangeSummaries.length;
         this.inactiveExchanges = this.exchanges.filter(e => !e.enabled);
         this.lastRefresh = Date.now();
@@ -672,36 +852,20 @@ const PortfolioMenu = {
       this.$root.loadingText = `Mengecek ${walletsToProcess.length} wallet...`;
 
       try {
-        // REVISI: Ambil semua simbol dari PAIR_DEXS untuk fetch rates
-        const symbolsToFetch = this._getWalletAssetSymbols();
-        if (!walletToCheck) { // Hanya fetch rate jika ini adalah refresh global
-          const rates = await this.fetchRates(this.config, symbolsToFetch);
-          Object.assign(this.rates, rates);
-        }
+        const rates = await this.fetchRates(this.config, this.config.priceSymbols);
+        const idrRate = await this.fetchIndodaxRate(this.config);
+        Object.assign(this.rates, rates);
+        if (idrRate) this.rates.idr = idrRate;
 
-        const promises = walletsToProcess.map(async (wallet) => {
-          // REVISI: Logika pengecekan disederhanakan
-          const chainId = (wallet?.chain || wallet?.id || '').toLowerCase();
-          const address = wallet?.address || '';
-
-          if (!chainId || !address || chainId === 'non') {
-            console.log(`Skipping wallet check for: ${chainId || 'unknown'} - invalid configuration`);
-            return { 
-              status: 'skipped', 
-              value: null, 
-              walletId: chainId
-            };
-          }
-
+        const promises = walletsToProcess.filter(w => w && w.id).map(async (wallet) => {
           wallet.status = 'loading';
           wallet.error = null;
           try {
             const fetched = await window.portfolioWeb3Helper.getBalances({
-              chain: chainId,
+              chain: wallet.id,
               address: wallet.address,
               rates: this.rates
             });
-
             wallet.status = 'success';
 
             const walletResult = this.buildWalletResult(wallet, fetched);
@@ -1076,40 +1240,12 @@ const PortfolioMenu = {
             { key: 'secretKey', placeholder: 'Secret Key', value: '', type: 'password' }
           );
         }
-        // REVISI: Inisialisasi properti untuk manajemen aset per-exchanger
         return {
           id: cexKey.toLowerCase(),
           name: cexKey.charAt(0) + cexKey.slice(1).toLowerCase(),
           shortName: cex.SHORT_NAME || cexKey,
           color: cex.WARNA || '#333',
-          enabled: false, status: 'idle', error: null, lastResult: null, fields: fields,
-          monitoredAssets: ['USDT'], // Default
-          newAssetSymbol: '' // Untuk input field
-        };
-      });
-
-      // REVISI: Tambahkan method untuk mengelola aset per-exchanger
-      this.exchanges.forEach(exchange => {
-        exchange.addAsset = async () => {
-          const symbol = (exchange.newAssetSymbol || '').trim().toUpperCase();
-          if (!symbol || exchange.monitoredAssets.includes(symbol)) {
-            exchange.newAssetSymbol = '';
-            return;
-          }
-          exchange.monitoredAssets.push(symbol);
-          exchange.monitoredAssets.sort();
-          exchange.newAssetSymbol = '';
-          await this.fetchRates(this.config, [symbol]); // REVISI: Langsung fetch harga untuk aset baru
-          this.saveExchangeState(exchange);
-        };
-
-        exchange.removeAsset = async (symbol) => {
-          if (symbol === 'USDT') {
-            this.notify('USDT tidak dapat dihapus.', 'warning');
-            return;
-          }
-          exchange.monitoredAssets = exchange.monitoredAssets.filter(s => s !== symbol);
-          this.saveExchangeState(exchange);
+          enabled: false, status: 'idle', error: null, lastResult: null, fields: fields
         };
       });
 
@@ -1146,7 +1282,6 @@ const PortfolioMenu = {
         // No need to change path, it's relative to index.html now
         return {
           id: chainKey, name: chain.NAMA_CHAIN, short: chain.NAMA_PENDEK.toUpperCase(),
-          chain: chainKey, // REVISI: Tambahkan properti 'chain' untuk konsistensi
           color: chain.WARNA || '#333', enabled: false, status: 'idle', error: null,
           address: '', icon: iconPath, placeholder: `Enter ${chain.NAMA_CHAIN} Address`,
           chainCode: chain.KODE_CHAIN, rpc: chain.RPC, gasLimit: chain.GASLIMIT
@@ -1174,10 +1309,6 @@ const PortfolioMenu = {
                 const field = exchange.fields.find(f => f.key === savedField.key);
                 if (field) field.value = savedField.value;
               });
-            }
-            // REVISI: Muat monitoredAssets dari localStorage
-            if (Array.isArray(state.monitoredAssets)) {
-              exchange.monitoredAssets = state.monitoredAssets;
             }
           }
         });
@@ -1211,7 +1342,14 @@ const PortfolioMenu = {
             const data = await this.dbGet('ASET_EXCHANGER', exchange.id);
             if (data && data.snapshot) {
               const total = data.snapshot.totalBalance || 0;
-              this.activeExchangeSummaries.push({ id: exchange.id, name: exchange.name, total: total, display: this.formatUsd(total) });
+              const assets = this.buildAssetsFromTokenMap(data.snapshot.assets || [], this.rates, this.rates?.idr, { limit: 6 });
+              this.activeExchangeSummaries.push({
+                id: exchange.id,
+                name: exchange.name,
+                total,
+                assets,
+                display: assets.length ? null : this.formatUsd(total)
+              });
               totalCex += total;
             }
           }
@@ -1259,60 +1397,26 @@ const PortfolioMenu = {
       }
     },
 
-    // REVISI: Helper untuk mendapatkan semua aset yang dipantau dari semua CEX
-    _getAllMonitoredCexAssets() {
-      const assetSet = new Set(['USDT']); // Selalu sertakan USDT
-      this.exchanges.forEach(ex => {
-        (ex.monitoredAssets || []).forEach(asset => assetSet.add(asset));
-      });
-      return Array.from(assetSet);
-    },
-    // REVISI: Helper untuk mendapatkan semua simbol aset dari config wallet
-    _getWalletAssetSymbols() {
-        const symbols = new Set();
-        Object.values(this.config?.CHAINS || {}).forEach(chainConfig => {
-            Object.values(chainConfig.PAIR_DEXS || {}).forEach(pair => symbols.add(pair.SYMBOL_PAIR));
-        });
-        return Array.from(symbols).filter(s => s !== 'NON');
-    },
     // --- Asset Helpers (from asset_helpers.js) ---
-    async fetchRates(config, symbols = []) {
-      const defaultSymbols = ['BTC', 'ETH', 'BNB', 'MATIC', 'AVAX', 'SOL'];
-      // REVISI: Filter 'USDT' dari daftar simbol yang akan di-fetch
-      const allSymbols = Array.from(new Set([...defaultSymbols, ...symbols]))
-        .filter(s => s && s.toUpperCase() !== 'USDT');
+    async fetchRates(config) {
+        const rateSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'MATICUSDT', 'AVAXUSDT', 'SOLUSDT'];
+        const endpoint = config.priceSources?.binanceDataApi || 'https://api-gcp.binance.com/api/v3/ticker/price';
+        const url = `${endpoint}?symbols=${encodeURIComponent(JSON.stringify(rateSymbols))}`;
 
-      if (allSymbols.length === 0) return {}; // Jangan fetch jika tidak ada simbol
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch token rates');
 
-      const rateSymbols = allSymbols.map(s => `${s.toUpperCase()}USDT`);
+        const data = await response.json();
+        const mapSymbol = (symbol) => data.find(item => item.symbol === symbol)?.price;
 
-      const endpoint = config.priceSources?.binanceDataApi || 'https://api-gcp.binance.com/api/v3/ticker/price';
-      const url = `${endpoint}?symbols=${encodeURIComponent(JSON.stringify(rateSymbols))}`;
-
-      try {
-          const response = await fetch(url);
-          if (!response.ok) throw new Error('Failed to fetch token rates');
-
-          const data = await response.json();
-          const newRates = {};
-
-          data.forEach(item => {
-              const symbol = item.symbol.replace('USDT', '');
-              newRates[symbol] = parseFloat(item.price || 0);
-          });
-
-          // Gabungkan rate baru dengan yang sudah ada
-          Object.assign(this.rates, newRates);
-
-          // REVISI: Log untuk debugging
-          console.log(`✅ Rates updated for: ${Object.keys(newRates).join(', ')}`);
-
-          return newRates; // Kembalikan hanya rate yang baru di-fetch
-      } catch (error) {
-          console.error('❌ Error fetching rates:', error);
-          this.notify(`Gagal mengambil harga: ${error.message}`, 'danger');
-          return {}; // Kembalikan objek kosong jika gagal
-      }
+        return {
+            BTC: parseFloat(mapSymbol('BTCUSDT') || 0),
+            ETH: parseFloat(mapSymbol('ETHUSDT') || 0),
+            BNB: parseFloat(mapSymbol('BNBUSDT') || 0),
+            MATIC: parseFloat(mapSymbol('MATICUSDT') || 0),
+            AVAX: parseFloat(mapSymbol('AVAXUSDT') || 0),
+            SOL: parseFloat(mapSymbol('SOLUSDT') || 0)
+        };
     },
     async fetchIndodaxRate(config) {
         const endpoint = config.priceSources?.indodaxLower || 'https://indodax.com/api/ticker/usdtidr';
@@ -1328,8 +1432,7 @@ const PortfolioMenu = {
     findField(exchange, key) {
         return exchange.fields?.find(f => f.key === key);
     },
-    // REVISI: Semua handler CEX diubah untuk menerima `monitoredAssets` dan `rates`
-    async handleBinance(exchange, config, monitoredAssets, rates) {
+    async handleBinance(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         if (!apiKey || !secretKey) throw new Error('Missing API credentials');
@@ -1344,24 +1447,24 @@ const PortfolioMenu = {
         const data = await response.json();
         if (!response.ok || data.code) throw new Error(data.msg || 'Binance API error');
 
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const tokens = (data.balances || [])
+          .map(balance => ({
+            symbol: balance.asset,
+            amount: parseFloat(balance.free || 0) + parseFloat(balance.locked || 0)
+          }))
+          .filter(token => token.amount > 0);
 
-        (data.balances || []).forEach(bal => {
-            const asset = bal.asset.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(bal.free) > 0.00001) {
-                const amount = parseFloat(bal.free);
-                const rate = rates[asset] || (asset === 'USDT' ? 1 : 0);
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-            }
-        });
-        return { total: totalUsd, display: displayParts.join('<br/>') || '0.00 $', raw_assets };
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+        return {
+          total,
+          assets,
+          raw_assets: assets,
+          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
+        };
     },
-    async handleGate(exchange, config, monitoredAssets, rates) {
+    async handleGate(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         if (!apiKey || !secretKey) throw new Error('Missing API credentials');
@@ -1382,24 +1485,21 @@ const PortfolioMenu = {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Gate.io API error');
 
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const tokens = (data || [])
+          .map(item => ({ symbol: item.currency, amount: parseFloat(item.available || 0) }))
+          .filter(token => token.amount > 0);
 
-        data.forEach(item => {
-            const asset = item.currency.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(item.available) > 0.00001) {
-                const amount = parseFloat(item.available);
-                const rate = rates[asset] || (asset === 'USDT' ? 1 : 0);
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-            }
-        });
-        return { total: totalUsd, display: displayParts.join('<br/>') || '0.00 $', raw_assets };
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+        return {
+          total,
+          assets,
+          raw_assets: assets,
+          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
+        };
     },
-    async handleBybit(exchange, config, monitoredAssets, rates) {
+    async handleBybit(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         if (!apiKey || !secretKey) throw new Error('Missing API credentials');
@@ -1416,24 +1516,22 @@ const PortfolioMenu = {
         const data = await response.json();
         if (!response.ok || data.retCode !== 0) throw new Error(data.retMsg || 'Bybit API error');
 
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const coins = data.result?.list?.[0]?.coin || [];
+        const tokens = coins
+          .map(item => ({ symbol: item.coin, amount: parseFloat(item.equity || 0) }))
+          .filter(token => token.amount > 0);
 
-        (data.result?.list?.[0]?.coin || []).forEach(item => {
-            const asset = item.coin.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(item.equity) > 0.00001) {
-                const amount = parseFloat(item.equity);
-                const rate = rates[asset] || (asset === 'USDT' ? 1 : 0);
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-            }
-        });
-        return { total: totalUsd, display: displayParts.join('<br/>') || '0.00 $', raw_assets };
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+        return {
+          total,
+          assets,
+          raw_assets: assets,
+          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
+        };
     },
-    async handleKucoin(exchange, config, monitoredAssets, rates) {
+    async handleKucoin(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         const passphrase = this.findField(exchange, 'passphrase')?.value || '';
@@ -1449,24 +1547,21 @@ const PortfolioMenu = {
         const data = await response.json();
         if (!response.ok || data.code !== '200000') throw new Error(data.msg || 'Kucoin API error');
 
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const tokens = (data.data || [])
+          .map(item => ({ symbol: item.currency, amount: parseFloat(item.available || 0) }))
+          .filter(token => token.amount > 0);
 
-        (data.data || []).forEach(item => {
-            const asset = item.currency.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(item.available) > 0.00001) {
-                const amount = parseFloat(item.available);
-                const rate = rates[asset] || (asset === 'USDT' ? 1 : 0);
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-            }
-        });
-        return { total: totalUsd, display: displayParts.join('<br/>') || '0.00 $', raw_assets };
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+        return {
+          total,
+          assets,
+          raw_assets: assets,
+          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
+        };
     },
-    async handleMexc(exchange, config, monitoredAssets, rates) {
+    async handleMexc(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         if (!apiKey || !secretKey) throw new Error('Missing API credentials');
@@ -1485,24 +1580,21 @@ const PortfolioMenu = {
         const data = await response.json();
         if (!response.ok || (data && data.code)) throw new Error(`MEXC error: ${data?.msg || 'Unknown error'}`);
 
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const tokens = (data.balances || [])
+          .map(item => ({ symbol: item.asset, amount: parseFloat(item.free || 0) }))
+          .filter(token => token.amount > 0);
 
-        (data.balances || []).forEach(bal => {
-            const asset = bal.asset.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(bal.free) > 0.00001) {
-                const amount = parseFloat(bal.free);
-                const rate = rates[asset] || (asset === 'USDT' ? 1 : 0);
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-            }
-        });
-        return { total: totalUsd, display: displayParts.join('<br/>') || '0.00 $', raw_assets };
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+        return {
+          total,
+          assets,
+          raw_assets: assets,
+          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
+        };
     },
-    async handleIndodax(exchange, config, monitoredAssets, rates, idrRate) {
+    async handleIndodax(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         if (!apiKey || !secretKey) throw new Error('Missing API credentials');
@@ -1517,33 +1609,23 @@ const PortfolioMenu = {
         if (!data.success) throw new Error(data.error || 'Indodax API error');
 
         const balance = data.return?.balance || {};
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const tokens = [
+            { symbol: 'ETH', amount: parseFloat(balance.eth || 0), rate: rates.ETH || null },
+            { symbol: 'BNB', amount: parseFloat(balance.bnb || 0), rate: rates.BNB || null },
+            { symbol: 'USDT', amount: parseFloat(balance.usdt || 0), rate: 1 },
+            { symbol: 'IDR', amount: parseFloat(balance.idr || 0), rate: idrRate ? 1 / idrRate : null }
+        ];
 
-        Object.keys(balance).forEach(assetKey => {
-            const asset = assetKey.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(balance[assetKey]) > 0.00001) {
-                const amount = parseFloat(balance[assetKey]);
-                const rate = asset === 'IDR' ? (1 / (idrRate || 1)) : (rates[asset] || (asset === 'USDT' ? 1 : 0));
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                if (asset === 'IDR') {
-                    displayParts.push(`<span class="text-danger">RP. ${amount.toLocaleString('id-ID')}</span> ≈ ${value.toFixed(2)}$`);
-                } else {
-                    displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-                }
-            }
-        });
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
 
         return {
-            total: totalUsd,
-            display: displayParts.join('<br/>') || '0.00 $',
-            raw_assets
+            total,
+            assets,
+            raw_assets: assets
         };
     },
-    async handleBitget(exchange, config, monitoredAssets, rates) {
+    async handleBitget(exchange, config, rates = {}, idrRate = null) {
         const apiKey = this.findField(exchange, 'apiKey')?.value || '';
         const secretKey = this.findField(exchange, 'secretKey')?.value || '';
         const passphrase = this.findField(exchange, 'passphrase')?.value || '';
@@ -1558,22 +1640,19 @@ const PortfolioMenu = {
         const data = await response.json();
         if (!response.ok || data.code !== '00000') throw new Error(data.msg || 'Bitget API error');
 
-        let totalUsd = 0;
-        const raw_assets = [];
-        const displayParts = [];
+        const tokens = (data.data || [])
+          .map(item => ({ symbol: item.coin, amount: parseFloat(item.available || 0) }))
+          .filter(token => token.amount > 0);
 
-        (data.data || []).forEach(item => {
-            const asset = item.coin.toUpperCase();
-            if (monitoredAssets.includes(asset) && parseFloat(item.available) > 0.00001) {
-                const amount = parseFloat(item.available);
-                const rate = rates[asset] || (asset === 'USDT' ? 1 : 0);
-                const value = amount * rate;
-                totalUsd += value;
-                raw_assets.push({ asset, amount, value });
-                displayParts.push(`<span class="text-secondary">${amount.toFixed(4)} ${asset}</span> ≈ ${value.toFixed(2)}$`);
-            }
-        });
-        return { total: totalUsd, display: displayParts.join('<br/>') || '0.00 $', raw_assets };
+        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
+        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+        return {
+          total,
+          assets,
+          raw_assets: assets,
+          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
+        };
     },
 
   },
@@ -1628,12 +1707,12 @@ const PortfolioMenu = {
             </div>
           </div>
           <div class="col-md-3 col-6 mb-2 mb-md-0">
-            <div class="p-3 border rounded h-100" :class="isPnlPositive ? 'bg-success-subtle' : 'bg-danger-subtle'">
-              <div class="small text-muted text-uppercase fw-semibold">PNL</div>
-              <div class="fs-5 fw-bold" :class="isPnlPositive ? 'text-success' : 'text-danger'">
+            <div class="summary-pnl-card h-100 p-3" :class="pnlCardClass">
+              <div class="summary-pnl-label">PNL</div>
+              <div class="summary-pnl-value" :class="pnlValueClass">
                 {{ formatUsd(portfolioPerformance?.pnl || 0) }}
               </div>
-              <small class="d-block mt-1 text-muted" :class="isPnlPositive ? 'text-success' : 'text-danger'">
+              <small class="summary-pnl-idr" :class="pnlValueClass">
                 {{ formatIdrEquivalent(portfolioPerformance?.pnl || 0) }}
               </small>
             </div>
@@ -1689,20 +1768,6 @@ const PortfolioMenu = {
                         <span class="input-group-text"><i :class="getExchangeFieldIcon(field.key)"></i></span>
                         <input :type="field.type || 'text'" class="form-control text-uppercase" :placeholder="field.placeholder" v-model.trim="field.value" @input="handleExchangeFieldInput(exchange, field)">
                       </div>
-                      <!-- REVISI: UI untuk manajemen aset per-exchanger DIKEMBALIKAN -->
-                      <div class="input-group input-group-sm mb-1">
-                        <input type="text" class="form-control" placeholder="Aset (BTC, ETH)" v-model="exchange.newAssetSymbol" @keyup.enter="exchange.addAsset()">
-                        <button class="btn btn-sm btn-outline-primary" @click="exchange.addAsset()" :disabled="!exchange.newAssetSymbol">
-                          <i class="bi bi-plus"></i>
-                        </button>
-                      </div>
-                      <div class="d-flex flex-wrap gap-1">
-                        <span v-for="asset in exchange.monitoredAssets" :key="asset" class="badge text-bg-secondary d-flex align-items-center asset-badge">
-                          {{ asset }}
-                          <button v-if="asset !== 'USDT'" type="button" class="btn-close btn-close-white ms-1" @click="exchange.removeAsset(asset)"></button>
-                        </span>
-                      </div>
-                      <!-- End of UI Revisi -->
                     </div>
                     <div class="text-danger small" v-if="exchange.error">{{ exchange.error }}</div>
                   </div>
@@ -1777,9 +1842,17 @@ const PortfolioMenu = {
                         <span v-if="row.total > 0" class="badge bg-success">Checked</span>
                         <span v-else class="badge bg-warning text-dark">Pending</span>
                       </td>
-                      <!-- REVISI: Tampilkan detail aset dengan v-html -->
                       <td class="text-end small">
-                        <div v-html="row.display"></div>
+                        <div v-if="row.assets && row.assets.length" class="d-flex flex-column gap-1">
+                          <div v-for="asset in row.assets" :key="row.id + '-' + (asset.symbol || 'token') + '-' + (asset.id || 'idx')" class="portfolio-asset-line">
+                            <span class="fw-semibold" :class="tokenColorClass(asset.symbol)">
+                              {{ formatTokenAmount(asset.amount) }} {{ asset.symbol }}
+                            </span>
+                            <span class="text-muted">≈ {{ formatUsd(asset.usdValue) }}</span>
+                          </div>
+                        </div>
+                        <div v-else-if="row.display" v-html="row.display"></div>
+                        <div v-else class="text-muted">-</div>
                       </td>
                     </tr>
                     <tr   v-if="activeExchangeCount > 0">
@@ -1814,11 +1887,11 @@ const PortfolioMenu = {
               <div class="table-responsive" style="max-height: 400px;">
                 <table class="table table-sm table-hover mb-0">
                   <thead>
-                    <tr class="text-center small">
+                    <tr class="text-center">
                       <th class="small">CHAIN</th>
-                      <th class="small text-end">TOKEN ASSETS</th>
-                      <th class="small text-end">GAS</th>
-                      <th class="small text-end">TOTAL</th>
+                      <th class="small">ASSET</th>
+                      <th class="small">GAS CHAIN</th>
+                      <th class="small">TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1830,28 +1903,24 @@ const PortfolioMenu = {
                             <i class="bi bi-arrow-repeat"></i>
                           </button>
                         </a>
-                        <span v-if="row.status === 'pending'" class="badge bg-warning text-dark ms-1" style="font-size: 0.6rem;">Pending</span>
+                        <span v-if="row.status === 'pending'" class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;">Pending</span>
                       </td>
-                      <!-- REVISI: Tampilkan daftar aset dari raw_assets -->
                       <td class="text-end small">
-                        <div v-if="row.raw_assets && row.raw_assets.length > 0">
-                          <div v-for="asset in row.raw_assets" :key="asset.symbol">
-                            <span class="text-muted">{{ formatTokenAmount(asset.amount) }} {{ asset.symbol }}</span> ≈ {{ formatUsd(asset.value) }}
+                        <div v-if="row.raw_assets && row.raw_assets.length" class="d-flex flex-column gap-1">
+                          <div v-for="asset in row.raw_assets" :key="row.chain + '-' + (asset.symbol || row.tokenSymbol || 'asset')" class="portfolio-asset-line">
+                            <span class="fw-semibold" :class="tokenColorClass(asset.symbol)">{{ formatTokenAmount(asset.amount) }} {{ (asset.symbol || row.tokenSymbol || 'USDT').toUpperCase() }}</span>
+                            <span class="text-muted">≈ {{ formatUsd(asset.value) }}</span>
                           </div>
                         </div>
-                        <div v-else-if="row.status === 'pending'" class="text-warning">
-                          Checking...
+                        <div v-else :class="row.status === 'pending' ? 'text-warning' : 'text-muted'">{{ formatUsd(row.assetValue) }}</div>
+                      </td>
+                      <td class="text-end small">
+                        <div class="portfolio-asset-line" :class="row.status === 'pending' ? 'text-warning' : ''">
+                          <span class="fw-semibold">{{ formatTokenAmount(row.gasAmount) }} {{ row.gasSymbol }}</span>
+                          <span class="text-muted">≈ {{ formatUsd(row.gasValue) }}</span>
                         </div>
-                        <div v-else class="text-muted">
-                          No assets found
-                        </div>
                       </td>
-                      <td class="text-end small" :class="row.status === 'pending' ? 'text-warning' : 'text-muted'">
-                        {{ formatUsd(row.gasValue) }}
-                      </td>
-                      <td class="text-end fw-bold small" :class="row.status === 'pending' ? 'text-warning' : ''">
-                        {{ formatUsd(row.total) }}
-                      </td>
+                      <td class="text-end fw-bold small" :class="row.status === 'pending' ? 'text-warning' : ''">{{ formatUsd(row.total) }}</td>
                     </tr>
                     <tr   v-if="activeWalletCount > 0">
                       <td class="small fw-bold">TOTAL</td> 
@@ -2029,8 +2098,6 @@ const PortfolioMenu = {
 
     this._initializeExchanges();
     this._initializeWallets();
-    // REVISI: Muat aset yang dipantau dari DB (sekarang bagian dari _loadDataFromDB)
-    // await this.loadMonitoredAssets();
     console.log(`✅ Portfolio initialized with ${this.exchanges.length} exchanges and ${this.wallets.length} chains.`);
 
     this._loadStateFromStorage();

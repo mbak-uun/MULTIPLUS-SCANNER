@@ -238,29 +238,29 @@ const WalletTab = {
             const upperCex = String(cex).toUpperCase();
             
             // Hanya proses jika record ini memiliki data untuk CEX yang sedang dicek
-            if (!coinInDB.cex || !coinInDB.cex[upperCex]) continue;
+            if ((coinInDB.cex_name || '').toUpperCase() !== upperCex) continue;
 
             // 1. Cari status untuk TOKEN UTAMA dari hasil API
             const tokenSymbol = String(coinInDB.nama_token || '').toUpperCase();
             const tokenDataFromApi = apiCoinMap.get(tokenSymbol);
 
-            let hasDeposit = false;
-            let hasWithdraw = false;
+            let hasDepositToken = false;
+            let hasWithdrawToken = false;
             let isProblematic = true;
 
             if (tokenDataFromApi) {
-              hasDeposit = this.hasDeposit(tokenDataFromApi);
-              hasWithdraw = this.hasWithdraw(tokenDataFromApi);
-              isProblematic = !hasDeposit || !hasWithdraw;
+              hasDepositToken = this.hasDeposit(tokenDataFromApi);
+              hasWithdrawToken = this.hasWithdraw(tokenDataFromApi);
+              isProblematic = !hasDepositToken || !hasWithdrawToken;
 
               // Update status TOKEN UTAMA
-              coinInDB.cex[upperCex].depositToken = hasDeposit;
-              coinInDB.cex[upperCex].withdrawToken = hasWithdraw;
-              coinInDB.cex[upperCex].feeWDToken = tokenDataFromApi.feeWD ?? tokenDataFromApi.withdrawFee ?? coinInDB.cex[upperCex].feeWDToken ?? null;
+              coinInDB.cex_deposit_status = hasDepositToken;
+              coinInDB.cex_withdraw_status = hasWithdrawToken;
+              coinInDB.cex_fee_wd = tokenDataFromApi.feeWD ?? tokenDataFromApi.withdrawFee ?? coinInDB.cex_fee_wd ?? null;
             } else {
               // Jika token utama tidak ditemukan di API, set statusnya ke false
-              coinInDB.cex[upperCex].depositToken = false;
-              coinInDB.cex[upperCex].withdrawToken = false;
+              coinInDB.cex_deposit_status = false;
+              coinInDB.cex_withdraw_status = false;
             }
 
             // 2. Cari status untuk PAIR dari hasil API
@@ -269,12 +269,12 @@ const WalletTab = {
 
             if (pairDataFromApi) {
               // Update status PAIR
-              coinInDB.cex[upperCex].depositPair = this.hasDeposit(pairDataFromApi);
-              coinInDB.cex[upperCex].withdrawPair = this.hasWithdraw(pairDataFromApi);
+              coinInDB.cex_pair_deposit_status = this.hasDeposit(pairDataFromApi);
+              coinInDB.cex_pair_withdraw_status = this.hasWithdraw(pairDataFromApi);
             } else {
               // Jika pair tidak ditemukan di API, set statusnya ke false
-              coinInDB.cex[upperCex].depositPair = false;
-              coinInDB.cex[upperCex].withdrawPair = false;
+              coinInDB.cex_pair_deposit_status = false;
+              coinInDB.cex_pair_withdraw_status = false;
             }
 
             // 3. Update timestamp dan simpan ke DB
@@ -286,9 +286,10 @@ const WalletTab = {
             const coinDataForDisplay = {
               nama_koin: coinInDB.nama_koin || tokenSymbol,
               nama_token: tokenSymbol,
+              cex_ticker_token: coinInDB.cex_ticker_token || '', // REVISI: Tambahkan ticker CEX
               sc_token: coinInDB.sc_token,
-              deposit: hasDeposit,
-              withdraw: hasWithdraw,
+              deposit: hasDepositToken,
+              withdraw: hasWithdrawToken,
               isProblematic: isProblematic
             };
 
@@ -452,18 +453,21 @@ const WalletTab = {
                        <div v-if="fetchedCoinData[card.key].coinsInDB?.length > 0" class="table-responsive" style="max-height: 300px; overflow-y: auto;">
                          <table class="table table-sm table-bordered table-hover small mb-0">
                            <thead class="table-dark sticky-top">
+                              <!-- REVISI: Tambahkan kolom Ticker CEX -->
                              <tr>
-                               <th style="width: 30%;">Nama Koin</th>
-                               <th style="width: 15%;">Token (Ticker)</th>
-                               <th style="width: 35%;">Smart Contract</th>
+                               <th style="width: 25%;">Nama Koin</th>
+                               <th style="width: 15%;">Nama Token</th>
+                               <th style="width: 15%;">Ticker CEX</th>
+                               <th style="width: 25%;">Smart Contract</th>
                                <th class="text-center" style="width: 10%;">Deposit</th>
                                <th class="text-center" style="width: 10%;">Withdraw</th>
                              </tr>
                            </thead>
                            <tbody>
-                             <tr v-for="coin in fetchedCoinData[card.key].coinsInDB" :key="coin.sc_token || coin.symbol" :class="{ 'table-warning': coin.isProblematic }">
+                             <tr v-for="coin in fetchedCoinData[card.key].coinsInDB" :key="coin.sc_token || coin.nama_token" :class="{ 'table-warning': coin.isProblematic }">
                                <td class="fw-semibold">{{ coin.nama_koin || coin.symbol }}</td>
                                <td class="text-primary">{{ coin.nama_token }}</td>
+                               <td class="fw-bold">{{ coin.cex_ticker_token }}</td>
                                <td class="text-truncate font-monospace small" :title="coin.sc_token">
                                  {{ coin.sc_token || '-' }}
                                </td>
@@ -487,18 +491,21 @@ const WalletTab = {
                        <div v-if="fetchedCoinData[card.key].problematicCoins?.length > 0" class="table-responsive" style="max-height: 300px; overflow-y: auto;">
                          <table class="table table-sm table-bordered table-hover small mb-0">
                            <thead class="table-dark sticky-top">
+                              <!-- REVISI: Tambahkan kolom Ticker CEX -->
                              <tr>
-                               <th style="width: 30%;">Nama Koin</th>
-                               <th style="width: 15%;">Token (Ticker)</th>
-                               <th style="width: 35%;">Smart Contract</th>
+                               <th style="width: 25%;">Nama Koin</th>
+                               <th style="width: 15%;">Nama Token</th>
+                               <th style="width: 15%;">Ticker CEX</th>
+                               <th style="width: 25%;">Smart Contract</th>
                                <th class="text-center" style="width: 10%;">Deposit</th>
                                <th class="text-center" style="width: 10%;">Withdraw</th>
                              </tr>
                            </thead>
                            <tbody>
-                             <tr v-for="coin in fetchedCoinData[card.key].problematicCoins" :key="coin.sc_token || coin.symbol" class="table-warning">
+                             <tr v-for="coin in fetchedCoinData[card.key].problematicCoins" :key="coin.sc_token || coin.nama_token" class="table-warning">
                                <td class="fw-semibold">{{ coin.nama_koin || coin.symbol }}</td>
                                <td class="text-primary">{{ coin.nama_token }}</td>
+                               <td class="fw-bold">{{ coin.cex_ticker_token }}</td>
                                <td class="text-truncate font-monospace small" :title="coin.sc_token">
                                  {{ coin.sc_token || '-' }}
                                </td>

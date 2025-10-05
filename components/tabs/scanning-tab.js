@@ -78,15 +78,10 @@ const ScanningTab = {
       this.filters.run = newStatus;
       this.saveFilter('run');
     },
+    // REFACTOR: Fungsi ini disederhanakan. Setiap token sekarang hanya punya satu CEX.
     getTokenPrimaryCEX(token) {
-      // Ambil CEX pertama dari object token.cex
-      const cexList = this.getTokenCEXList(token);
-      return cexList.length > 0 ? cexList[0] : null;
-    },
-    getTokenCEXData(token, cexKey) {
-      // Ambil data CEX tertentu dari token
-      if (!token.cex || !token.cex[cexKey]) return null;
-      return token.cex[cexKey];
+      // REVISI: Cukup kembalikan cex_name dari root object token.
+      return token.cex_name || 'N/A';
     },
 
     // --- METHOD UNTUK MEMUAT DATA DARI DB ---
@@ -198,25 +193,16 @@ const ScanningTab = {
     },
 
     // --- LOGIKA DARI SCANNING-TABLE ---
-    getTokenCexStatus(token, cexKey) {
-      const cexData = token.cex && token.cex[cexKey.toUpperCase()];
-      if (!cexData) return { deposit: false, withdraw: false };
-      return {
-        deposit: cexData.depositToken,
-        withdraw: cexData.withdrawToken
-      };
+    // REFACTOR: Baca status langsung dari root object token.
+    getTokenCexStatus(token, type) {
+      if (type === 'token') {
+        return { deposit: token.cex_deposit_status, withdraw: token.cex_withdraw_status };
+      }
+      if (type === 'pair') {
+        return { deposit: token.cex_pair_deposit_status, withdraw: token.cex_pair_withdraw_status };
+      }
+      return { deposit: false, withdraw: false };
     },
-    // REVISI: Tambahkan fungsi baru untuk mendapatkan status PAIR secara spesifik.
-    getTokenPairCexStatus(token, cexKey) {
-      const cexData = token.cex && token.cex[cexKey.toUpperCase()];
-      if (!cexData) return { deposit: false, withdraw: false };
-      // Baca field depositPair dan withdrawPair dari skema.
-      return {
-        deposit: cexData.depositPair,
-        withdraw: cexData.withdrawPair
-      };
-    },
-
     // === HELPER FUNCTIONS UNTUK GENERATE LINK ===
 
     // Generate link trade CEX untuk token/pair
@@ -227,17 +213,16 @@ const ScanningTab = {
       const cexConfig = this.$root.config?.CEX?.[cexKey.toUpperCase()];
       if (!cexConfig || !cexConfig.URLS) return '#';
 
-      // Tentukan template URL yang akan digunakan
-      // Jika simbol yang dikirim adalah nama_token, gunakan TRADE_TOKEN.
-      // Jika bukan, asumsikan itu adalah pair dan gunakan TRADE_PAIR.
-      const isMainToken = symbol.toUpperCase() === (token.nama_token || '').toUpperCase();
+      // REVISI: Logika disederhanakan. Cek apakah simbol yang diminta adalah ticker token utama atau ticker pair.
+      const isMainToken = symbol.toUpperCase() === (token.cex_ticker_token || '').toUpperCase();
       const urlTemplate = isMainToken ? cexConfig.URLS.TRADE_TOKEN : cexConfig.URLS.TRADE_PAIR;
 
       if (!urlTemplate) return '#';
 
       // Ganti placeholder di template URL
+      // REVISI: Gunakan cex_ticker_token untuk placeholder {token}
       let finalUrl = urlTemplate
-        .replace('{token}', token.nama_token || '')
+        .replace('{token}', token.cex_ticker_token || '')
         .replace('{pair}', token.nama_pair || '');
 
       return finalUrl;
@@ -395,7 +380,7 @@ const ScanningTab = {
     async toggleTokenFavorit(token) {
       // Support both isFavorite dan isFavorit
       const currentFavorite = token.isFavorite || token.isFavorit || false;
-      const newFavoriteStatus = !currentFavorite;
+      const newFavoriteStatus = !currentFavorite; // REVISI: nama_token digunakan di sini
       token.isFavorite = newFavoriteStatus;
       // Sync field lama untuk backward compatibility jika ada
       if (token.hasOwnProperty('isFavorit')) {
@@ -404,14 +389,14 @@ const ScanningTab = {
       // Simpan perubahan ke DB
       const storeName = DB.getStoreNameByChain('KOIN', token.chain);
       await DB.saveData(storeName, token);
-      this.$emit('show-toast', `${token.nama_koin || token.from} ${newFavoriteStatus ? 'ditambahkan ke' : 'dihapus dari'} favorit`, 'success');
+      this.$emit('show-toast', `${token.nama_token || token.nama_koin} ${newFavoriteStatus ? 'ditambahkan ke' : 'dihapus dari'} favorit`, 'success');
     },
     openChart(token) {
       this.$emit('show-toast', `Membuka chart untuk ${token.from}`, 'info');
     },
     async deleteToken(token) {
       if (confirm(`Anda yakin ingin menghapus token ${token.nama_koin || token.from}?`)) {
-        // Hapus dari state lokal
+        // Hapus dari state lokal 
         this.tokens = this.tokens.filter(t => t.id !== token.id);
         // Hapus dari DB
         const storeName = DB.getStoreNameByChain('KOIN', token.chain);
@@ -551,7 +536,7 @@ const ScanningTab = {
             </tr>
             <tr v-for="token in filteredTokens" :key="token.id" class="token-row">
               <td class="text-center">
-                <a :href="getCexTradeLink(token, token.nama_token)" target="_blank" @click.prevent="openOrderbook(token, 'left')" 
+                <a :href="getCexTradeLink(token, token.cex_ticker_token)" target="_blank" @click.prevent="openOrderbook(token, 'left')" 
                    class="btn btn-sm btn-outline-primary text-uppercase"
                    :title="'Orderbook ' + getTokenPrimaryCEX(token)">
                   {{ getTokenPrimaryCEX(token) }}
@@ -567,10 +552,10 @@ const ScanningTab = {
                 <div class="d-flex flex-column align-items-center">
                   <!-- Header: Nomor urutan + Token/Pair (CLICKABLE LINK) -->
                   <div class="mb-1 small">
-                    <span class="badge bg-secondary me-1">[{{ filteredTokens.indexOf(token) + 1 }}]</span>
-                    <a :href="getCexTradeLink(token, token.nama_token)" target="_blank" class="fw-bold text-primary text-decoration-none" :title="'Trade ' + token.nama_token + ' di ' + getTokenPrimaryCEX(token)">
-                      {{ token.nama_token }}
-                    </a>
+                    <span class="badge bg-secondary me-1">#{{ filteredTokens.indexOf(token) + 1 }}</span>
+                    <a :href="getExplorerLink(token, token.sc_token)" target="_blank" class="fw-bold text-primary text-decoration-none" :title="'Lihat di Explorer: ' + token.nama_koin">
+                      {{ token.nama_koin }}
+                    </a> 
                     <i class="bi bi-arrow-left-right mx-1"></i>
                     <a v-if="token.nama_pair !== 'USDT'" :href="getCexTradeLink(token, token.nama_pair)" target="_blank" class="fw-bold text-warning text-decoration-none" :title="'Trade ' + token.nama_pair + ' di ' + getTokenPrimaryCEX(token)">
                       {{ token.nama_pair }}
@@ -587,22 +572,22 @@ const ScanningTab = {
 
                   <!-- Baris 3: Status WD/Depo TOKEN + Badges (CLICKABLE) -->
                   <div class="mb-1 small">
-                    <a :href="getExplorerLink(token, token.sc_token)" target="_blank" class="fw-semibold me-1 text-decoration-none" :title="'Explorer: ' + token.nama_koin">
+                    <a :href="getCexTradeLink(token, token.cex_ticker_token)" target="_blank" class="fw-semibold me-1 text-decoration-none" :title="'Trade ' + token.cex_ticker_token + ' di ' + getTokenPrimaryCEX(token)">
                       {{ token.nama_token }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
-                          :href="getCexWithdrawLink(token, token.nama_token)" target="_blank"
+                          :href="getCexWithdrawLink(token, token.cex_ticker_token)" target="_blank"
                           class="badge me-1 text-decoration-none small"
-                          :class="getTokenCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'bg-success' : 'bg-danger'"
+                          :class="getTokenCexStatus(token, 'token').withdraw ? 'bg-success' : 'bg-danger'"
                           :title="'Withdraw ' + token.nama_token">
-                      {{ getTokenCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'WD' : 'WX' }}
+                      {{ getTokenCexStatus(token, 'token').withdraw ? 'WD' : 'WX' }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
-                          :href="getCexDepositLink(token, token.nama_token)" target="_blank"
+                          :href="getCexDepositLink(token, token.cex_ticker_token)" target="_blank"
                           class="badge me-1 text-decoration-none small"
-                          :class="getTokenCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'bg-success' : 'bg-danger'"
+                          :class="getTokenCexStatus(token, 'token').deposit ? 'bg-success' : 'bg-danger'"
                           :title="'Deposit ' + token.nama_token">
-                      {{ getTokenCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'DP' : 'DX' }}
+                      {{ getTokenCexStatus(token, 'token').deposit ? 'DP' : 'DX' }}
                     </a>
                     <a :href="getCexWalletBalanceLink(token, token.sc_token, 1)" target="_blank" class="badge bg-info text-dark me-1 text-decoration-none small" :title="'Cek Saldo ' + token.nama_token + ' di Wallet ' + getTokenPrimaryCEX(token) + ' #1'">
                       <i class="bi bi-wallet2"></i>
@@ -617,16 +602,16 @@ const ScanningTab = {
                     <a v-if="getTokenPrimaryCEX(token)"
                           :href="getCexWithdrawLink(token, token.nama_pair)" target="_blank"
                           class="badge me-1 text-decoration-none small"
-                          :class="getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'bg-success' : 'bg-danger'"
+                          :class="getTokenCexStatus(token, 'pair').withdraw ? 'bg-success' : 'bg-danger'"
                           :title="'Withdraw ' + token.nama_pair">
-                      {{ getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).withdraw ? 'WD' : 'WX' }}
+                      {{ getTokenCexStatus(token, 'pair').withdraw ? 'WD' : 'WX' }}
                     </a>
                     <a v-if="getTokenPrimaryCEX(token)"
                           :href="getCexDepositLink(token, token.nama_pair)" target="_blank"
                           class="badge me-1 text-decoration-none small"
-                          :class="getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'bg-success' : 'bg-danger'"
+                          :class="getTokenCexStatus(token, 'pair').deposit ? 'bg-success' : 'bg-danger'"
                           :title="'Deposit ' + token.nama_pair">
-                      {{ getTokenPairCexStatus(token, getTokenPrimaryCEX(token)).deposit ? 'DP' : 'DX' }}
+                      {{ getTokenCexStatus(token, 'pair').deposit ? 'DP' : 'DX' }}
                     </a>
                     <a :href="getCexWalletBalanceLink(token, token.sc_pair, 1)" target="_blank" class="badge bg-info text-dark me-1 text-decoration-none small" :title="'Cek Saldo ' + token.nama_pair + ' di Wallet ' + getTokenPrimaryCEX(token) + ' #1'">
                       <i class="bi bi-wallet2"></i>
@@ -665,7 +650,7 @@ const ScanningTab = {
                 <div v-else class="small text-muted">-</div>
               </td>
               <td class="text-center">
-                <a :href="getCexTradeLink(token, token.nama_token)" target="_blank" @click.prevent="openOrderbook(token, 'right')" 
+                <a :href="getCexTradeLink(token, token.cex_ticker_token)" target="_blank" @click.prevent="openOrderbook(token, 'right')" 
                    class="btn btn-sm btn-outline-primary text-uppercase"
                    :title="'Orderbook ' + getTokenPrimaryCEX(token)">
                   {{ getTokenPrimaryCEX(token) }}

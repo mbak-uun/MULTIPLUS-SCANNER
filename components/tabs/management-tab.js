@@ -6,7 +6,7 @@ const ID_NUMBER_FORMAT = new Intl.NumberFormat('id-ID');
 const ManagementTab = {
   name: 'ManagementTab',
   emits: ['show-toast', 'show-add-token-modal', 'import-tokens', 'export-tokens'],
-  mixins: [filterMixin], // Gunakan filter mixin
+  mixins: [filterMixin, historyLoggerMixin], // REVISI: Tambahkan historyLoggerMixin di sini
 
   data() {
     return {
@@ -23,11 +23,12 @@ const ManagementTab = {
       formData: {
         selectedPairType: '',
         selectedDex: [],
-        dexModals: {},
+        dexModals: {}, // { dexKey: { modalKiri: 100, modalKanan: 100 } }
         nonData: { symbol: '', sc: '', des: 18 },
-        tokenData: { name: '', ticker: '', sc: '', decimals: 18 },
-        selectedCex: [],
-        cexConfig: {}
+        // REFACTOR: Disesuaikan dengan skema baru
+        tokenData: { name: '', sc: '', decimals: 18 },
+        selectedCex: [], // REFACTOR: Dari cex_name (string) ke selectedCex (array)
+        cex_tickers: {}, // REFACTOR: Dari cex_ticker_token (string) ke cex_tickers (object { CEX: ticker })
       }
     };
   },
@@ -47,7 +48,7 @@ const ManagementTab = {
     },
     columnCount() {
       // NO, TOKEN, EXCHANGER, DEX, ACTION
-      return 5;
+      return 6; // REVISI: Kolom status digabung jadi 1
     },
 
     // Computed untuk modal
@@ -86,10 +87,6 @@ const ManagementTab = {
 
   methods: {
     // Helper untuk mendapatkan CEX utama dari sebuah token
-    getTokenPrimaryCEX(token) {
-      const cexList = this.getTokenCEXList(token);
-      return cexList.length > 0 ? cexList[0] : null;
-    },
     getDexLeft(token, dexKey) {
       return (token.dex && token.dex[dexKey] && token.dex[dexKey].left) || '0';
     },
@@ -109,15 +106,6 @@ const ManagementTab = {
             decimals: token[decimalsKey]
           };
         });
-    },
-    getPrimaryCexInfo(token) {
-      const key = this.getTokenPrimaryCEX(token);
-      if (!key) return null;
-      return {
-        key,
-        label: key.toUpperCase(),
-        status: this.getTokenCexStatus(token, key)
-      };
     },
     // Memuat semua token dari semua chain di IndexedDB
     async loadTokensFromDB() {
@@ -162,7 +150,7 @@ const ManagementTab = {
       }
       const storeName = DB.getStoreNameByChain('KOIN', token.chain);
       await DB.saveData(storeName, token);
-
+      // REVISI: Gunakan helper log yang benar
       await this.logAction('TOGGLE_FAVORITE', {
         tokenName: token.nama_koin || token.from,
         tokenTicker: token.nama_token,
@@ -196,7 +184,7 @@ const ManagementTab = {
 
         // Log aksi dengan pesan yang lebih baik
         const tokenIdentifier = token.nama_koin || token.from;
-        await this.logAction('DELETE_TOKEN', {
+        await this.logManagement('delete_coin', 'success', { // REVISI: Gunakan helper log yang benar
           message: `Token '${tokenIdentifier}' dihapus dari chain ${token.chain.toUpperCase()}.`,
           chain: token.chain
         });
@@ -215,41 +203,6 @@ const ManagementTab = {
     // Menampilkan modal untuk mengedit token yang ada
     showEditTokenModal(token) {
       this.$emit('show-add-token-modal', token); // Mengirim data token untuk diedit
-    },
-    // Badge class untuk status WX/WD
-    getTokenCexStatus(token, cexKey) {
-      const cexData = token.cex?.[cexKey.toUpperCase()];
-      if (!cexData) return { deposit: false, withdraw: false };
-      return {
-        deposit: cexData.depositToken,
-        withdraw: cexData.withdrawToken
-      };
-    },
-    async toggleTokenStatus(tokenId) {
-      const tokenIndex = this.tokens.findIndex(t => t.id === tokenId);
-      if (tokenIndex === -1) return;
-
-      const token = this.tokens[tokenIndex];
-      const originalStatus = token.status;
-      const newStatus = !originalStatus;
-
-      // Update state secara optimis
-      this.tokens[tokenIndex].status = newStatus;
-
-      // Simpan ke DB
-      try {
-        const storeName = DB.getStoreNameByChain('KOIN', token.chain);
-        // REVISI: Konversi objek reaktif Vue ke objek biasa sebelum menyimpan ke DB
-        await DB.saveData(storeName, JSON.parse(JSON.stringify(this.tokens[tokenIndex])));
-        this.$emit('show-toast', `Status ${token.nama_koin} ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`, 'success');
-        // Panggil method root untuk refresh data count
-        this.$root.loadCoinsForFilter();
-      } catch (error) {
-        console.error('Gagal memperbarui status token:', error);
-        // Kembalikan jika gagal
-        this.tokens[tokenIndex].status = originalStatus;
-        this.$emit('show-toast', 'Gagal memperbarui status token.', 'danger');
-      }
     },
     async toggleTokenFavorit(tokenId) {
       const tokenIndex = this.tokens.findIndex(t => t.id === tokenId);
@@ -305,6 +258,14 @@ const ManagementTab = {
       return numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
     },
 
+    // Helper untuk badge status
+    getStatusBadgeClass(status) {
+      return status ? 'bg-success' : 'bg-danger';
+    },
+    getStatusBadgeLabel(status, type) {
+      return status ? type.toUpperCase() : type.toUpperCase() + 'X';
+    },
+
     // Method untuk save filter
     saveFilter(field) {
       this.$root.saveFilterChange(field);
@@ -314,22 +275,18 @@ const ManagementTab = {
     openAddModal() {
       this.resetFormData();
       this.formData.selectedPairType = this.availablePairOptions[0]?.key || '';
-      this.formData.selectedDex = this.availableDexOptions.map(d => d.key);
-      this.availableDexOptions.forEach(dex => {
-        this.formData.dexModals[dex.key] = { modalKiri: 100, modalKanan: 100 };
-      });
       this.showAddModal = true;
     },
     closeAddModal() {
       this.showAddModal = false;
-      this.resetFormData();
     },
     openEditModal(token) {
       this.editingToken = { ...token };
       // Populate form dengan data token yang ada
+      this.formData.selectedCex = [token.cex_name]; // Set sebagai array dengan satu item
+      this.formData.cex_tickers[token.cex_name] = token.cex_ticker_token; // Set ticker untuk CEX tersebut
       this.formData.tokenData = {
         name: token.nama_koin,
-        ticker: token.nama_token,
         sc: token.sc_token,
         decimals: token.des_token
       };
@@ -340,18 +297,6 @@ const ManagementTab = {
         this.formData.dexModals[dexKey] = {
           modalKiri: token.dex[dexKey]?.left || 100,
           modalKanan: token.dex[dexKey]?.right || 100
-        };
-      });
-      this.formData.selectedCex = this.getTokenCEXList(token);
-      this.formData.cexConfig = {};
-      // Populate CEX config
-      this.formData.selectedCex.forEach(cexKey => {
-        const cexKeyUpper = cexKey.toUpperCase();
-        const cexData = token.cex?.[cexKeyUpper] || {};
-        this.formData.cexConfig[cexKey] = {
-          feeWD: cexData.feeWDToken || 0,
-          deposit: cexData.depositToken || false,
-          withdraw: cexData.withdrawToken || false
         };
       });
       this.showEditModal = true;
@@ -365,11 +310,11 @@ const ManagementTab = {
       this.formData = {
         selectedPairType: '',
         selectedDex: [],
-        dexModals: {},
-        nonData: { symbol: '', sc: '', des: 18 },
-        tokenData: { name: '', ticker: '', sc: '', decimals: 18 },
+        dexModals: {}, // { dexKey: { modalKiri: 100, modalKanan: 100 } }
+        nonData: { symbol: '', sc: '', des: 18 },        // REFACTOR: Disesuaikan dengan skema baru
+        tokenData: { name: '', sc: '', decimals: 18 },
         selectedCex: [],
-        cexConfig: {}
+        cex_tickers: {},
       };
     },
     toggleDexSelection(dexKey) {
@@ -389,119 +334,85 @@ const ManagementTab = {
       }
       this.formData.dexModals[dexKey][field] = value;
     },
-    toggleCexSelection(cexKey) {
-      console.log(`[Toggle CEX] ${cexKey}, current selected:`, this.formData.selectedCex);
-      const index = this.formData.selectedCex.indexOf(cexKey);
-      if (index > -1) {
-        this.formData.selectedCex.splice(index, 1);
-        delete this.formData.cexConfig[cexKey];
-        console.log(`[Toggle CEX] Removed ${cexKey}`);
-      } else {
-        this.formData.selectedCex.push(cexKey);
-        if (!this.formData.cexConfig[cexKey]) {
-          this.formData.cexConfig[cexKey] = {
-            feeWD: 0,
-            deposit: false,
-            withdraw: false
-          };
-        }
-        console.log(`[Toggle CEX] Added ${cexKey}`, this.formData.cexConfig[cexKey]);
-      }
-      console.log(`[Toggle CEX] New selected:`, this.formData.selectedCex);
-    },
-    updateCexConfig(cexKey, field, value) {
-      if (!this.formData.cexConfig[cexKey]) {
-        this.formData.cexConfig[cexKey] = { feeWD: 0, deposit: false, withdraw: false };
-      }
-      this.formData.cexConfig[cexKey][field] = value;
-      console.log(`[CEX Config Update] ${cexKey}.${field} = ${value}`, this.formData.cexConfig[cexKey]);
-    },
     async saveNewToken() {
+      // REFACTOR: Validasi untuk skema baru dengan checkbox
       if (!this.formData.tokenData.name || !this.formData.tokenData.sc) {
-        this.$emit('show-toast', 'Nama token dan smart contract wajib diisi.', 'warning');
+        this.$emit('show-toast', 'Nama Token dan Smart Contract wajib diisi.', 'warning');
         return;
       }
-
-      const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
-      const now = new Date().toISOString();
-
-      // Build pair info
-      let pairInfo;
-      if (this.isNonPair) {
-        pairInfo = {
-          symbol: this.formData.nonData.symbol,
-          address: this.formData.nonData.sc,
-          decimals: Number(this.formData.nonData.des || 18)
-        };
-      } else {
-        const pair = this.availablePairOptions.find(p => p.key === this.formData.selectedPairType);
-        pairInfo = {
-          symbol: pair.symbol,
-          address: pair.address,
-          decimals: Number(pair.decimals || 18)
-        };
+      if (this.formData.selectedCex.length === 0) {
+        this.$emit('show-toast', 'Pilih minimal satu CEX.', 'warning');
+        return;
+      }
+      for (const cex of this.formData.selectedCex) {
+        if (!this.formData.cex_tickers[cex] || this.formData.cex_tickers[cex].trim() === '') {
+          this.$emit('show-toast', `Ticker untuk CEX ${cex} wajib diisi.`, 'warning');
+          return;
+        }
       }
 
-      // Build DEX config
-      const dexConfig = this.formData.selectedDex.reduce((acc, dexKey) => {
-        const modal = this.formData.dexModals[dexKey] || { modalKiri: 100, modalKanan: 100 };
-        acc[dexKey] = {
-          status: true,
-          left: Number(modal.modalKiri || 0),
-          right: Number(modal.modalKanan || 0)
-        };
-        return acc;
-      }, {});
-
-      // Build CEX config
-      const cexConfig = this.formData.selectedCex.reduce((acc, cexKey) => {
-        const config = this.formData.cexConfig[cexKey] || { feeWD: 0, deposit: false, withdraw: false };
-        const cexKeyUpper = cexKey.toUpperCase();
-        console.log(`[Add Token] Building CEX config for ${cexKey} -> ${cexKeyUpper}:`, config);
-        acc[cexKeyUpper] = {
-          status: true,
-          feeWDToken: Number(config.feeWD || 0),
-          feeWDPair: null,
-          depositToken: Boolean(config.deposit),
-          withdrawToken: Boolean(config.withdraw),
-          depositPair: false,
-          withdrawPair: false
-        };
-        return acc;
-      }, {});
-
-      console.log('[Add Token] Final CEX config:', cexConfig);
-      console.log('[Add Token] Selected CEX:', this.formData.selectedCex);
-      console.log('[Add Token] CEX Config form data:', this.formData.cexConfig);
-
-      const record = {
-        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        chain: this.activeChain.toUpperCase(),
-        nama_koin: this.formData.tokenData.name.toUpperCase(),
-        nama_token: this.formData.tokenData.ticker.toUpperCase(),
-        sc_token: this.formData.tokenData.sc,
-        des_token: Number(this.formData.tokenData.decimals || 18),
-        nama_pair: pairInfo.symbol,
-        sc_pair: pairInfo.address,
-        des_pair: pairInfo.decimals,
-        status: true,
-        isFavorite: false,
-        cex: cexConfig,
-        dex: dexConfig,
-        createdAt: now,
-        updatedAt: now
-      };
-
       try {
-        await DB.saveData(storeName, record);
-        // Log aksi dengan pesan yang lebih baik
-        await this.logAction('ADD_TOKEN', {
-            message: `Token '${record.nama_koin}' ditambahkan ke chain ${record.chain.toUpperCase()}.`,
-            chain: record.chain
-        });
+        const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
+        const now = new Date().toISOString();
 
-        this.tokens.push(record);
-        this.$emit('show-toast', `Token ${record.nama_koin} berhasil ditambahkan.`, 'success');
+        // Build pair info
+        let pairInfo;
+        if (this.isNonPair) {
+          pairInfo = {
+            symbol: this.formData.nonData.symbol,
+            address: this.formData.nonData.sc,
+            decimals: Number(this.formData.nonData.des || 18)
+          };
+        } else {
+          const pair = this.availablePairOptions.find(p => p.key === this.formData.selectedPairType);
+          pairInfo = {
+            symbol: pair.symbol,
+            address: pair.address,
+            decimals: Number(pair.decimals || 18)
+          };
+        }
+
+        // Build DEX config
+        const dexConfig = this.formData.selectedDex.reduce((acc, dexKey) => {
+          const modal = this.formData.dexModals[dexKey] || { modalKiri: 100, modalKanan: 100 };
+          acc[dexKey] = {
+            status: true,
+            left: Number(modal.modalKiri || 0),
+            right: Number(modal.modalKanan || 0)
+          };
+          return acc;
+        }, {});
+
+        let addedCount = 0;
+        for (const cex of this.formData.selectedCex) {
+          const record = {
+            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            chain: this.activeChain.toUpperCase(),
+            nama_koin: this.formData.tokenData.name.toUpperCase(),
+            sc_token: this.formData.tokenData.sc,
+            des_token: Number(this.formData.tokenData.decimals || 18),
+            cex_name: cex.toUpperCase(),
+            cex_ticker_token: this.formData.cex_tickers[cex].toUpperCase(),
+            cex_fee_wd: 0,
+            cex_deposit_status: false,
+            cex_withdraw_status: false,
+            nama_pair: pairInfo.symbol,
+            sc_pair: pairInfo.address,
+            des_pair: pairInfo.decimals,
+            cex_pair_deposit_status: false,
+            cex_pair_withdraw_status: false,
+            status: true,
+            isFavorite: false,
+            dex: dexConfig,
+            createdAt: now,
+            updatedAt: now
+          };
+          await DB.saveData(storeName, record);
+          this.tokens.push(record);
+          addedCount++;
+        }
+
+        this.$emit('show-toast', `${addedCount} token berhasil ditambahkan.`, 'success');
         this.closeAddModal();
       } catch (error) {
         console.error('Error saving token:', error);
@@ -509,7 +420,7 @@ const ManagementTab = {
       }
     },
     async saveEditToken() {
-      if (!this.editingToken) return;
+      if (!this.editingToken || this.formData.selectedCex.length !== 1) return;
 
       const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
       const now = new Date().toISOString();
@@ -542,37 +453,17 @@ const ManagementTab = {
         return acc;
       }, {});
 
-      // Build CEX config
-      const cexConfig = this.formData.selectedCex.reduce((acc, cexKey) => {
-        const config = this.formData.cexConfig[cexKey] || { feeWD: 0, deposit: false, withdraw: false };
-        const cexKeyUpper = cexKey.toUpperCase();
-        console.log(`[Edit Token] Building CEX config for ${cexKey} -> ${cexKeyUpper}:`, config);
-        acc[cexKeyUpper] = {
-          status: true,
-          feeWDToken: Number(config.feeWD || 0),
-          feeWDPair: null,
-          depositToken: Boolean(config.deposit),
-          withdrawToken: Boolean(config.withdraw),
-          depositPair: false,
-          withdrawPair: false
-        };
-        return acc;
-      }, {});
-
-      console.log('[Edit Token] Final CEX config:', cexConfig);
-      console.log('[Edit Token] Selected CEX:', this.formData.selectedCex);
-      console.log('[Edit Token] CEX Config form data:', this.formData.cexConfig);
-
+      // REFACTOR: Update record dengan skema "flat"
       const updatedToken = {
         ...this.editingToken,
         nama_koin: this.formData.tokenData.name.toUpperCase(),
-        nama_token: this.formData.tokenData.ticker.toUpperCase(),
         sc_token: this.formData.tokenData.sc,
         des_token: Number(this.formData.tokenData.decimals || 18),
+        cex_name: this.formData.selectedCex[0].toUpperCase(),
+        cex_ticker_token: this.formData.cex_tickers[this.formData.selectedCex[0]].toUpperCase(),
         nama_pair: pairInfo.symbol,
         sc_pair: pairInfo.address,
         des_pair: pairInfo.decimals,
-        cex: cexConfig,
         dex: dexConfig,
         updatedAt: now
       };
@@ -580,7 +471,7 @@ const ManagementTab = {
       try {
         await DB.saveData(storeName, updatedToken);
         // Log aksi dengan pesan yang lebih baik
-        await this.logAction('EDIT_TOKEN', {
+        await this.logManagement('edit_coin', 'success', { // REVISI: Gunakan helper log yang benar
             message: `Token '${updatedToken.nama_koin}' di chain ${updatedToken.chain.toUpperCase()} telah diubah.`,
             chain: updatedToken.chain
         });
@@ -607,53 +498,72 @@ const ManagementTab = {
       }
 
       try {
-        // Header CSV
-        const headers = ['Nama Koin', 'Ticker', 'Smart Contract', 'Decimals', 'Chain', 'Pair', 'CEX', 'DEX', 'DEX Modals', 'Status', 'Favorite'];
+        // REFACTOR: Buat header dinamis berdasarkan DEX yang ada di config global
+        const baseHeaders = [
+          'chain', 'nama_koin', 'nama_token', 'sc_token', 'des_token',
+          'cex_name', 'cex_ticker_token',
+          'nama_pair', 'sc_pair', 'des_pair',
+          'status', 'isFavorite'
+        ];
+        
+        // Ambil semua kemungkinan DEX dari config global
+        const allDexKeys = Object.keys(this.config.DEXS || {});
+        const dexHeaders = allDexKeys.map(dexKey => `DEX_${dexKey.toUpperCase()}`);
+        
+        const headers = [...baseHeaders, ...dexHeaders];
 
-        // Data rows
+        // REFACTOR: Map data token ke struktur header baru
         const rows = this.filteredTokens.map(token => {
-          // Build DEX modals string
-          const dexModals = Object.keys(token.dex || {}).map(dexKey => {
-            const left = token.dex[dexKey]?.left || 0;
-            const right = token.dex[dexKey]?.right || 0;
-            return `${dexKey}:${left}|${right}`;
-          }).join(';');
+          const rowData = {
+            chain: token.chain || '',
+            nama_koin: token.nama_koin || '',
+            nama_token: token.nama_token || '',
+            sc_token: token.sc_token || '',
+            des_token: token.des_token ?? 18,
+            cex_name: token.cex_name || '',
+            cex_ticker_token: token.cex_ticker_token || '',
+            nama_pair: token.nama_pair || '',
+            sc_pair: token.sc_pair || '',
+            des_pair: token.des_pair ?? 18,
+            status: token.status ? 'Active' : 'Inactive',
+            isFavorite: (token.isFavorite || token.isFavorit) ? 'Yes' : 'No'
+          };
 
-          return [
-            token.nama_koin || '',
-            token.nama_token || '',
-            token.sc_token || '',
-            token.des_token || '',
-            token.chain || '',
-            token.nama_pair || '',
-            this.getTokenCEXList(token).join(';'),
-            Object.keys(token.dex || {}).join(';'),
-            dexModals,
-            token.status ? 'Active' : 'Inactive',
-            (token.isFavorite || token.isFavorit) ? 'Yes' : 'No'
-          ];
+          // Isi data untuk setiap kolom DEX
+          allDexKeys.forEach(dexKey => {
+            const dexHeaderKey = `DEX_${dexKey.toUpperCase()}`;
+            const dexInfo = token.dex?.[dexKey];
+            if (dexInfo && dexInfo.status) {
+              // PERBAIKAN: Gunakan format modalkiri:modalkanan
+              rowData[dexHeaderKey] = `${dexInfo.left ?? 0}:${dexInfo.right ?? 0}`;
+            } else {
+              rowData[dexHeaderKey] = ''; // Kosongkan jika tidak aktif
+            }
+          });
+
+          // PERBAIKAN: Jangan ubah header DEX ke lowercase saat mapping.
+          // Buat lookup key yang benar.
+          return headers.map(header => rowData[header] ?? rowData[header.toLowerCase()] ?? '');
         });
 
         // Combine headers and rows
         const csvContent = [headers, ...rows]
           .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
           .join('\n');
-
-        // Create download link
+        
+        // Create and trigger download
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         const filename = `tokens_${this.activeChain}_${new Date().toISOString().slice(0, 10)}.csv`;
-
         link.setAttribute('href', url);
         link.setAttribute('download', filename);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
-        // Log aksi dengan pesan yang lebih baik
-        await this.logAction('EXPORT_CSV', {
+        
+        await this.logManagement('export_csv', 'success', { // REVISI: Gunakan helper log yang benar
             message: `Export ${this.filteredTokens.length} token ke CSV dari chain ${this.activeChain.toUpperCase()}.`,
             chain: this.activeChain
         });
@@ -672,77 +582,107 @@ const ManagementTab = {
       input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         try {
           const text = await file.text();
           const lines = text.split('\n').filter(line => line.trim());
-
           if (lines.length < 2) {
-            this.$emit('show-toast', 'File CSV kosong atau tidak valid.', 'warning');
+            this.$emit('show-toast', 'File CSV kosong atau tidak memiliki data.', 'warning');
             return;
           }
 
-          // Skip header
-          const dataLines = lines.slice(1);
-          const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
+          // REFACTOR: Deteksi delimiter secara otomatis (koma, titik koma, atau tab)
+          const detectDelimiter = (headerLine) => {
+            const delimiters = [',', ';', '\t'];
+            let bestDelimiter = ',';
+            let maxCount = 0;
+
+            delimiters.forEach(delimiter => {
+              const count = (headerLine.match(new RegExp(delimiter, 'g')) || []).length;
+              if (count > maxCount) {
+                maxCount = count;
+                bestDelimiter = delimiter;
+              }
+            });
+            console.log(`Delimiter terdeteksi: '${bestDelimiter}'`);
+            return bestDelimiter;
+          };
+
+          const detectedDelimiter = detectDelimiter(lines[0]);
+
+          // REFACTOR: Gunakan delimiter yang terdeteksi untuk memecah header dan baris data.
+          const headerCols = lines[0].split(detectedDelimiter).map(col => col.replace(/^"|"$/g, '').trim().toLowerCase());
+          const dataLines = lines.slice(1); // Data dimulai dari baris kedua
+
           let imported = 0;
           let errors = 0;
 
           for (const line of dataLines) {
             try {
-              const cols = line.split(',').map(col => col.replace(/^"|"$/g, '').replace(/""/g, '"'));
+              const cols = line.split(detectedDelimiter).map(col => col.replace(/^"|"$/g, '').replace(/""/g, '"'));
+              if (cols.length < headerCols.length) continue; // Skip baris yang tidak lengkap
 
-              if (cols.length < 6) continue; // Skip invalid rows
+              // Buat objek data berdasarkan header yang dibaca
+              const rowData = {};
+              headerCols.forEach((header, index) => { rowData[header] = cols[index]; });
 
-              const [namaKoin, ticker, sc, decimals, chain, pair, cex, dex, dexModals, status, favorite] = cols;
+              // SOLUSI: Tentukan chain dan storeName di sini, untuk setiap baris CSV.
+              const chain = (rowData.chain || this.activeChain).toUpperCase();
+              const storeName = DB.getStoreNameByChain('KOIN', chain);
 
-              // Build basic record
-              const record = {
-                id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                chain: (chain || this.activeChain).toUpperCase(),
-                nama_koin: namaKoin.toUpperCase(),
-                nama_token: ticker.toUpperCase(),
-                sc_token: sc,
-                des_token: Number(decimals || 18),
-                nama_pair: pair,
-                sc_pair: '',
-                des_pair: 18,
-                status: status === 'Active',
-                isFavorite: favorite === 'Yes',
-                cex: {},
-                dex: {},
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              };
+              // Validasi minimal: nama_koin atau ticker harus ada
+              if (!rowData.nama_koin && !rowData.cex_ticker_token && !rowData.nama_token) {
+                errors++;
+                continue;
+              }
 
-              // Parse DEX with modals
-              if (dexModals) {
-                // Format: "dex1:100|200;dex2:150|250"
-                dexModals.split(';').forEach(dexEntry => {
-                  if (dexEntry) {
-                    const [dexKey, modals] = dexEntry.split(':');
-                    if (dexKey && modals) {
-                      const [left, right] = modals.split('|').map(v => Number(v) || 100);
-                      record.dex[dexKey.toLowerCase()] = {
-                        status: true,
-                        left,
-                        right
-                      };
-                    }
-                  }
-                });
-              } else if (dex) {
-                // Fallback untuk format lama (tanpa modal)
-                dex.split(';').forEach(dexKey => {
-                  if (dexKey) {
-                    record.dex[dexKey.toLowerCase()] = {
+              // REFACTOR: Parse DEX config dari kolom-kolom terpisah
+              const dexConfig = {};
+              headerCols.forEach(header => {
+                if (header.startsWith('dex_')) {
+                  const dexKey = header.substring(4).toLowerCase();
+                  const dexValue = rowData[header];
+                  // PERBAIKAN: Baca format modalkiri:modalkanan
+                  if (dexValue && dexValue.includes(':')) {
+                    const [left, right] = dexValue.split(':');
+                    dexConfig[dexKey] = {
                       status: true,
-                      left: 100,
-                      right: 100
+                      left: parseInt(left, 10) || 0,
+                      right: parseInt(right, 10) || 0
                     };
                   }
-                });
+                }
+              });
+
+              const cexName = (rowData.cex_name || '').trim().toUpperCase();
+              if (!cexName) {
+                errors++;
+                continue;
               }
+
+              const now = new Date().toISOString();
+              const record = {
+                id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                chain: chain,
+                nama_koin: (rowData.nama_koin || '').toUpperCase(),
+                nama_token: (rowData.nama_token || (rowData.cex_ticker_token || '').replace(/USDT|IDR|BUSD/g, '')).toUpperCase(), // Fallback dari ticker
+                sc_token: rowData.sc_token || '',
+                des_token: Number(rowData.des_token || 18),
+                cex_name: cexName,
+                cex_ticker_token: (rowData.cex_ticker_token || '').toUpperCase(),
+                cex_fee_wd: 0,
+                cex_deposit_status: false,
+                cex_withdraw_status: false,
+                nama_pair: rowData.nama_pair || '',
+                sc_pair: rowData.sc_pair || '',
+                des_pair: Number(rowData.des_pair || 18),
+                cex_pair_deposit_status: false,
+                cex_pair_withdraw_status: false,
+                status: rowData.status === 'Active',
+                isFavorite: rowData.isFavorite === 'Yes',
+                dex: dexConfig,
+                createdAt: now,
+                updatedAt: now
+              };
 
               await DB.saveData(storeName, record);
               imported++;
@@ -753,7 +693,7 @@ const ManagementTab = {
           }
 
           // Log aksi dengan pesan yang lebih baik
-          await this.logAction('IMPORT_CSV', {
+          await this.logManagement('import_csv', 'success', { // REVISI: Gunakan helper log yang benar
               message: `Import ${imported} token dari CSV ke chain ${this.activeChain.toUpperCase()}. Gagal: ${errors}.`,
               chain: this.activeChain
           });
@@ -769,23 +709,6 @@ const ManagementTab = {
       input.click();
     },
 
-    // ===== ACTION LOGGING =====
-    async logAction(actionType, details) {
-      try {
-        const storeName = 'RIWAYAT_AKSI'; // Gunakan nama tabel global yang benar
-        const record = {
-          timestamp: new Date().toISOString(),
-          action: actionType,
-          status: 'success', // Tambahkan status default
-          message: details.message || `${actionType} action performed`, // Fallback message
-          // Gabungkan detail ke dalam record utama
-          ...details
-        };
-        await DB.saveData(storeName, record);
-      } catch (error) {
-        console.error('Error logging action:', error);
-      }
-    }
   },
 
   watch: {
@@ -795,6 +718,8 @@ const ManagementTab = {
     }
   },
   activated() {
+    // REVISI: Mixin sudah ditambahkan di atas, baris ini tidak lagi diperlukan dan menyebabkan error.
+    // Metode dari historyLoggerMixin sekarang tersedia langsung di `this`.
     this.loadTokensFromDB(); // Muat ulang data saat tab diaktifkan kembali
   },
 
@@ -855,7 +780,7 @@ const ManagementTab = {
       </div>
 
       <!-- Tabel Manajemen Koin -->
-      <div class="table-responsive">
+      <div class="table-responsive" style="max-height: calc(100vh - 250px);">
         <table class="table table-sm table-hover align-middle management-table">
           <thead class="sticky-top">
             <tr class="text-center text-uppercase small" :style="$root.getColorStyles('chain', $root.activeChain, 'solid')">
@@ -868,6 +793,7 @@ const ManagementTab = {
                 }"></i>
               </th>
               <th class="text-nowrap">Exchanger</th>
+              <th class="text-nowrap">Status CEX</th>
               <th class="text-nowrap">Dex & Modal</th>
               <th class="text-nowrap" style="width: 150px;">Action</th>
             </tr>
@@ -883,37 +809,53 @@ const ManagementTab = {
               <td class="text-center fw-semibold">{{ index + 1 }}</td>
               <td>
                 <div class="d-flex flex-column">
-                  <div class="fw-bold">
-                    <span class="text-primary">{{ token.nama_koin || token.from }} [ {{ token.nama_token }} / {{ token.nama_pair }} ]</span>
+                  <div class="d-flex align-items-center">
+                    <span class="fw-bold text-primary">{{ token.nama_koin || '-' }}</span>
+                    <span class="badge bg-light text-dark border ms-2">Dec: {{ token.des_token ?? 'N/A' }}</span>
                   </div>
                   <div class="small text-muted">
                     {{ token.sc_token }}
                   </div>
-                </div>
-              </td>
-              <td v-if="getPrimaryCexInfo(token)" class="text-center">
-                <div class="d-flex flex-column align-items-center gap-1">
-                  <div v-for="cexKey in getTokenCEXList(token)" :key="cexKey" class="d-flex align-items-center gap-2">
-                    <span class="badge" :style="$root.getColorStyles('cex', cexKey, 'soft')">
-                      {{ cexKey.toUpperCase() }}
-                    </span>
-                    <div class="small">
-                      <span class="badge" :class="getTokenCexStatus(token, cexKey).deposit ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'">
-                        {{ getTokenCexStatus(token, cexKey).deposit ? 'DP' : 'DX' }}
-                      </span>
-                      <span class="badge" :class="getTokenCexStatus(token, cexKey).withdraw ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'">
-                        {{ getTokenCexStatus(token, cexKey).withdraw ? 'WD' : 'WX' }}
-                      </span>
-                    </div>
+                  <hr class="my-1">
+                  <div class="d-flex align-items-center">
+                    <span class="fw-semibold text-info">{{ token.nama_pair || '-' }}</span>
+                    <span v-if="token.sc_pair" class="badge bg-light text-dark border ms-2">Dec: {{ token.des_pair ?? 'N/A' }}</span>
+                  </div>
+                  <div v-if="token.sc_pair" class="small text-muted">
+                    {{ token.sc_pair }}
                   </div>
                 </div>
               </td>
-              <td v-else class="text-center text-muted">-</td>
+              <td class="text-center">
+                <span v-if="token.cex_name" class="badge" :style="$root.getColorStyles('cex', token.cex_name, 'soft')">
+                  {{ token.cex_name.toUpperCase() }}
+                  <br>
+                  <small class="fw-normal">{{ token.cex_ticker_token }}</small>
+                </span>
+                <span v-else class="text-muted small">-</span>
+              </td>
+              <td>
+                <div class="d-flex flex-column gap-1 small">
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="fw-semibold text-primary text-truncate" style="min-width: 50px;">{{ token.nama_token }}</span>
+                    <span class="badge" :class="getStatusBadgeClass(token.cex_deposit_status)" :title="'Deposit Token ' + (token.cex_deposit_status ? 'ON' : 'OFF')">{{ getStatusBadgeLabel(token.cex_deposit_status, 'DP') }}</span>
+                    <span class="badge" :class="getStatusBadgeClass(token.cex_withdraw_status)" :title="'Withdraw Token ' + (token.cex_withdraw_status ? 'ON' : 'OFF')">{{ getStatusBadgeLabel(token.cex_withdraw_status, 'WD') }}</span>
+                  </div>
+                  <div v-if="token.nama_pair" class="d-flex align-items-center gap-1">
+                    <span class="fw-semibold text-info text-truncate" style="min-width: 50px;">{{ token.nama_pair }}</span>
+                    <span class="badge" :class="getStatusBadgeClass(token.cex_pair_deposit_status)" :title="'Deposit Pair ' + (token.cex_pair_deposit_status ? 'ON' : 'OFF')">{{ getStatusBadgeLabel(token.cex_pair_deposit_status, 'DP') }}</span>
+                    <span class="badge" :class="getStatusBadgeClass(token.cex_pair_withdraw_status)" :title="'Withdraw Pair ' + (token.cex_pair_withdraw_status ? 'ON' : 'OFF')">{{ getStatusBadgeLabel(token.cex_pair_withdraw_status, 'WD') }}</span>
+                  </div>
+                  <div v-else class="text-muted">
+                    -
+                  </div>
+                </div>
+              </td>
               <td class="text-center">
                 <div v-if="getDexEntries(token).length" class="d-flex flex-wrap gap-2 justify-content-center">
                   <span v-for="dex in getDexEntries(token)" :key="dex.key" class="badge" :style="$root.getColorStyles('dex', dex.key, 'soft')">
                     {{ dex.name }}
-                    <span class="text-muted small">({{ formatDexValue(dex.left) }}|{{ formatDexValue(dex.right) }})</span>
+                    <span class="text-muted small">[{{ formatDexValue(dex.left) }}|{{ formatDexValue(dex.right) }}]</span>
                   </span>
                 </div>
                 <span v-else class="text-muted small">-</span>
@@ -943,54 +885,39 @@ const ManagementTab = {
 
       <!-- Modal Delete Confirmation -->
       <div v-if="showDeleteModal && tokenToDelete" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
           <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-              <h5 class="modal-title">
+            <div class="modal-header bg-danger text-white py-2">
+              <h6 class="modal-title">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>Konfirmasi Hapus Token
-              </h5>
+              </h6>
               <button type="button" class="btn-close btn-close-white" @click="closeDeleteModal"></button>
             </div>
-            <div class="modal-body">
-              <p class="mb-3">Anda yakin ingin menghapus token berikut?</p>
-              <div class="card bg-light">
-                <div class="card-body">
-                  <table class="table table-sm mb-0">
-                    <tbody>
-                      <tr>
-                        <th class="text-end" style="width: 35%;">Nama Token:</th>
-                        <td><strong>{{ tokenToDelete.nama_koin || tokenToDelete.from }}</strong></td>
-                      </tr>
-                      <tr>
-                        <th class="text-end">Ticker:</th>
-                        <td>{{ tokenToDelete.nama_token }}</td>
-                      </tr>
-                      <tr>
-                        <th class="text-end">Pair:</th>
-                        <td>{{ tokenToDelete.nama_pair }}</td>
-                      </tr>
-                      <tr>
-                        <th class="text-end">Chain:</th>
-                        <td><span class="badge" :style="$root.getColorStyles('chain', tokenToDelete.chain, 'soft')">{{ tokenToDelete.chain }}</span></td>
-                      </tr>
-                      <tr>
-                        <th class="text-end">CEX:</th>
-                        <td>{{ getTokenCEXList(tokenToDelete).join(', ') || '-' }}</td>
-                      </tr>
-                      <tr>
-                        <th class="text-end">DEX:</th>
-                        <td>{{ Object.keys(tokenToDelete.dex || {}).join(', ') || '-' }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+            <div class="modal-body p-3">
+              <p class="mb-2 small">Anda yakin ingin menghapus token ini?</p>
+              <div class="bg-light border rounded p-2 small">
+                <div class="fw-bold fs-6 text-primary">{{ tokenToDelete.nama_koin || tokenToDelete.from }}</div>
+                <div class="text-muted">{{ tokenToDelete.nama_token }} / {{ tokenToDelete.nama_pair }}</div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">CHAIN:</span>
+                  <span class="badge" :style="$root.getColorStyles('chain', tokenToDelete.chain, 'soft')">{{ tokenToDelete.chain }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">CEX:</span>
+                  <span class="fw-semibold">{{ tokenToDelete.cex_name || '-' }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">DEX:</span>
+                  <span class="fw-semibold">{{ Object.keys(tokenToDelete.dex || {}).map(dex => dex.toUpperCase()).join(', ') || '-' }}</span>
                 </div>
               </div>
-              <p class="text-danger mt-3 mb-0 small">
+              <p class="text-danger mt-2 mb-0 small">
                 <i class="bi bi-info-circle me-1"></i>
                 Data yang dihapus tidak dapat dikembalikan!
               </p>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer py-2">
               <button type="button" class="btn btn-sm btn-outline-danger" @click="closeDeleteModal">Batal</button>
               <button type="button" class="btn btn-sm btn-danger" @click="confirmDelete">
                 <i class="bi bi-trash-fill me-1"></i>Hapus Token
@@ -1023,16 +950,39 @@ const ManagementTab = {
                       <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.name" placeholder="Contoh: Bitcoin">
                     </div>
                     <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Ticker <span class="text-danger">*</span></label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.ticker" placeholder="Contoh: BTC" style="text-transform: uppercase;">
-                    </div>
-                    <div class="col-md-8">
-                      <label class="form-label small fw-semibold">Smart Contract <span class="text-danger">*</span></label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.sc" placeholder="0x...">
-                    </div>
-                    <div class="col-md-4">
                       <label class="form-label small fw-semibold">Decimals</label>
                       <input type="number" class="form-control form-control-sm" v-model.number="formData.tokenData.decimals" min="0" max="32">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small fw-semibold">Smart Contract Token <span class="text-danger">*</span></label>
+                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.sc" placeholder="0x...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CEX Info -->
+              <div class="card mb-2">
+                <div class="card-header py-2">
+                  <h6 class="mb-0 fs-6"><i class="bi bi-building me-1"></i>Informasi CEX</h6>
+                </div>
+                <div class="card-body p-2">
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <label class="form-label small fw-semibold">Pilih CEX <span class="text-danger">*</span></label>
+                      <div class="d-flex flex-wrap gap-2">
+                        <div v-for="cex in activeCEXs" :key="cex" class="form-check form-check-inline">
+                          <input class="form-check-input" type="checkbox" :id="'add-cex-' + cex" :value="cex" v-model="formData.selectedCex">
+                          <label class="form-check-label" :for="'add-cex-' + cex">{{ cex }}</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-for="cex in formData.selectedCex" :key="'ticker-add-' + cex" class="col-md-6">
+                      <label class="form-label small fw-semibold">Ticker di {{ cex }} <span class="text-danger">*</span></label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
+                        <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" placeholder="Contoh: BTCUSDT" style="text-transform: uppercase;">
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1070,26 +1020,6 @@ const ManagementTab = {
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- CEX Selection -->
-              <div class="card mb-2">
-                <div class="card-header py-2">
-                  <h6 class="mb-0 fs-6"><i class="bi bi-building me-1"></i>Pilih CEX</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="d-flex flex-wrap gap-2">
-                    <label v-for="cex in activeCEXs" :key="cex"
-                           class="filter-item"
-                           :class="{checked: formData.selectedCex.includes(cex)}"
-                           :style="$root.getColorStyles('cex', cex, formData.selectedCex.includes(cex) ? 'solid' : 'soft')">
-                      <input type="checkbox"
-                             :checked="formData.selectedCex.includes(cex)"
-                             @change="toggleCexSelection(cex)">
-                      <span>{{ cex.toUpperCase() }}</span>
-                    </label>
                   </div>
                 </div>
               </div>
@@ -1169,10 +1099,6 @@ const ManagementTab = {
                       <label class="form-label small fw-semibold">Nama Token</label>
                       <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.name">
                     </div>
-                    <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Ticker</label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.ticker" style="text-transform: uppercase;">
-                    </div>
                     <div class="col-md-8">
                       <label class="form-label small fw-semibold">Smart Contract</label>
                       <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.sc" placeholder="0x...">
@@ -1180,6 +1106,54 @@ const ManagementTab = {
                     <div class="col-md-4">
                       <label class="form-label small fw-semibold">Decimals</label>
                       <input type="number" class="form-control form-control-sm" v-model.number="formData.tokenData.decimals" min="0" max="32">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CEX Info -->
+              <div class="card mb-3">
+                <div class="card-header">
+                  <h6 class="mb-0"><i class="bi bi-building me-1"></i>Informasi CEX</h6>
+                </div>
+                <div class="card-body p-3">
+                  <div class="row g-3">
+                    <div class="col-12">
+                      <label class="form-label small fw-semibold">CEX (Tidak bisa diubah)</label>
+                      <div class="d-flex flex-wrap gap-2">
+                        <div v-for="cex in activeCEXs" :key="cex" class="form-check form-check-inline">
+                          <input class="form-check-input" type="checkbox" :id="'edit-cex-' + cex" :value="cex" v-model="formData.selectedCex" disabled>
+                          <label class="form-check-label" :for="'edit-cex-' + cex">{{ cex }}</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-for="cex in formData.selectedCex" :key="'ticker-edit-' + cex" class="col-md-6">
+                      <label class="form-label small fw-semibold">Ticker di {{ cex }}</label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
+                        <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" style="text-transform: uppercase;">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CEX Info -->
+              <div class="card mb-3">
+                <div class="card-header">
+                  <h6 class="mb-0"><i class="bi bi-building me-1"></i>Informasi CEX</h6>
+                </div>
+                <div class="card-body p-3">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label small fw-semibold">Nama CEX</label>
+                      <select class="form-select form-select-sm" v-model="formData.selectedCex[0]" disabled>
+                        <option v-for="cex in activeCEXs" :key="cex" :value="cex">{{ cex }}</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small fw-semibold">Ticker di CEX</label>
+                      <input type="text" class="form-control form-control-sm" v-model="formData.cex_tickers[formData.selectedCex[0]]" style="text-transform: uppercase;">
                     </div>
                   </div>
                 </div>
@@ -1213,31 +1187,6 @@ const ManagementTab = {
                           <div class="col-md-4">
                             <label class="form-label small fw-semibold">Decimals</label>
                             <input type="number" class="form-control form-control-sm" v-model.number="formData.nonData.des" min="0" max="32">
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- CEX Selection -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-building me-1"></i>Pilih CEX</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row">
-                    <div class="col-md-6" v-for="cex in activeCEXs" :key="cex">
-                      <div class="card mb-2" :class="{ 'border-primary': formData.selectedCex.includes(cex) }">
-                        <div class="card-body p-2">
-                          <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" :id="'cex-edit-' + cex"
-                                   :checked="formData.selectedCex.includes(cex)"
-                                   @change="toggleCexSelection(cex)">
-                            <label class="form-check-label fw-semibold small" :for="'cex-edit-' + cex" :style="$root.getColorStyles('cex', cex, 'solid')">
-                              {{ cex.toUpperCase() }}
-                            </label>
                           </div>
                         </div>
                       </div>

@@ -82,18 +82,6 @@ const DatabaseMenu = {
     handleRestoreFile(event) {
       this.$root.handleRestoreFile(event);
     },
-    // Helper untuk mendapatkan data CEX utama dari record KOIN
-    getPrimaryCexData(record) {
-      if (!record || !record.cex || typeof record.cex !== 'object') return null;
-      const primaryCexKey = Object.keys(record.cex)[0];
-      return primaryCexKey ? record.cex[primaryCexKey] : null;
-    },
-    // Helper untuk mendapatkan key CEX utama dari record KOIN
-    getPrimaryCexKey(record) {
-      if (!record || !record.cex || typeof record.cex !== 'object') return '-';
-      const primaryCexKey = Object.keys(record.cex)[0];
-      return primaryCexKey || '-';
-    },
     // Helper untuk class badge status WD/DP
     getDbBadgeClass(status) {
       return status ? 'badge bg-success' : 'badge bg-danger';
@@ -230,7 +218,7 @@ const DatabaseMenu = {
                   <div class="col-12 col-lg-auto text-lg-end">
                     <div class="d-grid d-lg-inline-flex">
                       <button class="btn btn-sm btn-outline-danger" @click="clearStoreConfirm(store.name)">
-                        <i class="bi bi-eraser-fill me-1"></i> Kosongkan Store Ini
+                        <i class="bi bi-eraser-fill me-1"></i> Kosongkan Data Ini
                       </button>
                     </div>
                   </div>
@@ -244,9 +232,11 @@ const DatabaseMenu = {
                         <th>NO</th>
                         <th>CEX</th>
                         <th>NAMA KOIN</th>
+                        <th>TICKER</th>
                         <th>NAMA TOKEN</th>
                         <th>SC TOKEN</th>
                         <th>DES TOKEN</th>
+                        <th class="text-center">TRADE</th>
                         <th class="text-center">WD</th>
                         <th class="text-center">DP</th>
                       </tr>
@@ -256,9 +246,11 @@ const DatabaseMenu = {
                         <td>{{ idx + 1 }}</td>
                         <td>{{ record.cex }}</td>
                         <td>{{ record.nama_koin }}</td>
-                        <td class="fw-semibold">{{ record.nama_token }}</td>
+                        <td class="fw-semibold">{{ record.cex_ticker }}</td>
+                        <td>{{ record.nama_token }}</td>
                         <td class="font-monospace text-truncate" style="max-width: 150px;" :title="record.sc_token">{{ record.sc_token }}</td>
                         <td>{{ record.des_token }}</td>
+                        <td class="text-center"><span :class="getDbBadgeClass(record.trade)">{{ getDbBadgeLabel(record.trade) }}</span></td>
                         <td class="text-center"><span :class="getDbBadgeClass(record.withdraw)">{{ getDbBadgeLabel(record.withdraw) }}</span></td>
                         <td class="text-center"><span :class="getDbBadgeClass(record.deposit)">{{ getDbBadgeLabel(record.deposit) }}</span></td>
                       </tr>
@@ -272,8 +264,10 @@ const DatabaseMenu = {
                     <thead class="table-dark">
                       <tr>
                         <th>NO</th>
-                        <th>CEX</th>
+                        <th>NAMA KOIN</th>
                         <th>NAMA TOKEN</th>
+                        <th>TICKER</th>
+                        <th>CEX</th>
                         <th>SC TOKEN</th>
                         <th>DES TOKEN</th>
                         <th class="text-center">WD</th>
@@ -288,17 +282,19 @@ const DatabaseMenu = {
                     <tbody>
                       <tr v-for="(record, idx) in filteredRecordData.filter(r => r.id !== 'DATA_KOIN')" :key="record.id">
                         <td>{{ idx + 1 }}</td>
-                        <td>{{ getPrimaryCexKey(record) }}</td>
-                        <td class="fw-semibold">{{ record.nama_token || record.nama_koin }}</td>
+                        <td class="fw-semibold">{{ record.nama_koin }}</td>
+                        <td class="fw-semibold">{{ record.nama_token }}</td>
+                        <td class="fw-semibold">{{ record.cex_ticker_token }}</td>
+                        <td class="fw-semibold">{{ record.cex_name }}</td>
                         <td class="font-monospace text-truncate" style="max-width: 150px;" :title="record.sc_token">{{ record.sc_token }}</td>
                         <td>{{ record.des_token }}</td>
-                        <td class="text-center"><span :class="getDbBadgeClass(getPrimaryCexData(record)?.withdrawToken)">{{ getDbBadgeLabel(getPrimaryCexData(record)?.withdrawToken) }}</span></td>
-                        <td class="text-center"><span :class="getDbBadgeClass(getPrimaryCexData(record)?.depositToken)">{{ getDbBadgeLabel(getPrimaryCexData(record)?.depositToken) }}</span></td>
+                        <td class="text-center"><span :class="getDbBadgeClass(record.cex_withdraw_status)">{{ getDbBadgeLabel(record.cex_withdraw_status) }}</span></td>
+                        <td class="text-center"><span :class="getDbBadgeClass(record.cex_deposit_status)">{{ getDbBadgeLabel(record.cex_deposit_status) }}</span></td>
                         <td class="fw-semibold">{{ record.nama_pair }}</td>
                         <td class="font-monospace text-truncate" style="max-width: 150px;" :title="record.sc_pair">{{ record.sc_pair }}</td>
                         <td>{{ record.des_pair }}</td>
-                        <td class="text-center"><span :class="getDbBadgeClass(getPrimaryCexData(record)?.withdrawPair)">{{ getDbBadgeLabel(getPrimaryCexData(record)?.withdrawPair) }}</span></td>
-                        <td class="text-center"><span :class="getDbBadgeClass(getPrimaryCexData(record)?.depositPair)">{{ getDbBadgeLabel(getPrimaryCexData(record)?.depositPair) }}</span></td>
+                        <td class="text-center"><span :class="getDbBadgeClass(record.cex_pair_withdraw_status)">{{ getDbBadgeLabel(record.cex_pair_withdraw_status) }}</span></td>
+                        <td class="text-center"><span :class="getDbBadgeClass(record.cex_pair_deposit_status)">{{ getDbBadgeLabel(record.cex_pair_deposit_status) }}</span></td>
                       </tr>
                     </tbody>
                   </table>

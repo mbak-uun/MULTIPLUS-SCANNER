@@ -48,7 +48,10 @@ const filterMixin = {
         const activeCexFilters = Object.keys(this.filters.cex).filter(key => this.filters.cex[key]);
         if (activeCexFilters.length > 0) {
           filtered = filtered.filter(token => {
-            const tokenCexList = this.getTokenCEXList(token).map(c => c.toLowerCase());
+            // REVISI: Sesuaikan dengan skema flat baru.
+            // Cukup periksa apakah token.cex_name ada di dalam filter CEX yang aktif.
+            const tokenCex = (token.cex_name || '').toLowerCase();
+            const tokenCexList = tokenCex ? [tokenCex] : [];
             return activeCexFilters.some(cex => tokenCexList.includes(cex.toLowerCase()));
           });
         }
@@ -108,8 +111,10 @@ const filterMixin = {
   },
   methods: {
     getTokenCEXList(token) {
-      if (!token || !token.cex || typeof token.cex !== 'object') return [];
-      return Object.keys(token.cex);
+      // REVISI: Disesuaikan dengan skema flat baru.
+      // Kembalikan array berisi satu CEX jika ada.
+      if (!token || !token.cex_name) return [];
+      return [token.cex_name];
     }
   }
 };

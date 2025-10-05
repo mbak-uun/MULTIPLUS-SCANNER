@@ -1690,8 +1690,8 @@ body.theme-single-chain .form-select:focus {
 .wallet-icon {
   width: 20px;
   height: 20px;
-  object-fit: contain; 
-  border-radius: 0.2rem;
+  object-fit: cover;
+  border-radius: 50%;
   vertical-align: text-bottom;
 }
 

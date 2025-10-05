@@ -87,13 +87,13 @@
                :class="[activeChain === chain.key ? 'btn-primary' : 'btn-outline-secondary', { disabled: !activeChains.includes(chain.key) }]"
                @click="activeChains.includes(chain.key) ? (activeChain = chain.key) : null"
                :title="chain.NAMA_CHAIN + (!activeChains.includes(chain.key) ? ' (Non-aktif)' : '')">
-            <img :src="chain.ICON" :alt="chain.NAMA_CHAIN" style="width: 20px; height: 20px;"/>
+            <img :src="chain.ICON" :alt="chain.NAMA_CHAIN" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover;"/>
           </div>
             </div>
           </div>
           <div class="col-12 col-lg-auto">
             <div class="d-flex flex-wrap justify-content-lg-end align-items-center gap-2">
-              <div class="fw-bold small text-uppercase">
+              <div class="fw-bold small text-uppercase fs-6">
                 <span class="text-muted">Chain:</span>
                 <span>{{ activeChainInfo.key }}</span>
               </div>
@@ -140,8 +140,8 @@
     <!-- Modal Warning: Setting Global Required -->
     <div v-if="isGlobalSettingsRequired" class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,0.8);">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-warning">
-          <div class="modal-header bg-warning text-dark">
+        <div class="modal-content border-success">
+          <div class="modal-header bg-success text-dark">
             <h5 class="modal-title">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
               Setting Global Diperlukan
