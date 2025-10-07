@@ -394,7 +394,7 @@ const WalletTab = {
             <div class="card-header d-flex align-items-center gap-2 p-2">
               <div class="form-check mb-0">
                 <input class="form-check-input" type="checkbox" :id="'wallet-cex-' + card.key" :value="card.key" v-model="selectedCEXs">
-                <label class="form-check-label small" :for="'wallet-cex-' + card.key">
+                <label class="form-check-label fs-6" :for="'wallet-cex-' + card.key">
                   <span class="fw-semibold" :style="{ color: getCexBadgeStyle(card.key).backgroundColor }">{{ card.displayName }}</span>
                 </label>
               </div>
@@ -481,8 +481,8 @@ const WalletTab = {
                            </tbody>
                          </table>
                        </div>
-                       <div v-else class="alert alert-secondary p-2 small mb-0">
-                         <i class="bi bi-inbox"></i> Tidak ada koin yang tersedia di tabel KOIN
+                       <div v-else class="alert alert-danger p-2 small mb-0">
+                         <i class="bi bi-inbox"></i> Tidak data koin pada Manajemen Koin untuk exchanger ini.
                        </div>
                      </div>
 

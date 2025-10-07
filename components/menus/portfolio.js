@@ -169,17 +169,6 @@ const PortfolioMenu = {
       return this.getColorStyles(type, key, 'solid');
     },
     // --- Formatting Helpers ---
-    formatUsd(amount) {
-      const value = Number(amount || 0);
-      return `${value.toFixed(2)} $`;
-    },
-    formatIdrEquivalent(amount) {
-      const usd = Number(amount || 0);
-      const rate = Number(this.rates.idr || 0);
-      if (!rate) return 'Rp -';
-      const idr = usd * rate;
-      return `Rp ${idr.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
-    },
     formatTokenAmount(amount) {
       const value = Number(amount || 0);
       if (!Number.isFinite(value)) return '0';
@@ -191,6 +180,18 @@ const PortfolioMenu = {
       }
       return value.toFixed(4);
     },
+    formatUsd(amount) {
+      const value = Number(amount || 0);
+      return `${value.toFixed(2)} $`;
+    },
+    formatIdrEquivalent(amount) {
+      const usd = Number(amount || 0);
+      const rate = Number(this.rates.idr || 0);
+      if (!rate) return 'Rp -';
+      const idr = usd * rate;
+      return `Rp ${idr.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
+    },
+
     formatPnlTimestamp(raw) {
       if (!raw) return '-';
       const date = new Date(raw);
@@ -577,8 +578,8 @@ const PortfolioMenu = {
     },
 
     // --- State Management ---
-    handleExchangeToggle(exchange) {
-      this.saveExchangeState(exchange);
+    async handleExchangeToggle(exchange) {
+      await this.saveExchangeState(exchange);
 
       // Auto-update daftar exchange
       if (exchange.enabled) {
@@ -596,28 +597,27 @@ const PortfolioMenu = {
       } else {
         // Hapus dari daftar aktif
         this.activeExchangeSummaries = this.activeExchangeSummaries.filter(e => e.id !== exchange.id);
-        this.activeExchangeCount = this.activeExchangeSummaries.length;
       }
 
       // Update counter dan daftar inactive
       this.activeExchangeCount = this.activeExchangeSummaries.length;
       this.inactiveExchanges = this.exchanges.filter(e => !e.enabled);
     },
-    handleExchangeFieldInput(exchange, field) {
+    async handleExchangeFieldInput(exchange, field) {
       clearTimeout(this._exchangeSaveTimer);
-      this._exchangeSaveTimer = setTimeout(() => {
-        this.saveExchangeState(exchange);
+      this._exchangeSaveTimer = setTimeout(async () => {
+        await this.saveExchangeState(exchange);
       }, 700);
     },
-    handleWalletToggle(wallet) {
-      this.saveWalletState(wallet);
+    async handleWalletToggle(wallet) {
+      await this.saveWalletState(wallet);
 
       // Auto-update daftar wallet
       if (wallet.enabled && wallet.address) {
         // Tambahkan ke daftar aktif jika belum ada
         const existingIndex = this.activeWalletResults.findIndex(w => w.chain === wallet.id);
         if (existingIndex === -1) {
-          this._savePendingWalletToDB(wallet); // Simpan ke DB sebagai pending
+          await this._savePendingWalletToDB(wallet); // Simpan ke DB sebagai pending
           const emptyResult = {
             chain: wallet.id,
             address: wallet.address,
@@ -647,16 +647,16 @@ const PortfolioMenu = {
       this.activeWalletCount = this.activeWalletResults.length;
       this.inactiveWallets = this.wallets.filter(w => !w.enabled);
     },
-    handleWalletFieldInput(wallet, fieldKey) {
+    async handleWalletFieldInput(wallet, fieldKey) {
       clearTimeout(this._walletSaveTimer);
-      this._walletSaveTimer = setTimeout(() => {
-        this.saveWalletState(wallet);
+      this._walletSaveTimer = setTimeout(async () => {
+        await this.saveWalletState(wallet);
 
         // Jika wallet enabled dan ada address, auto-update daftar
         if (wallet.enabled && wallet.address) {
           const existingIndex = this.activeWalletResults.findIndex(w => w.chain === wallet.id);
           if (existingIndex === -1) {
-            this._savePendingWalletToDB(wallet); // Simpan ke DB sebagai pending
+            await this._savePendingWalletToDB(wallet); // Simpan ke DB sebagai pending
             const emptyResult = {
               chain: wallet.id,
               address: wallet.address,
@@ -680,34 +680,40 @@ const PortfolioMenu = {
           } else {
             // Update address jika sudah ada
             this.activeWalletResults[existingIndex].address = wallet.address;
-            this._savePendingWalletToDB(wallet); // Update juga di DB
+            await this._savePendingWalletToDB(wallet); // Update juga di DB
             this.activeWalletResults[existingIndex].walletLink = this.buildWalletLink(wallet.id, wallet.address);
           }
         }
       }, 700);
     },
-    saveExchangeState(exchange) {
+    async saveExchangeState(exchange) {
       try {
         const state = {
+          id: `exchange_${exchange.id}`,
+          type: 'exchange',
           enabled: exchange.enabled,
           fields: exchange.fields.map(f => ({ key: f.key, value: f.value }))
         };
-        localStorage.setItem(`portfolio_exchange_${exchange.id}`, JSON.stringify(state));
+        await this.dbSet('PORTFOLIO_CREDENTIALS', state);
         this.notify(`Pengaturan ${exchange.name} tersimpan`, 'success');
       } catch (error) {
         console.warn('Failed to save exchange state:', error);
+        this.notify(`Gagal menyimpan pengaturan ${exchange.name}`, 'danger');
       }
     },
-    saveWalletState(wallet) {
+    async saveWalletState(wallet) {
       try {
         const state = {
+          id: `wallet_${wallet.id}`,
+          type: 'wallet',
           enabled: wallet.enabled,
           address: wallet.address
         };
-        localStorage.setItem(`portfolio_wallet_${wallet.id}`, JSON.stringify(state));
+        await this.dbSet('PORTFOLIO_CREDENTIALS', state);
         this.notify(`Pengaturan ${wallet.name} tersimpan`, 'success');
       } catch (error) {
         console.warn('Failed to save wallet state:', error);
+        this.notify(`Gagal menyimpan pengaturan ${wallet.name}`, 'danger');
       }
     },
     async _savePendingWalletToDB(wallet) {
@@ -734,6 +740,115 @@ const PortfolioMenu = {
       }
     },
 
+    // REVISI: Fungsi ini disalin dari sync-tab.js untuk memperbaiki error.
+    // Fungsi ini mengumpulkan kredensial API dari config untuk CheckWalletExchanger.
+    buildSecretsFromConfig() {
+      const secrets = {};
+      const cexConfig = this.config?.CEX || {};
+
+      Object.keys(cexConfig).forEach(cexKey => {
+        const cex = cexConfig[cexKey];
+        const dataApi = cex?.DATA_API || {};
+
+        // Map field names sesuai yang diharapkan CheckWalletExchanger
+        const upperCex = cexKey.toUpperCase();
+
+        const sanitize = value => {
+          if (value === null || value === undefined) return undefined;
+          if (typeof value === 'string') {
+            const trimmed = value.trim();
+            return trimmed ? trimmed : undefined;
+          }
+          return value;
+        };
+
+        const assignSecrets = (fields) => {
+          const entry = Object.entries(fields).reduce((acc, [sourceKey, targetKey]) => {
+            const raw = sanitize(dataApi[sourceKey]);
+            if (raw !== undefined && raw !== '') {
+              acc[targetKey] = raw;
+            }
+            return acc;
+          }, {});
+          if (Object.keys(entry).length) {
+            secrets[upperCex] = entry;
+          }
+        };
+
+        if (upperCex === 'BINANCE' || upperCex === 'MEXC') {
+          assignSecrets({ API_KEY: 'ApiKey', API_SECRET: 'ApiSecret' });
+        } else if (upperCex === 'GATE') {
+          assignSecrets({ API_KEY: 'ApiKey', API_SECRET: 'ApiSecret' });
+        } else if (upperCex === 'BYBIT') {
+          assignSecrets({ API_KEY: 'ApiKey', API_SECRET: 'ApiSecret' });
+        } else if (upperCex === 'INDODAX') {
+          assignSecrets({ API_KEY: 'ApiKey', API_SECRET: 'ApiSecret' });
+        } else if (upperCex === 'KUCOIN' || upperCex === 'BITGET') {
+          assignSecrets({ API_KEY: 'ApiKey', API_SECRET: 'ApiSecret', PASSPHRASE_API: 'Passphrase' });
+        }
+      });
+
+      return secrets;
+    },
+
+    // REFACTOR: Satu handler untuk semua CEX
+    async handleExchange(exchange) {
+      const mapFieldKey = (rawKey = '', exchangeId = '') => {
+        const key = String(rawKey).toLowerCase();
+        switch (key) {
+          case 'apikey':
+          case 'api_key':
+            return 'ApiKey';
+          case 'secretkey':
+          case 'secret':
+          case 'apisecret':
+          case 'api_secret':
+            return 'ApiSecret';
+          case 'passphrase':
+          case 'passphrase_api':
+            return 'Passphrase';
+          case 'uid':
+            return 'Uid';
+          default:
+            console.warn(`[Portfolio] Tidak mengenal field credential "${rawKey}" untuk exchange ${exchangeId}.`);
+            return null;
+        }
+      };
+
+      // 1. Ambil kredensial dari form dan normalisasi ke format yang diharapkan CheckWalletExchanger
+      const userCredentials = exchange.fields.reduce((acc, field) => {
+        const mappedKey = mapFieldKey(field.key, exchange.id);
+        if (!mappedKey) return acc;
+        const value = typeof field.value === 'string' ? field.value.trim() : field.value;
+        if (value) {
+          acc[mappedKey] = value;
+        }
+        return acc;
+      }, {});
+
+      // 2. Gabungkan dengan kredensial default dari konfigurasi (jika ada)
+      if (!this.checkWalletExchanger) {
+        this.checkWalletExchanger = new CheckWalletExchanger(this.buildSecretsFromConfig(), this.config, window.Http);
+      }
+      const defaultCredentials = this.checkWalletExchanger?.secrets?.[exchange.id.toUpperCase()] || {};
+      const mergedCredentials = { ...defaultCredentials, ...userCredentials };
+      const hasCredentials = Object.values(mergedCredentials).some(value => {
+        if (value === null || value === undefined) return false;
+        if (typeof value === 'string') return value.trim().length > 0;
+        return true;
+      });
+      const credentialsToUse = hasCredentials ? mergedCredentials : null;
+
+      // 3. Panggil service CheckWalletExchanger
+      const result = await this.checkWalletExchanger.fetchAccountBalance(exchange.id, credentialsToUse);
+
+      // 4. Proses hasil (sama seperti sebelumnya)
+      const assets = this.buildAssetsFromTokenMap(result.raw_assets, this.rates, this.rates.idr, { limit: 6 });
+      const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
+
+      return { total, assets, raw_assets: result.raw_assets };
+    },
+
     // --- Core Logic (Asset Checking) ---
     async checkSelectedExchanges() {
       const enabledExchanges = this.exchanges.filter(e => e.enabled);
@@ -747,10 +862,11 @@ const PortfolioMenu = {
       this.$root.loadingText = 'Mengecek exchange...';
 
       try {
-        const rates = await this.fetchRates(this.config);
-        const idrRate = await this.fetchIndodaxRate(this.config);
+        const rateSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'MATICUSDT', 'AVAXUSDT', 'SOLUSDT'];
+        const ratesData = await this.$root.realtimeDataFetcher.fetchRates(rateSymbols);
+        const idrRate = await this.$root.realtimeDataFetcher.getUSDTtoIDRRate();
 
-        Object.assign(this.rates, rates);
+        Object.assign(this.rates, { BTC: ratesData.BTCUSDT, ETH: ratesData.ETHUSDT, BNB: ratesData.BNBUSDT, MATIC: ratesData.MATICUSDT, AVAX: ratesData.AVAXUSDT, SOL: ratesData.SOLUSDT });
         this.rates.idr = idrRate;
 
         this.activeExchangeSummaries = [];
@@ -761,28 +877,13 @@ const PortfolioMenu = {
           exchange.error = null;
 
           try {
-            const handler = this.exchangeHandlers[exchange.id];
-            if (!handler) {
-              throw new Error(`Handler not found for ${exchange.id}`);
-            }
-
-            let result;
-            let activeConfig = this.config;
-            if (exchange.id === 'gate' && this.config.proxies?.rosyPrefix) {
-              activeConfig = JSON.parse(JSON.stringify(this.config));
-              activeConfig.exchangeEndpoints.gateBase = `${this.config.proxies.rosyPrefix}${this.config.exchangeEndpoints.gateBase}`;
-            }
-            
-            if (exchange.id === 'indodax') {
-                result = await handler(exchange, activeConfig, rates, idrRate);
-            } else {
-                result = await handler(exchange, activeConfig, rates, idrRate);
-            }
+            // REFACTOR: Panggil satu handler universal
+            const result = await this.handleExchange(exchange);
 
             exchange.status = 'success';
             exchange.lastResult = result;
 
-            const normalized = this.normalizeExchangeResult(exchange.id, result, rates, idrRate);
+            const normalized = this.normalizeExchangeResult(exchange.id, result, this.rates, idrRate);
 
             const dbData = {
               name_cex: exchange.id,
@@ -833,17 +934,10 @@ const PortfolioMenu = {
         return;
       }
 
-      // Check if portfolioWeb3Helper is initialized
-      if (!window.portfolioWeb3Helper) {
+    // REVISI: Gunakan service dari root
+    if (!this.$root.web3Service) {
         this.notify('⚠️ Portfolio Web3 Helper belum siap. Silakan refresh halaman.', 'danger');
-        console.error('❌ portfolioWeb3Helper not initialized');
-        return;
-      }
-
-      // Check if Web3 is loaded
-      if (typeof Web3 === 'undefined') {
-        this.notify('⚠️ Web3.js belum dimuat. Silakan refresh halaman.', 'danger');
-        console.error('❌ Web3.js not loaded');
+        console.error('❌ this.$root.web3Service is not available.');
         return;
       }
 
@@ -852,16 +946,17 @@ const PortfolioMenu = {
       this.$root.loadingText = `Mengecek ${walletsToProcess.length} wallet...`;
 
       try {
-        const rates = await this.fetchRates(this.config, this.config.priceSymbols);
-        const idrRate = await this.fetchIndodaxRate(this.config);
-        Object.assign(this.rates, rates);
+        const rateSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'MATICUSDT', 'AVAXUSDT', 'SOLUSDT'];
+        const ratesData = await this.$root.realtimeDataFetcher.fetchRates(rateSymbols);
+        const idrRate = await this.$root.realtimeDataFetcher.getUSDTtoIDRRate();
+        Object.assign(this.rates, { BTC: ratesData.BTCUSDT, ETH: ratesData.ETHUSDT, BNB: ratesData.BNBUSDT, MATIC: ratesData.MATICUSDT, AVAX: ratesData.AVAXUSDT, SOL: ratesData.SOLUSDT });
         if (idrRate) this.rates.idr = idrRate;
 
         const promises = walletsToProcess.filter(w => w && w.id).map(async (wallet) => {
           wallet.status = 'loading';
           wallet.error = null;
           try {
-            const fetched = await window.portfolioWeb3Helper.getBalances({
+            const fetched = await this.$root.web3Service.getBalances({
               chain: wallet.id,
               address: wallet.address,
               rates: this.rates
@@ -960,7 +1055,7 @@ const PortfolioMenu = {
         this.inactiveWallets = this.wallets.filter(w => !w.enabled);
     
         this.lastRefresh = Date.now();
-        this.notify(`✅ Selesai cek ${walletsToProcess.length} wallet`, 'success');
+       // this.notify(`✅ Selesai cek ${walletsToProcess.length} wallet`, 'success');
       } catch (error) {
         console.error('Wallet check failed:', error);
         this.notify(`❌ Gagal cek wallet: ${error.message}`, 'danger');
@@ -982,7 +1077,7 @@ const PortfolioMenu = {
         const failedPromises = results.filter(r => r.status === 'rejected');
 
         if (failedPromises.length === 0) {
-          this.notify('✅ Berhasil cek semua aset', 'success');
+         // this.notify('✅ Berhasil cek semua aset', 'success');
         } else {
           console.error('Combined check failed:', failedPromises);
           const errorMessage = failedPromises.map(p => p.reason.message || 'Unknown error').join('; ');
@@ -1002,7 +1097,10 @@ const PortfolioMenu = {
 
       this.busy.pnl = true;
       try {
-        localStorage.setItem('portfolio_modal_awal', this.pnl.modalAwal.toString());
+        await this.dbSet('PORTFOLIO_SETTINGS', {
+          key: 'modal_awal',
+          value: this.pnl.modalAwal
+        });
         this.portfolioPerformance.pnl = this.portfolioBreakdown.total - this.pnl.modalAwal;
         this.notify(`✅ Modal awal $${this.pnl.modalAwal.toFixed(2)} berhasil disimpan`, 'success');
       } catch (error) {
@@ -1027,13 +1125,15 @@ const PortfolioMenu = {
           action: 'reset'
         };
 
-        this.pnl.history.unshift(entry);
-        if (this.pnl.history.length > 100) {
-          this.pnl.history = this.pnl.history.slice(0, 100);
-        }
+        await this.dbSet('PORTFOLIO_SETTINGS', {
+          key: 'modal_awal',
+          value: this.pnl.modalAwal
+        });
 
-        localStorage.setItem('portfolio_modal_awal', this.pnl.modalAwal.toString());
-        localStorage.setItem('portfolio_pnl_history', JSON.stringify(this.pnl.history));
+        await this.dbSet('PORTFOLIO_PNL_HISTORY', entry);
+
+        // Muat ulang riwayat untuk menampilkan data baru
+        await this._loadPnlHistoryFromDB();
 
         this.notify(`✅ Modal reset ke portfolio saat ini: $${total.toFixed(2)}`, 'success');
       } catch (error) {
@@ -1063,12 +1163,10 @@ const PortfolioMenu = {
           action: 'update'
         };
 
-        this.pnl.history.unshift(entry);
-        if (this.pnl.history.length > 100) {
-          this.pnl.history = this.pnl.history.slice(0, 100);
-        }
-        
-        localStorage.setItem('portfolio_pnl_history', JSON.stringify(this.pnl.history));
+        await this.dbSet('PORTFOLIO_PNL_HISTORY', entry);
+
+        // Muat ulang riwayat untuk menampilkan data baru
+        await this._loadPnlHistoryFromDB();
 
         this.notify(`✅ PNL history updated: ${entry.pnl >= 0 ? '+' : ''}$${entry.pnl.toFixed(2)}`, 'success');
       } catch (error) {
@@ -1163,10 +1261,8 @@ const PortfolioMenu = {
       this.$root.loadingText = `Mengecek harga ${this.rates.customSymbol}...`;
 
       try {
-        const symbol = this.rates.customSymbol.toUpperCase();
-        const response = await fetch(`https://api-gcp.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
-        const data = await response.json();
-
+        const symbol = this.rates.customSymbol.toUpperCase() + 'USDT';
+        const price = await this.$root.realtimeDataFetcher.fetchTokenPrice(symbol);
         if (data.price) {
           this.rates.customPrice = parseFloat(data.price);
           this.calculatorCustom.amount = this.rates.customPrice;
@@ -1186,9 +1282,10 @@ const PortfolioMenu = {
       this.$root.loadingText = 'Memperbarui harga...';
 
       try {
-        const rates = await this.fetchRates(this.config);
-        const idrRate = await this.fetchIndodaxRate(this.config);
-        Object.assign(this.rates, rates);
+        const rateSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'MATICUSDT', 'AVAXUSDT', 'SOLUSDT'];
+        const ratesData = await this.$root.realtimeDataFetcher.fetchRates(rateSymbols);
+        const idrRate = await this.$root.realtimeDataFetcher.getUSDTtoIDRRate();
+        Object.assign(this.rates, { BTC: ratesData.BTCUSDT, ETH: ratesData.ETHUSDT, BNB: ratesData.BNBUSDT, MATIC: ratesData.MATICUSDT, AVAX: ratesData.AVAXUSDT, SOL: ratesData.SOLUSDT });
         this.rates.idr = idrRate;
 
         this.notify('Harga berhasil diperbarui', 'success');
@@ -1291,40 +1388,48 @@ const PortfolioMenu = {
       this.totalWalletCount = this.wallets.length;
       this.inactiveWallets = [...this.wallets];
     },
-    _loadStateFromStorage() {
+    async _loadStateFromStorage() {
       try {
-        const savedModalAwal = localStorage.getItem('portfolio_modal_awal');
-        if (savedModalAwal) this.pnl.modalAwal = parseFloat(savedModalAwal);
+        // Muat Modal Awal
+        const modalSetting = await this.dbGet('PORTFOLIO_SETTINGS', 'modal_awal');
+        if (modalSetting && modalSetting.value) {
+          this.pnl.modalAwal = parseFloat(modalSetting.value);
+        }
 
-        const savedHistory = localStorage.getItem('portfolio_pnl_history');
-        if (savedHistory) this.pnl.history = JSON.parse(savedHistory);
+        // Muat Riwayat PNL
+        await this._loadPnlHistoryFromDB();
 
-        this.exchanges.forEach(exchange => {
-          const savedState = localStorage.getItem(`portfolio_exchange_${exchange.id}`);
-          if (savedState) {
-            const state = JSON.parse(savedState);
-            exchange.enabled = state.enabled || false;
-            if (state.fields && exchange.fields) {
-              state.fields.forEach(savedField => {
-                const field = exchange.fields.find(f => f.key === savedField.key);
-                if (field) field.value = savedField.value;
-              });
+        // Muat Kredensial
+        const credentials = await DB.getAllData('PORTFOLIO_CREDENTIALS');
+        credentials.forEach(cred => {
+          if (cred.type === 'exchange') {
+            const exchange = this.exchanges.find(e => `exchange_${e.id}` === cred.id);
+            if (exchange) {
+              exchange.enabled = cred.enabled || false;
+              if (cred.fields && exchange.fields) {
+                cred.fields.forEach(savedField => {
+                  const field = exchange.fields.find(f => f.key === savedField.key);
+                  if (field) field.value = savedField.value;
+                });
+              }
+            }
+          } else if (cred.type === 'wallet') {
+            const wallet = this.wallets.find(w => `wallet_${w.id}` === cred.id);
+            if (wallet) {
+              wallet.enabled = cred.enabled || false;
+              wallet.address = cred.address || '';
             }
           }
         });
 
-        this.wallets.forEach(wallet => {
-          const savedState = localStorage.getItem(`portfolio_wallet_${wallet.id}`);
-          if (savedState) {
-            const state = JSON.parse(savedState);
-            wallet.enabled = state.enabled || false;
-            wallet.address = state.address || '';
-          }
-        });
-        console.log('✅ Loaded portfolio saved data from localStorage');
+        console.log('✅ Loaded portfolio saved data from IndexedDB');
       } catch (error) {
         console.warn('Failed to load portfolio saved data:', error);
       }
+    },
+    async _loadPnlHistoryFromDB() {
+      const historyData = await DB.getAllData('PORTFOLIO_PNL_HISTORY');
+      this.pnl.history = historyData.sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
     },
     async _loadDataFromDB() {
       try {
@@ -1397,262 +1502,8 @@ const PortfolioMenu = {
       }
     },
 
-    // --- Asset Helpers (from asset_helpers.js) ---
-    async fetchRates(config) {
-        const rateSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'MATICUSDT', 'AVAXUSDT', 'SOLUSDT'];
-        const endpoint = config.priceSources?.binanceDataApi || 'https://api-gcp.binance.com/api/v3/ticker/price';
-        const url = `${endpoint}?symbols=${encodeURIComponent(JSON.stringify(rateSymbols))}`;
-
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch token rates');
-
-        const data = await response.json();
-        const mapSymbol = (symbol) => data.find(item => item.symbol === symbol)?.price;
-
-        return {
-            BTC: parseFloat(mapSymbol('BTCUSDT') || 0),
-            ETH: parseFloat(mapSymbol('ETHUSDT') || 0),
-            BNB: parseFloat(mapSymbol('BNBUSDT') || 0),
-            MATIC: parseFloat(mapSymbol('MATICUSDT') || 0),
-            AVAX: parseFloat(mapSymbol('AVAXUSDT') || 0),
-            SOL: parseFloat(mapSymbol('SOLUSDT') || 0)
-        };
-    },
-    async fetchIndodaxRate(config) {
-        const endpoint = config.priceSources?.indodaxLower || 'https://indodax.com/api/ticker/usdtidr';
-        const proxy = config.LIST_PROXY?.SERVERS?.[0] || '';
-        const url = proxy ? `${proxy}${endpoint}` : endpoint;
-
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch IDR rate');
-
-        const data = await response.json();
-        return parseFloat((data.ticker && data.ticker.last) || data.last || 0);
-    },
     findField(exchange, key) {
         return exchange.fields?.find(f => f.key === key);
-    },
-    async handleBinance(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        if (!apiKey || !secretKey) throw new Error('Missing API credentials');
-
-        const endpoint = config.exchangeEndpoints?.binanceAccount || 'https://api-gcp.binance.com/api/v3/account';
-        const timestamp = Date.now();
-        const query = `timestamp=${timestamp}`;
-        const signature = CryptoJS.HmacSHA256(query, secretKey).toString(CryptoJS.enc.Hex);
-        const url = `${endpoint}?${query}&signature=${signature}`;
-
-        const response = await fetch(url, { headers: { 'X-MBX-APIKEY': apiKey } });
-        const data = await response.json();
-        if (!response.ok || data.code) throw new Error(data.msg || 'Binance API error');
-
-        const tokens = (data.balances || [])
-          .map(balance => ({
-            symbol: balance.asset,
-            amount: parseFloat(balance.free || 0) + parseFloat(balance.locked || 0)
-          }))
-          .filter(token => token.amount > 0);
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-          total,
-          assets,
-          raw_assets: assets,
-          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
-        };
-    },
-    async handleGate(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        if (!apiKey || !secretKey) throw new Error('Missing API credentials');
-
-        const timestamp = Math.floor(Date.now() / 1000).toString();
-        const method = 'GET';
-        const requestPath = '/api/v4/spot/accounts';
-        const signString = `${method}\n${requestPath}\n\n${CryptoJS.SHA512('').toString(CryptoJS.enc.Hex)}\n${timestamp}`;
-        const signature = CryptoJS.HmacSHA512(signString, secretKey).toString(CryptoJS.enc.Hex);
-
-        const baseUrl = config.exchangeEndpoints?.gateBase || 'https://api.gateio.ws';
-        const directUrl = `${baseUrl}${requestPath}`;
-
-        // Gunakan proxy untuk Gate.io (CORS bypass)
-        const proxyUrl = `https://vercel-proxycors.vercel.app/?url=${encodeURIComponent(directUrl)}`;
-
-        const response = await fetch(proxyUrl, { headers: { 'KEY': apiKey, 'SIGN': signature, 'Timestamp': timestamp } });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Gate.io API error');
-
-        const tokens = (data || [])
-          .map(item => ({ symbol: item.currency, amount: parseFloat(item.available || 0) }))
-          .filter(token => token.amount > 0);
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-          total,
-          assets,
-          raw_assets: assets,
-          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
-        };
-    },
-    async handleBybit(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        if (!apiKey || !secretKey) throw new Error('Missing API credentials');
-
-        const host = config.exchangeEndpoints?.bybitHost || 'https://api.bybit.com';
-        const recvWindow = 5000;
-        const timestamp = Date.now().toString();
-        const query = 'accountType=UNIFIED';
-        const signPayload = `${timestamp}${apiKey}${recvWindow}${query}`;
-        const sign = CryptoJS.HmacSHA256(signPayload, secretKey).toString(CryptoJS.enc.Hex);
-        const url = `${host}/v5/account/wallet-balance?${query}`;
-
-        const response = await fetch(url, { headers: { 'X-BAPI-API-KEY': apiKey, 'X-BAPI-TIMESTAMP': timestamp, 'X-BAPI-RECV-WINDOW': recvWindow.toString(), 'X-BAPI-SIGN': sign } });
-        const data = await response.json();
-        if (!response.ok || data.retCode !== 0) throw new Error(data.retMsg || 'Bybit API error');
-
-        const coins = data.result?.list?.[0]?.coin || [];
-        const tokens = coins
-          .map(item => ({ symbol: item.coin, amount: parseFloat(item.equity || 0) }))
-          .filter(token => token.amount > 0);
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-          total,
-          assets,
-          raw_assets: assets,
-          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
-        };
-    },
-    async handleKucoin(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        const passphrase = this.findField(exchange, 'passphrase')?.value || '';
-        if (!apiKey || !secretKey || !passphrase) throw new Error('Missing API credentials');
-
-        const endpoint = config.exchangeEndpoints?.kucoinAccounts || 'https://api.kucoin.com/api/v1/accounts';
-        const timestamp = Date.now().toString();
-        const preSign = `${timestamp}GET/api/v1/accounts`;
-        const sign = CryptoJS.HmacSHA256(preSign, secretKey).toString(CryptoJS.enc.Base64);
-        const passphraseEnc = CryptoJS.HmacSHA256(passphrase, secretKey).toString(CryptoJS.enc.Base64);
-
-        const response = await fetch(endpoint, { headers: { 'KC-API-KEY': apiKey, 'KC-API-SIGN': sign, 'KC-API-TIMESTAMP': timestamp, 'KC-API-PASSPHRASE': passphraseEnc, 'KC-API-KEY-VERSION': '3' } });
-        const data = await response.json();
-        if (!response.ok || data.code !== '200000') throw new Error(data.msg || 'Kucoin API error');
-
-        const tokens = (data.data || [])
-          .map(item => ({ symbol: item.currency, amount: parseFloat(item.available || 0) }))
-          .filter(token => token.amount > 0);
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-          total,
-          assets,
-          raw_assets: assets,
-          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
-        };
-    },
-    async handleMexc(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        if (!apiKey || !secretKey) throw new Error('Missing API credentials');
-
-        const recvWindow = 5000;
-        const timestamp = Date.now();
-        const query = `recvWindow=${recvWindow}&timestamp=${timestamp}`;
-        const signature = CryptoJS.HmacSHA256(query, secretKey).toString(CryptoJS.enc.Hex);
-        const mexcEndpoint = config.exchangeEndpoints?.mexcAccount || 'https://api.mexc.com/api/v3/account';
-        const url = `${mexcEndpoint}?${query}&signature=${signature}`;
- // Gunakan proxy untuk Gate.io (CORS bypass)
-        const proxyUrl = `https://vercel-proxycors.vercel.app/?url=${encodeURIComponent(url)}`;
-
-//        const response = await fetch(url, { headers: { 'X-MEXC-APIKEY': apiKey, 'Content-Type': 'application/json' } });
-        const response = await fetch(proxyUrl, { headers: { 'X-MEXC-APIKEY': apiKey, 'Content-Type': 'application/json' } });
-        const data = await response.json();
-        if (!response.ok || (data && data.code)) throw new Error(`MEXC error: ${data?.msg || 'Unknown error'}`);
-
-        const tokens = (data.balances || [])
-          .map(item => ({ symbol: item.asset, amount: parseFloat(item.free || 0) }))
-          .filter(token => token.amount > 0);
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-          total,
-          assets,
-          raw_assets: assets,
-          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
-        };
-    },
-    async handleIndodax(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        if (!apiKey || !secretKey) throw new Error('Missing API credentials');
-
-        const endpoint = config.exchangeEndpoints?.indodaxTapi || 'https://indodax.com/tapi';
-        const requestBody = `method=getInfo&timestamp=${Date.now()}&recvWindow=5000`;
-        const sign = CryptoJS.HmacSHA512(requestBody, secretKey).toString();
-        const url = config.proxies?.workersProxyAlt ? `${config.proxies.workersProxyAlt}${endpoint}` : endpoint;
-
-        const response = await fetch(url, { method: 'POST', headers: { 'Key': apiKey, 'Sign': sign, 'Content-Type': 'application/x-www-form-urlencoded' }, body: requestBody });
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error || 'Indodax API error');
-
-        const balance = data.return?.balance || {};
-        const tokens = [
-            { symbol: 'ETH', amount: parseFloat(balance.eth || 0), rate: rates.ETH || null },
-            { symbol: 'BNB', amount: parseFloat(balance.bnb || 0), rate: rates.BNB || null },
-            { symbol: 'USDT', amount: parseFloat(balance.usdt || 0), rate: 1 },
-            { symbol: 'IDR', amount: parseFloat(balance.idr || 0), rate: idrRate ? 1 / idrRate : null }
-        ];
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-            total,
-            assets,
-            raw_assets: assets
-        };
-    },
-    async handleBitget(exchange, config, rates = {}, idrRate = null) {
-        const apiKey = this.findField(exchange, 'apiKey')?.value || '';
-        const secretKey = this.findField(exchange, 'secretKey')?.value || '';
-        const passphrase = this.findField(exchange, 'passphrase')?.value || '';
-        if (!apiKey || !secretKey || !passphrase) throw new Error('Missing API credentials');
-
-        const endpoint = config.exchangeEndpoints?.bitgetAssets || 'https://api.bitget.com/api/v2/spot/account/assets';
-        const timestamp = Date.now().toString();
-        const preSign = `${timestamp}GET/api/v2/spot/account/assets`;
-        const sign = CryptoJS.HmacSHA256(preSign, secretKey).toString(CryptoJS.enc.Base64);
-
-        const response = await fetch(endpoint, { headers: { 'ACCESS-KEY': apiKey, 'ACCESS-SIGN': sign, 'ACCESS-TIMESTAMP': timestamp, 'ACCESS-PASSPHRASE': passphrase } });
-        const data = await response.json();
-        if (!response.ok || data.code !== '00000') throw new Error(data.msg || 'Bitget API error');
-
-        const tokens = (data.data || [])
-          .map(item => ({ symbol: item.coin, amount: parseFloat(item.available || 0) }))
-          .filter(token => token.amount > 0);
-
-        const assets = this.buildAssetsFromTokenMap(tokens, rates, idrRate, { limit: 6 });
-        const total = assets.reduce((sum, asset) => sum + (asset.usdValue || 0), 0);
-
-        return {
-          total,
-          assets,
-          raw_assets: assets,
-          display: assets.length ? null : `<span class="text-secondary">0.00 USDT</span>`
-        };
     },
 
   },
@@ -1745,62 +1596,73 @@ const PortfolioMenu = {
       <div class="row g-2">
         <!-- Settings Column (Left) -->
         <div class="col-lg-4">
-          <!-- REVISI: Exchanger Settings sebagai Card biasa -->
-          <div class="card portfolio-card mb-2">
-            <div class="card-header">
-              <h6 class="mb-0"><i class="bi bi-gear me-2"></i>Exchanger Settings</h6>
-            </div>
-            <div class="card-body p-2" style="max-height: 280px; overflow-y: auto;">
-              <div class="row g-2">
-                <div v-for="exchange in exchanges" :key="exchange.id" class="col-12">
-                  <div class="border rounded p-2" :class="{'entity-card--active': exchange.enabled}">
-                    <div class="form-check mb-2">
-                      <input class="form-check-input" type="checkbox" :id="exchange.id" v-model="exchange.enabled" @change="handleExchangeToggle(exchange)">
-                      <label class="form-check-label fw-semibold text-uppercase" :for="exchange.id" :style="getEntityTextStyle('cex', exchange.id)">
-                        {{ exchange.name }}
-                      </label>
-                      <span v-if="exchange.enabled && exchange.status !== 'idle'" class="badge ms-2" :class="exchangeStatusBadgeClass(exchange.status)">
-                        {{ exchangeStatusLabel(exchange.status) }}
-                      </span>
-                    </div>
-                    <div v-if="exchange.enabled">
-                      <div v-for="field in exchange.fields" :key="field.key" class="input-group input-group-sm mb-2">
-                        <span class="input-group-text"><i :class="getExchangeFieldIcon(field.key)"></i></span>
-                        <input :type="field.type || 'text'" class="form-control text-uppercase" :placeholder="field.placeholder" v-model.trim="field.value" @input="handleExchangeFieldInput(exchange, field)">
+          <div class="accordion portfolio-accordion" id="portfolioSettingsAccordion">
+            <!-- Exchanger Settings Accordion -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingExchangerSettings">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExchangerSettings" aria-expanded="true" aria-controls="collapseExchangerSettings">
+                  <i class="bi bi-gear me-2"></i>Exchanger Settings
+                </button>
+              </h2>
+              <div id="collapseExchangerSettings" class="accordion-collapse collapse show" aria-labelledby="headingExchangerSettings" data-bs-parent="#portfolioSettingsAccordion">
+                <div class="accordion-body p-2">
+                  <div class="row g-2">
+                    <div v-for="exchange in exchanges" :key="exchange.id" class="col-12">
+                      <div class="border rounded p-2" :class="{'entity-card--active': exchange.enabled}">
+                        <div class="form-check mb-2">
+                          <input class="form-check-input" type="checkbox" :id="exchange.id" v-model="exchange.enabled" @change="handleExchangeToggle(exchange)">
+                          <label class="form-check-label fw-semibold text-uppercase" :for="exchange.id" :style="getEntityTextStyle('cex', exchange.id)">
+                            {{ exchange.name }}
+                          </label>
+                          <span v-if="exchange.enabled && exchange.status !== 'idle'" class="badge ms-2" :class="exchangeStatusBadgeClass(exchange.status)">
+                            {{ exchangeStatusLabel(exchange.status) }}
+                          </span>
+                        </div>
+                        <div v-if="exchange.enabled">
+                          <div v-for="field in exchange.fields" :key="field.key" class="input-group input-group-sm mb-2">
+                            <span class="input-group-text"><i :class="getExchangeFieldIcon(field.key)"></i></span>
+                            <input :type="field.type || 'text'" class="form-control text-uppercase" :placeholder="field.placeholder" v-model.trim="field.value" @input="handleExchangeFieldInput(exchange, field)">
+                          </div>
+                        </div>
+                        <div class="text-danger small" v-if="exchange.error">{{ exchange.error }}</div>
                       </div>
                     </div>
-                    <div class="text-danger small" v-if="exchange.error">{{ exchange.error }}</div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          <!-- REVISI: Wallet Settings sebagai Card biasa -->
-          <div class="card portfolio-card">
-            <div class="card-header">
-              <h6 class="mb-0"><i class="bi bi-gear me-2"></i>Wallet Settings</h6>
-            </div>
-            <div class="card-body p-2" style="max-height: 280px; overflow-y: auto;">
-              <div class="row g-2">
-                <div v-for="wallet in wallets" :key="wallet.id" class="col-12">
-                  <div class="border rounded p-2" :class="{'entity-card--active': wallet.enabled}">
-                    <div class="form-check mb-2">
-                      <input class="form-check-input" type="checkbox" :id="wallet.id" v-model="wallet.enabled" @change="handleWalletToggle(wallet)">
-                      <label class="form-check-label fw-semibold" :for="wallet.id" :style="getEntityTextStyle('chain', wallet.id)">
-                        <img v-if="wallet.icon" :src="wallet.icon" :alt="wallet.name" class="wallet-icon me-1" @error="handleIconError">
-                        {{ wallet.short || wallet.name }}
-                      </label>
-                      <span v-if="wallet.enabled && wallet.status !== 'idle'" class="badge ms-2" :class="walletStatusBadgeClass(wallet.status)">
-                        {{ walletStatusLabel(wallet.status) }}
-                      </span>
-                    </div>
-                    <div v-if="wallet.enabled">
-                      <div class="input-group input-group-sm">
-                        <span class="input-group-text"><i :class="getWalletInputIcon(wallet)"></i></span>
-                        <input type="text" class="form-control text-uppercase" :placeholder="wallet.placeholder || 'Enter wallet address'" v-model.trim="wallet.address" @input="handleWalletFieldInput(wallet, 'address')">
+
+            <!-- Wallet Settings Accordion -->
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="headingWalletSettings">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWalletSettings" aria-expanded="false" aria-controls="collapseWalletSettings">
+                  <i class="bi bi-gear me-2"></i>Wallet Settings
+                </button>
+              </h2>
+              <div id="collapseWalletSettings" class="accordion-collapse collapse" aria-labelledby="headingWalletSettings" data-bs-parent="#portfolioSettingsAccordion">
+                <div class="accordion-body p-2">
+                  <div class="row g-2">
+                    <div v-for="wallet in wallets" :key="wallet.id" class="col-12">
+                      <div class="border rounded p-2" :class="{'entity-card--active': wallet.enabled}">
+                        <div class="form-check mb-2">
+                          <input class="form-check-input" type="checkbox" :id="wallet.id" v-model="wallet.enabled" @change="handleWalletToggle(wallet)">
+                          <label class="form-check-label fw-semibold" :for="wallet.id" :style="getEntityTextStyle('chain', wallet.id)">
+                            <img v-if="wallet.icon" :src="wallet.icon" :alt="wallet.name" class="wallet-icon me-1" @error="handleIconError">
+                            {{ wallet.short || wallet.name }}
+                          </label>
+                          <span v-if="wallet.enabled && wallet.status !== 'idle'" class="badge ms-2" :class="walletStatusBadgeClass(wallet.status)">
+                            {{ walletStatusLabel(wallet.status) }}
+                          </span>
+                        </div>
+                        <div v-if="wallet.enabled">
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i :class="getWalletInputIcon(wallet)"></i></span>
+                            <input type="text" class="form-control text-uppercase" :placeholder="wallet.placeholder || 'Enter wallet address'" v-model.trim="wallet.address" @input="handleWalletFieldInput(wallet, 'address')">
+                          </div>
+                        </div>
+                        <div class="text-danger small" v-if="wallet.error">{{ wallet.error }}</div>
                       </div>
                     </div>
-                    <div class="text-danger small" v-if="wallet.error">{{ wallet.error }}</div>
                   </div>
                 </div>
               </div>
@@ -1842,7 +1704,7 @@ const PortfolioMenu = {
                         <span v-if="row.total > 0" class="badge bg-success">Checked</span>
                         <span v-else class="badge bg-warning text-dark">Pending</span>
                       </td>
-                      <td class="text-end small">
+                      <td class="text-end">
                         <div v-if="row.assets && row.assets.length" class="d-flex flex-column gap-1">
                           <div v-for="asset in row.assets" :key="row.id + '-' + (asset.symbol || 'token') + '-' + (asset.id || 'idx')" class="portfolio-asset-line">
                             <span class="fw-semibold" :class="tokenColorClass(asset.symbol)">
@@ -1856,11 +1718,11 @@ const PortfolioMenu = {
                       </td>
                     </tr>
                     <tr   v-if="activeExchangeCount > 0">
-                      <td colspan="2" class="small fw-bold">TOTAL</td>
-                      <td class="text-end fw-bold small">{{ totalCexWithCurrency }}</td>
+                      <td colspan="2" class="fs-6 fw-bold">TOTAL</td>
+                      <td class="text-end fw-bold fs-6">{{ totalCexWithCurrency }}</td>
                     </tr>
                     <tr v-if="activeExchangeCount === 0">
-                      <td colspan="3" class="py-3 text-center text-muted small">
+                      <td colspan="3" class="py-3 text-center text-muted ">
                         <i class="bi bi-exclamation-triangle me-2"></i>No active exchanges
                       </td>
                     </tr>
@@ -1896,16 +1758,16 @@ const PortfolioMenu = {
                   </thead>
                   <tbody>
                     <tr v-for="row in activeWalletResults" :key="'active-' + (row?.chain || 'unknown')" :class="row.status === 'pending' ? 'table-warning' : 'table-light'">
-                      <td class="small fw-bold">
+                      <td class="  fw-bold">
                         <a :href="row.walletLink" target="_blank" rel="noopener" class="text-decoration-none">
-                          <span class="text-uppercase" :style="getEntityTextStyle('chain', row.chain)">{{ formatChainLabel(row.chain) }}</span>
+                          <span class="text-uppercase fs-6" :style="getEntityTextStyle('chain', row.chain)">{{ formatChainLabel(row.chain) }}</span>
                           <button class="btn btn-sm btn-link py-0 px-1" @click.prevent.stop="checkWalletBalances(wallets.find(w => w.id === row.chain))" title="Refresh this wallet">
                             <i class="bi bi-arrow-repeat"></i>
                           </button>
                         </a>
                         <span v-if="row.status === 'pending'" class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;">Pending</span>
                       </td>
-                      <td class="text-end small">
+                      <td class="text-end  ">
                         <div v-if="row.raw_assets && row.raw_assets.length" class="d-flex flex-column gap-1">
                           <div v-for="asset in row.raw_assets" :key="row.chain + '-' + (asset.symbol || row.tokenSymbol || 'asset')" class="portfolio-asset-line">
                             <span class="fw-semibold" :class="tokenColorClass(asset.symbol)">{{ formatTokenAmount(asset.amount) }} {{ (asset.symbol || row.tokenSymbol || 'USDT').toUpperCase() }}</span>
@@ -1914,7 +1776,7 @@ const PortfolioMenu = {
                         </div>
                         <div v-else :class="row.status === 'pending' ? 'text-warning' : 'text-muted'">{{ formatUsd(row.assetValue) }}</div>
                       </td>
-                      <td class="text-end small">
+                      <td class="text-end  ">
                         <div class="portfolio-asset-line" :class="row.status === 'pending' ? 'text-warning' : ''">
                           <span class="fw-semibold">{{ formatTokenAmount(row.gasAmount) }} {{ row.gasSymbol }}</span>
                           <span class="text-muted">≈ {{ formatUsd(row.gasValue) }}</span>
@@ -1923,10 +1785,10 @@ const PortfolioMenu = {
                       <td class="text-end fw-bold small" :class="row.status === 'pending' ? 'text-warning' : ''">{{ formatUsd(row.total) }}</td>
                     </tr>
                     <tr   v-if="activeWalletCount > 0">
-                      <td class="small fw-bold">TOTAL</td> 
-                      <td class="text-end fw-bold small">{{ formatUsd(totalWalletAssets) }}</td> 
-                      <td class="text-end fw-bold small">{{ formatUsd(totalWalletGas) }}</td>
-                      <td class="text-end fw-bold small">{{ totalWalletWithCurrency }}</td>
+                      <td class="fs-6 fw-bold">TOTAL</td> 
+                      <td class="text-end fw-bold fs-6">{{ formatUsd(totalWalletAssets) }}</td> 
+                      <td class="text-end fw-bold fs-6">{{ formatUsd(totalWalletGas) }}</td>
+                      <td class="text-end fw-bold fs-6">{{ totalWalletWithCurrency }}</td>
                     </tr>
                     <tr v-if="activeWalletCount === 0">
                       <td colspan="4" class="py-3 text-center text-muted small">
@@ -2100,7 +1962,7 @@ const PortfolioMenu = {
     this._initializeWallets();
     console.log(`✅ Portfolio initialized with ${this.exchanges.length} exchanges and ${this.wallets.length} chains.`);
 
-    this._loadStateFromStorage();
+    await this._loadStateFromStorage();
 
     // Auto-load rates on mount
     this.refreshRates();
@@ -2108,32 +1970,29 @@ const PortfolioMenu = {
     // Load data from IndexedDB on mount
     await this._loadDataFromDB();
 
-    // Initialize PortfolioWeb3Helper if not already present
-    console.log('🔍 Checking Web3.js availability...');
-    console.log('  - typeof Web3:', typeof Web3);
-    console.log('  - window.PortfolioWeb3Helper:', typeof window.PortfolioWeb3Helper);
-
-    if (typeof Web3 === 'undefined') {
-        console.error('❌ Web3.js not loaded! Please refresh the page.');
-        this.notify('⚠️ Web3.js belum dimuat. Silakan refresh halaman.', 'danger');
-        return;
+    // REVISI: Hapus inisialisasi lokal. Gunakan service dari root.
+    // Tunggu web3Service siap di root.
+    let web3Attempts = 0;
+    while (!this.$root.web3Service && web3Attempts < 50) {
+      console.log(`⏳ Portfolio menunggu web3Service... (${web3Attempts + 1}/50)`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      web3Attempts++;
     }
 
-    if (typeof window.PortfolioWeb3Helper === 'undefined') {
-        console.error('❌ PortfolioWeb3Helper class not found! Check if portfolio-web3-helper.js is loaded.');
-        this.notify('⚠️ Portfolio Web3 Helper tidak ditemukan. Silakan refresh halaman.', 'danger');
-        return;
+    if (!this.$root.web3Service) {
+      console.error('❌ Gagal mendapatkan web3Service dari root instance.');
+      this.notify('⚠️ Gagal memuat Web3 Service. Silakan refresh halaman.', 'danger');
+      return;
     }
-
-    if (this.config && !window.portfolioWeb3Helper) {
-        window.portfolioWeb3Helper = new window.PortfolioWeb3Helper(this.config);
-        console.log('✅ Portfolio Web3 Helper initialized.');
-        console.log('  - Instance:', window.portfolioWeb3Helper);
-    } else if (window.portfolioWeb3Helper) {
-        console.log('✅ Portfolio Web3 Helper already initialized.');
-    }
-
+    console.log('✅ Portfolio mendapatkan web3Service dari root.');
     this.portfolioReady = true;
+
+    // Tunggu realtimeDataFetcher siap
+    if (!this.$root.realtimeDataFetcher) {
+      console.error('❌ Gagal mendapatkan realtimeDataFetcher dari root instance.');
+      this.notify('⚠️ Gagal memuat Price Fetcher Service. Silakan refresh halaman.', 'danger');
+      return;
+    }
 
     // --- PERMINTAAN: Autoload Aset ---
     // Secara otomatis memanggil pengecekan aset gabungan setelah semua inisialisasi selesai.

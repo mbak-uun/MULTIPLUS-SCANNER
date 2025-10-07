@@ -6,17 +6,17 @@ const ID_NUMBER_FORMAT = new Intl.NumberFormat('id-ID');
 const ManagementTab = {
   name: 'ManagementTab',
   emits: ['show-toast', 'show-add-token-modal', 'import-tokens', 'export-tokens'],
-  mixins: [filterMixin, historyLoggerMixin], // REVISI: Tambahkan historyLoggerMixin di sini
+  mixins: [filterMixin], // REVISI: Hapus historyLoggerMixin yang berkonflik
 
   data() {
     return {
       tokens: [],
 
       // Modal states
-      showDeleteModal: false,
-      tokenToDelete: null,
-      showAddModal: false,
-      showEditModal: false,
+      showDeleteModal: false, // Modal konfirmasi hapus
+      tokenToDelete: null,    // Token yang akan dihapus
+      showFormModal: false,   // Flag untuk menampilkan modal Add/Edit gabungan
+      formMode: 'add',        // Mode modal: 'add' atau 'edit'
       editingToken: null,
 
       // Add/Edit form data
@@ -34,6 +34,17 @@ const ManagementTab = {
   },
 
   computed: {
+    // ✅ REFACTORED: Get repository from container
+    coinRepo() {
+      return window.AppContainer.get('coinRepository');
+    },
+    historyRepo() {
+      return window.AppContainer.get('historyRepository');
+    },
+    validators() {
+      return window.Validators;
+    },
+
     activeChain() {
       return this.$root.activeChain;
     },
@@ -107,14 +118,17 @@ const ManagementTab = {
           };
         });
     },
-    // Memuat semua token dari semua chain di IndexedDB
+    // ✅ REFACTORED: Using repository
     async loadTokensFromDB() {
-      if (!this.activeChain) return;
-      console.log(`Memuat token untuk tab manajemen (Chain: ${this.activeChain})...`);
-      
+      if (!this.activeChain) {
+        console.warn('[ManagementTab] activeChain tidak ada, skip loading');
+        return;
+      }
+      console.log(`[ManagementTab] Memuat token untuk tab manajemen (Chain: ${this.activeChain})...`);
+
       let chainsToLoad = [];
       if (this.activeChain === 'multi') {
-        chainsToLoad = this.$root.activeChains;
+        chainsToLoad = this.$root.activeChains || [];
       } else if (this.activeChain) {
         chainsToLoad = [this.activeChain];
       } else {
@@ -122,43 +136,45 @@ const ManagementTab = {
         return;
       }
 
+      console.log(`[ManagementTab] Chains to load:`, chainsToLoad);
+
       let allTokens = [];
       for (const chainKey of chainsToLoad) {
-        const storeName = DB.getStoreNameByChain('KOIN', chainKey);
-        const chainTokens = await DB.getAllData(storeName) || [];
-        // Filter record 'DATA_KOIN' dan tambahkan properti 'chain' jika belum ada
-        const validTokens = chainTokens.filter(t => t.id !== 'DATA_KOIN').map(t => ({ ...t, chain: t.chain || chainKey.toUpperCase() }));
-        allTokens.push(...validTokens);
+        try {
+          console.log(`[ManagementTab] Loading chain: ${chainKey}`);
+          const chainTokens = await this.coinRepo.getAllByChain(chainKey);
+          console.log(`[ManagementTab] Raw data from ${chainKey}:`, chainTokens.length, 'records');
+
+          // Filter record 'DATA_KOIN' dan tambahkan properti 'chain' jika belum ada
+          const validTokens = chainTokens
+            .filter(t => t.id !== 'DATA_KOIN')
+            .map(t => ({ ...t, chain: t.chain || chainKey.toUpperCase() }));
+
+          console.log(`[ManagementTab] Valid tokens from ${chainKey}:`, validTokens.length);
+          allTokens.push(...validTokens);
+        } catch (error) {
+          console.error(`[ManagementTab] Error loading ${chainKey}:`, error);
+        }
       }
 
       this.tokens = allTokens;
-      console.log(`Total ${this.tokens.length} token dimuat untuk manajemen.`);
+      console.log(`[ManagementTab] ✅ Total ${this.tokens.length} token dimuat untuk manajemen.`);
+      console.log(`[ManagementTab] Sample token:`, this.tokens[0]);
+      console.log(`[ManagementTab] Current filters:`, JSON.parse(JSON.stringify(this.filters)));
+
+      // Debug filtered tokens
+      this.$nextTick(() => {
+        console.log(`[ManagementTab] ✅ filteredTokens count:`, this.filteredTokens.length);
+        if (this.filteredTokens.length === 0 && this.tokens.length > 0) {
+          console.warn('[ManagementTab] ⚠️ WARNING: Ada tokens tapi filteredTokens kosong! Check filter conditions!');
+        }
+      });
     },
 
     // Mengubah arah pengurutan
     toggleSortDirection() {
       const newDirection = (this.$root.filterSettings.sortDirection || 'asc') === 'desc' ? 'asc' : 'desc';
       this.$root.filterSettings.sortDirection = newDirection;
-    },
-    // Menandai/menghapus token sebagai favorit
-    async toggleTokenFavorit(token) {
-      const currentFavorite = token.isFavorite || token.isFavorit || false;
-      token.isFavorite = !currentFavorite;
-      // Sync field lama untuk backward compatibility
-      if (token.isFavorit !== undefined) {
-        token.isFavorit = token.isFavorite;
-      }
-      const storeName = DB.getStoreNameByChain('KOIN', token.chain);
-      await DB.saveData(storeName, token);
-      // REVISI: Gunakan helper log yang benar
-      await this.logAction('TOGGLE_FAVORITE', {
-        tokenName: token.nama_koin || token.from,
-        tokenTicker: token.nama_token,
-        chain: token.chain,
-        isFavorite: token.isFavorite
-      });
-
-      this.$emit('show-toast', `${token.nama_token || token.from} ${token.isFavorite ? 'ditambahkan ke' : 'dihapus dari'} favorit`, 'success');
     },
     // Menghapus token dengan modal konfirmasi
     showDeleteConfirmation(token) {
@@ -169,67 +185,82 @@ const ManagementTab = {
       this.showDeleteModal = false;
       this.tokenToDelete = null;
     },
-    async confirmDelete() {
-      if (!this.tokenToDelete) return;
-
-      const token = this.tokenToDelete;
-      const storeName = DB.getStoreNameByChain('KOIN', token.chain);
-
-      try {
-        // Delete dari database
-        await DB.deleteData(storeName, token.id);
-
-        // Remove dari list
-        this.tokens = this.tokens.filter(t => t.id !== token.id);
-
-        // Log aksi dengan pesan yang lebih baik
-        const tokenIdentifier = token.nama_koin || token.from;
-        await this.logManagement('delete_coin', 'success', { // REVISI: Gunakan helper log yang benar
-          message: `Token '${tokenIdentifier}' dihapus dari chain ${token.chain.toUpperCase()}.`,
-          chain: token.chain
-        });
-
-        this.$emit('show-toast', `Token ${token.nama_koin || token.from} berhasil dihapus.`, 'success');
-        this.closeDeleteModal();
-      } catch (error) {
-        console.error('Error deleting token:', error);
-        this.$emit('show-toast', 'Gagal menghapus token.', 'danger');
-      }
-    },
-    // Menampilkan modal untuk menambah token baru
-    showAddTokenModal() {
-      this.$emit('show-add-token-modal', null); // null berarti mode 'tambah baru'
-    },
-    // Menampilkan modal untuk mengedit token yang ada
-    showEditTokenModal(token) {
-      this.$emit('show-add-token-modal', token); // Mengirim data token untuk diedit
-    },
+    // REFACTOR: Standarisasi penggunaan 'isFavorite' dan hapus duplikasi.
     async toggleTokenFavorit(tokenId) {
       const tokenIndex = this.tokens.findIndex(t => t.id === tokenId);
       if (tokenIndex === -1) return;
 
       const token = this.tokens[tokenIndex];
+      // Baca dari kedua properti (lama & baru) untuk backward compatibility
       const originalIsFavorite = token.isFavorite || token.isFavorit || false;
       const newFavoriteStatus = !originalIsFavorite;
 
+      // Update state lokal dengan properti baru
       this.tokens[tokenIndex].isFavorite = newFavoriteStatus;
-      if (this.tokens[tokenIndex].hasOwnProperty('isFavorit')) {
-        this.tokens[tokenIndex].isFavorit = newFavoriteStatus;
-      }
 
       try {
-        const storeName = DB.getStoreNameByChain('KOIN', token.chain);
-        // REVISI: Konversi objek reaktif Vue ke objek biasa sebelum menyimpan ke DB
-        await DB.saveData(storeName, JSON.parse(JSON.stringify(this.tokens[tokenIndex])));
+        // Clone token untuk dimodifikasi sebelum disimpan
+        let cleanToken = JSON.parse(JSON.stringify(this.tokens[tokenIndex]));
+
+        // Set properti baru dan hapus properti lama untuk membersihkan data
+        cleanToken.isFavorite = newFavoriteStatus;
+        delete cleanToken.isFavorit;
+
+        await this.coinRepo.save(cleanToken);
+
         this.$emit('show-toast', `${token.nama_koin} ${newFavoriteStatus ? 'ditambahkan ke' : 'dihapus dari'} favorit.`, 'success');
         this.$root.loadCoinsForFilter();
       } catch (error) {
         console.error('Gagal memperbarui status favorit:', error);
+        // Rollback state jika gagal
         this.tokens[tokenIndex].isFavorite = originalIsFavorite;
-        if (this.tokens[tokenIndex].hasOwnProperty('isFavorit')) {
-          this.tokens[tokenIndex].isFavorit = originalIsFavorite;
-        }
         this.$emit('show-toast', 'Gagal memperbarui status favorit.', 'danger');
+      }
+    },
+
+    // Toggle token status (aktif/non-aktif)
+    async toggleTokenStatus(tokenId) {
+      const tokenIndex = this.tokens.findIndex(t => t.id === tokenId);
+      if (tokenIndex === -1) return;
+
+      const token = this.tokens[tokenIndex];
+      const originalStatus = token.status ?? true;
+      const newStatus = !originalStatus;
+
+      // Update state lokal
+      this.tokens[tokenIndex].status = newStatus;
+
+      try {
+        // Clone dan simpan
+        let cleanToken = JSON.parse(JSON.stringify(this.tokens[tokenIndex]));
+        cleanToken.status = newStatus;
+
+        await this.coinRepo.save(cleanToken);
+
+        this.$emit('show-toast', `${token.nama_koin} ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`, 'success');
+        this.$root.loadCoinsForFilter();
+      } catch (error) {
+        console.error('Gagal memperbarui status:', error);
+        // Rollback jika gagal
+        this.tokens[tokenIndex].status = originalStatus;
+        this.$emit('show-toast', 'Gagal memperbarui status.', 'danger');
+      }
+    },
+
+    // Log management action
+    async logManagement(action, status, message, metadata = {}) {
+      try {
+        if (this.historyRepo) {
+          await this.historyRepo.add({
+            category: 'management',
+            action,
+            status,
+            message,
+            metadata
+          });
+        }
+      } catch (error) {
+        console.error('Failed to log management action:', error);
       }
     },
     getDexEntries(token) {
@@ -271,16 +302,15 @@ const ManagementTab = {
       this.$root.saveFilterChange(field);
     },
 
-    // ===== MODAL ADD/EDIT METHODS =====
+    // ===== MODAL FORM (ADD/EDIT) METHODS =====
     openAddModal() {
+      this.formMode = 'add';
       this.resetFormData();
       this.formData.selectedPairType = this.availablePairOptions[0]?.key || '';
-      this.showAddModal = true;
-    },
-    closeAddModal() {
-      this.showAddModal = false;
+      this.showFormModal = true;
     },
     openEditModal(token) {
+      this.formMode = 'edit';
       this.editingToken = { ...token };
       // Populate form dengan data token yang ada
       this.formData.selectedCex = [token.cex_name]; // Set sebagai array dengan satu item
@@ -299,11 +329,11 @@ const ManagementTab = {
           modalKanan: token.dex[dexKey]?.right || 100
         };
       });
-      this.showEditModal = true;
+      this.showFormModal = true;
     },
-    closeEditModal() {
-      this.showEditModal = false;
+    closeFormModal() {
       this.editingToken = null;
+      this.showFormModal = false;
       this.resetFormData();
     },
     resetFormData() {
@@ -334,6 +364,36 @@ const ManagementTab = {
       }
       this.formData.dexModals[dexKey][field] = value;
     },
+    async handleFormSave() {
+      if (this.formMode === 'add') {
+        await this.saveNewToken();
+      } else {
+        await this.saveEditToken();
+      }
+    },
+    async confirmDelete() {
+      if (!this.tokenToDelete) return;
+
+      const token = this.tokenToDelete;
+
+      try {
+        // PERBAIKAN: Pastikan chain selalu dalam format lowercase sebelum dikirim ke repository.
+        // Ini untuk mencegah error "Object store not found" karena case-sensitivity.
+        const chainKey = (token.chain || '').toLowerCase();
+        // PERBAIKAN: Panggil coinRepo.delete dengan argumen yang benar (id, chainKey).
+        await this.coinRepo.delete(token.id, chainKey);
+        this.tokens = this.tokens.filter(t => t.id !== token.id);
+
+        const tokenIdentifier = token.nama_koin || token.from;
+        await this.logManagement('delete_coin', 'success', `Token '${tokenIdentifier}' dihapus dari chain ${token.chain.toUpperCase()}.`, { chain: token.chain });
+
+        this.$emit('show-toast', `Token ${token.nama_koin || token.from} berhasil dihapus.`, 'success');
+        this.closeDeleteModal();
+      } catch (error) {
+        console.error('Error deleting token:', error);
+        this.$emit('show-toast', 'Gagal menghapus token.', 'danger');
+      }
+    },
     async saveNewToken() {
       // REFACTOR: Validasi untuk skema baru dengan checkbox
       if (!this.formData.tokenData.name || !this.formData.tokenData.sc) {
@@ -352,8 +412,7 @@ const ManagementTab = {
       }
 
       try {
-        const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
-        const now = new Date().toISOString();
+        const now = new Date();
 
         // Build pair info
         let pairInfo;
@@ -386,7 +445,7 @@ const ManagementTab = {
         let addedCount = 0;
         for (const cex of this.formData.selectedCex) {
           const record = {
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            // id akan dibuat oleh BaseRepository
             chain: this.activeChain.toUpperCase(),
             nama_koin: this.formData.tokenData.name.toUpperCase(),
             sc_token: this.formData.tokenData.sc,
@@ -404,16 +463,15 @@ const ManagementTab = {
             status: true,
             isFavorite: false,
             dex: dexConfig,
-            createdAt: now,
-            updatedAt: now
+            // createdAt & updatedAt akan ditambahkan oleh BaseRepository
           };
-          await DB.saveData(storeName, record);
-          this.tokens.push(record);
+          const savedRecord = await this.coinRepo.save(record);
+          this.tokens.push(savedRecord);
           addedCount++;
         }
 
         this.$emit('show-toast', `${addedCount} token berhasil ditambahkan.`, 'success');
-        this.closeAddModal();
+        this.closeFormModal();
       } catch (error) {
         console.error('Error saving token:', error);
         this.$emit('show-toast', 'Gagal menyimpan token.', 'danger');
@@ -422,8 +480,7 @@ const ManagementTab = {
     async saveEditToken() {
       if (!this.editingToken || this.formData.selectedCex.length !== 1) return;
 
-      const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
-      const now = new Date().toISOString();
+      const now = new Date();
 
       // Build pair info
       let pairInfo;
@@ -464,26 +521,25 @@ const ManagementTab = {
         nama_pair: pairInfo.symbol,
         sc_pair: pairInfo.address,
         des_pair: pairInfo.decimals,
-        dex: dexConfig,
-        updatedAt: now
+        dex: dexConfig
+        // updatedAt akan diupdate oleh BaseRepository
       };
 
       try {
-        await DB.saveData(storeName, updatedToken);
-        // Log aksi dengan pesan yang lebih baik
-        await this.logManagement('edit_coin', 'success', { // REVISI: Gunakan helper log yang benar
-            message: `Token '${updatedToken.nama_koin}' di chain ${updatedToken.chain.toUpperCase()} telah diubah.`,
-            chain: updatedToken.chain
-        });
-
+        await this.coinRepo.save(updatedToken);
+        
         // Update in list
         const index = this.tokens.findIndex(t => t.id === updatedToken.id);
+        // REVISI: Gunakan logAction dari root component, bukan dari mixin
+        this.$root.logAction('UPDATE_KOIN', {
+            message: `Token '${updatedToken.nama_koin}' di chain ${updatedToken.chain.toUpperCase()} telah diubah.`
+        });
         if (index > -1) {
           this.tokens.splice(index, 1, updatedToken);
         }
 
         this.$emit('show-toast', `Token ${updatedToken.nama_koin} berhasil diupdate.`, 'success');
-        this.closeEditModal();
+        this.closeFormModal();
       } catch (error) {
         console.error('Error updating token:', error);
         this.$emit('show-toast', 'Gagal mengupdate token.', 'danger');
@@ -563,11 +619,11 @@ const ManagementTab = {
         link.click();
         document.body.removeChild(link);
         
-        await this.logManagement('export_csv', 'success', { // REVISI: Gunakan helper log yang benar
+        // REVISI: Gunakan logAction dari root component
+        this.$root.logAction('EXPORT_CSV', {
             message: `Export ${this.filteredTokens.length} token ke CSV dari chain ${this.activeChain.toUpperCase()}.`,
             chain: this.activeChain
         });
-
         this.$emit('show-toast', `${this.filteredTokens.length} token berhasil di-export ke ${filename}`, 'success');
       } catch (error) {
         console.error('Error exporting CSV:', error);
@@ -693,11 +749,11 @@ const ManagementTab = {
           }
 
           // Log aksi dengan pesan yang lebih baik
-          await this.logManagement('import_csv', 'success', { // REVISI: Gunakan helper log yang benar
+          // REVISI: Gunakan logAction dari root component
+          this.$root.logAction('IMPORT_CSV', {
               message: `Import ${imported} token dari CSV ke chain ${this.activeChain.toUpperCase()}. Gagal: ${errors}.`,
               chain: this.activeChain
           });
-
           await this.loadTokensFromDB();
           this.$emit('show-toast', `Import selesai: ${imported} token berhasil, ${errors} gagal.`, 'success');
         } catch (error) {
@@ -718,8 +774,6 @@ const ManagementTab = {
     }
   },
   activated() {
-    // REVISI: Mixin sudah ditambahkan di atas, baris ini tidak lagi diperlukan dan menyebabkan error.
-    // Metode dari historyLoggerMixin sekarang tersedia langsung di `this`.
     this.loadTokensFromDB(); // Muat ulang data saat tab diaktifkan kembali
   },
 
@@ -781,7 +835,7 @@ const ManagementTab = {
 
       <!-- Tabel Manajemen Koin -->
       <div class="table-responsive" style="max-height: calc(100vh - 250px);">
-        <table class="table table-sm table-hover align-middle management-table">
+        <table class="table table-sm table-hover table-striped align-middle management-table">
           <thead class="sticky-top">
             <tr class="text-center text-uppercase small" :style="$root.getColorStyles('chain', $root.activeChain, 'solid')">
               <th class="text-nowrap">No</th>
@@ -826,13 +880,19 @@ const ManagementTab = {
                   </div>
                 </div>
               </td>
-              <td class="text-center">
-                <span v-if="token.cex_name" class="badge" :style="$root.getColorStyles('cex', token.cex_name, 'soft')">
-                  {{ token.cex_name.toUpperCase() }}
-                  <br>
-                  <small class="fw-normal">{{ token.cex_ticker_token }}</small>
-                </span>
-                <span v-else class="text-muted small">-</span>
+              <td>
+                <div class="d-flex flex-column align-items-center gap-1">
+                  <button class="btn btn-sm btn-icon" :class="(token.isFavorite || token.isFavorit) ? 'btn-warning' : 'btn-outline-secondary'"
+                    @click="toggleTokenFavorit(token.id)" title="Toggle Favorit">
+                    <i class="bi" :class="(token.isFavorite || token.isFavorit) ? 'bi-star-fill' : 'bi-star'"></i>
+                  </button>
+                  <span v-if="token.cex_name" class="badge" :style="$root.getColorStyles('cex', token.cex_name, 'soft')">
+                    {{ token.cex_name.toUpperCase() }}
+                    <br>
+                    <small class="fw-normal">{{ token.cex_ticker_token }}</small>
+                  </span>
+                  <span v-else class="text-muted small">-</span>
+                </div>
               </td>
               <td>
                 <div class="d-flex flex-column gap-1 small">
@@ -866,14 +926,11 @@ const ManagementTab = {
                     <input class="form-check-input" type="checkbox" role="switch" :id="'status-' + token.id"
                       :checked="Boolean(token.status)" @change="toggleTokenStatus(token.id)">
                   </div>
-                  <button class="btn btn-sm btn-icon" :class="(token.isFavorite || token.isFavorit) ? 'btn-warning' : 'btn-outline-secondary'"
-                    @click="toggleTokenFavorit(token.id)" title="Toggle Favorit">
-                    <i class="bi" :class="(token.isFavorite || token.isFavorit) ? 'bi-star-fill' : 'bi-star'"></i>
-                  </button>
+                 
                   <button class="btn btn-sm btn-outline-primary btn-icon" @click="openEditModal(token)" title="Edit Token">
                     <i class="bi bi-pencil-fill"></i>
                   </button>
-                  <button class="btn btn-sm btn-outline-danger btn-icon" @click="showDeleteConfirmation(token)" title="Hapus Token">
+                  <button class="btn btn-sm btn-outline-danger btn-icon" @click="showDeleteConfirmation(token)" title="Hapus Token" :disabled="token.id === 'DATA_KOIN'">
                     <i class="bi bi-trash-fill"></i>
                   </button>
                 </div>
@@ -927,321 +984,138 @@ const ManagementTab = {
         </div>
       </div>
 
-      <!-- Modal Add Token -->
-      <div v-if="showAddModal" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-dialog-centered modal-md modal-dialog-scrollable">
+      <!-- Modal Add/Edit Token (Digabung) -->
+      <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable management-form-modal">
           <div class="modal-content">
             <div class="modal-header py-2">
               <h5 class="modal-title fs-5">
-                <i class="bi bi-plus-circle me-2"></i>Tambah Token Baru
+                <i class="me-2" :class="formMode === 'add' ? 'bi-plus-circle' : 'bi-pencil'"></i>
+                {{ formMode === 'add' ? 'Tambah Token Baru' : 'Edit Token' }}
               </h5>
-              <button type="button" class="btn-close" @click="closeAddModal"></button>
+              <button type="button" class="btn-close" @click="closeFormModal"></button>
             </div>
             <div class="modal-body p-3">
-              <!-- Token Info -->
-              <div class="card mb-2">
-                <div class="card-header py-2">
-                  <h6 class="mb-0 fs-6"><i class="bi bi-coin me-1"></i>Informasi Token</h6>
-                </div>
-                <div class="card-body p-2">
-                  <div class="row g-2">
-                    <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Nama Token <span class="text-danger">*</span></label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.name" placeholder="Contoh: Bitcoin">
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Decimals</label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="formData.tokenData.decimals" min="0" max="32">
-                    </div>
-                    <div class="col-12">
-                      <label class="form-label small fw-semibold">Smart Contract Token <span class="text-danger">*</span></label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.sc" placeholder="0x...">
-                    </div>
+              <div class="row g-4">
+                <!-- Kolom Kiri -->
+                <div class="col-lg-5">
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-coin me-2"></i>1. Informasi Dasar Token</h6>
+                  <div class="mb-3">
+                    <label class="form-label small fw-semibold">Nama Token <span v-if="formMode === 'add'" class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.name" placeholder="Contoh: PancakeSwap">
+                      <div class="mb-3">
+                    <label class="form-label small fw-semibold">Decimals</label>
+                    <input type="number" class="form-control form-control-sm" v-model.number="formData.tokenData.decimals" min="0" max="32">
                   </div>
-                </div>
-              </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small fw-semibold">Smart Contract <span v-if="formMode === 'add'" class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.sc" placeholder="0x...">
+                  </div>
+                
 
-              <!-- CEX Info -->
-              <div class="card mb-2">
-                <div class="card-header py-2">
-                  <h6 class="mb-0 fs-6"><i class="bi bi-building me-1"></i>Informasi CEX</h6>
-                </div>
-                <div class="card-body p-2">
-                  <div class="row g-2">
-                    <div class="col-12">
-                      <label class="form-label small fw-semibold">Pilih CEX <span class="text-danger">*</span></label>
-                      <div class="d-flex flex-wrap gap-2">
-                        <div v-for="cex in activeCEXs" :key="cex" class="form-check form-check-inline">
-                          <input class="form-check-input" type="checkbox" :id="'add-cex-' + cex" :value="cex" v-model="formData.selectedCex">
-                          <label class="form-check-label" :for="'add-cex-' + cex">{{ cex }}</label>
+                  <hr class="my-3">
+
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-building me-2"></i>2. Konfigurasi CEX</h6>
+                  <div class="p-3 border rounded bg-light">
+                    <label class="form-label small fw-semibold mb-2">Pilih CEX & Ticker <span v-if="formMode === 'add'" class="text-danger">*</span></label>
+                    <div class="vstack gap-2">
+                      <div v-for="cex in activeCEXs" :key="'form-cex-wrap-' + cex" class="d-flex align-items-center gap-2">
+                        <div class="form-check flex-grow-1">
+                          <input class="form-check-input" type="checkbox" :id="'form-cex-' + cex" :value="cex" v-model="formData.selectedCex" :disabled="formMode === 'edit' && editingToken.cex_name !== cex">
                         </div>
-                      </div>
-                    </div>
-                    <div v-for="cex in formData.selectedCex" :key="'ticker-add-' + cex" class="col-md-6">
-                      <label class="form-label small fw-semibold">Ticker di {{ cex }} <span class="text-danger">*</span></label>
-                      <div class="input-group input-group-sm">
-                        <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
-                        <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" placeholder="Contoh: BTCUSDT" style="text-transform: uppercase;">
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Pair Config -->
-              <div class="card mb-2">
-                <div class="card-header py-2">
-                  <h6 class="mb-0 fs-6"><i class="bi bi-arrow-left-right me-1"></i>Konfigurasi Pair</h6>
-                </div>
-                <div class="card-body p-2">
-                  <div class="row g-2">
-                    <div class="col-12">
-                      <label class="form-label small fw-semibold">Pilih Pair</label>
-                      <select class="form-select form-select-sm" v-model="formData.selectedPairType">
-                        <option v-for="pair in availablePairOptions" :key="pair.key" :value="pair.key">{{ pair.symbol }}</option>
-                        <option value="NON">NON (Input Manual)</option>
-                      </select>
-                    </div>
-                    <div class="col-12" v-if="isNonPair">
-                      <div class="bg-info bg-opacity-10 border border-info rounded p-2">
-                        <div class="row g-2">
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Symbol Pair</label>
-                            <input type="text" class="form-control form-control-sm" v-model="formData.nonData.symbol" placeholder="USDT" style="text-transform: uppercase;">
-                          </div>
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">SC Pair</label>
-                            <input type="text" class="form-control form-control-sm" v-model="formData.nonData.sc" placeholder="0x...">
-                          </div>
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Decimals</label>
-                            <input type="number" class="form-control form-control-sm" v-model.number="formData.nonData.des" min="0" max="32">
-                          </div>
+                        <div class="input-group input-group-sm"  >
+                          <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
+                          <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" placeholder="BTC_USDT" style="text-transform: uppercase;" :disabled="!formData.selectedCex.includes(cex)">
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- DEX Selection -->
-              <div class="card mb-2">
-                <div class="card-header py-2">
-                  <h6 class="mb-0 fs-6"><i class="bi bi-grid me-1"></i>Pilih DEX</h6>
-                </div>
-                <div class="card-body p-2">
-                  <div class="row g-2">
-                    <div class="col-md-6" v-for="dex in availableDexOptions" :key="dex.key">
-                      <div class="card h-100" :class="{ 'border-primary': formData.selectedDex.includes(dex.key) }">
-                        <div class="card-body p-2">
-                          <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" :id="'dex-add-' + dex.key"
-                                   :checked="formData.selectedDex.includes(dex.key)"
-                                   @change="toggleDexSelection(dex.key)">
-                            <label class="form-check-label fw-semibold small" :for="'dex-add-' + dex.key" :style="{ color: dex.color }">
-                              {{ dex.name }}
-                            </label>
+                <!-- Kolom Kanan -->
+                <div class="col-lg-7">
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>3. Konfigurasi Pair</h6>
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">Pilih Pair</label>
+                    <select class="form-select form-select-sm" v-model="formData.selectedPairType">
+                      <option v-for="pair in availablePairOptions" :key="'form-pair-' + pair.key" :value="pair.key">{{ pair.symbol }}</option>
+                    
+                    </select>
+                  </div>
+                  <div v-if="isNonPair" class="bg-info bg-opacity-10 border border-info rounded p-3 mb-4">
+  <div class="row g-2 align-items-end">
+    <!-- Symbol & Decimals dalam satu baris -->
+    <div class="col-12 col-md-12 col-lg-12">
+      <label class="form-label small fw-semibold">Nama Token (Symbol)</label>
+      <div class="input-group input-group-sm">
+        <input
+          type="text"
+          class="form-control"
+          v-model="formData.nonData.symbol"
+          placeholder="USDT"
+          style="text-transform: uppercase;"
+        >
+        <span class="input-group-text px-2">Dec</span>
+        <input
+          type="number"
+          class="form-control"
+          v-model.number="formData.nonData.des"
+          min="0"
+          max="32"
+          style="max-width: 80px;"
+        >
+      </div>
+    </div>
+    <div class="col-12 col-md-12 col-lg-12">
+      <label class="form-label small fw-semibold">Smart Contract</label>
+      <input
+        type="text"
+        class="form-control form-control-sm"
+        v-model="formData.nonData.sc"
+        placeholder="0x..."
+      >
+    </div>
+  </div>
+</div>
+
+
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-grid me-2"></i>4. Konfigurasi DEX</h6>
+                  <div class="p-3 border rounded">
+                    <div class="vstack gap-2">
+                      <div v-for="dex in availableDexOptions" :key="'form-dex-' + dex.key" class="d-flex align-items-center gap-2 border rounded p-2" :class="{ 'border-primary bg-primary-subtle': formData.selectedDex.includes(dex.key) }">
+                        <div class="form-check flex-grow-1">
+                          <input class="form-check-input" type="checkbox" :id="'form-dex-' + dex.key"
+                                 :checked="formData.selectedDex.includes(dex.key)"
+                                 @change="toggleDexSelection(dex.key)">
+                          <label class="form-check-label fw-semibold small" :for="'form-dex-' + dex.key" :style="{ color: dex.color }">
+                            {{ dex.name }}
+                          </label>
+                        </div>
+                        <div v-if="formData.selectedDex.includes(dex.key)" class="d-flex gap-2" style="width: 240px;">
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" placeholder="100"
+                                   :value="formData.dexModals[dex.key]?.modalKiri"
+                                   @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 0)">
                           </div>
-                          <div v-if="formData.selectedDex.includes(dex.key)" class="row g-1">
-                            <div class="col-6">
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control"
-                                       :value="formData.dexModals[dex.key]?.modalKiri || 100"
-                                       @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)">
-                              </div>
-                            </div>
-                            <div class="col-6">
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control"
-                                       :value="formData.dexModals[dex.key]?.modalKanan || 100"
-                                       @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)">
-                              </div>
-                            </div>
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" placeholder="100"
+                                   :value="formData.dexModals[dex.key]?.modalKanan"
+                                   @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 0)">
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> <!-- end row -->
             </div>
             <div class="modal-footer py-2">
-              <button type="button" class="btn btn-sm btn-danger" @click="closeAddModal">Batal</button>
-              <button type="button" class="btn btn-sm btn-success" @click="saveNewToken">
-                <i class="bi bi-save me-1"></i>Simpan Token
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Modal Edit Token -->
-      <div v-if="showEditModal" class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">
-                <i class="bi bi-pencil me-2"></i>Edit Token
-              </h5>
-              <button type="button" class="btn-close" @click="closeEditModal"></button>
-            </div>
-            <div class="modal-body">
-              <!-- Token Info -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-coin me-1"></i>Informasi Token</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Nama Token</label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.name">
-                    </div>
-                    <div class="col-md-8">
-                      <label class="form-label small fw-semibold">Smart Contract</label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.sc" placeholder="0x...">
-                    </div>
-                    <div class="col-md-4">
-                      <label class="form-label small fw-semibold">Decimals</label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="formData.tokenData.decimals" min="0" max="32">
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- CEX Info -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-building me-1"></i>Informasi CEX</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row g-3">
-                    <div class="col-12">
-                      <label class="form-label small fw-semibold">CEX (Tidak bisa diubah)</label>
-                      <div class="d-flex flex-wrap gap-2">
-                        <div v-for="cex in activeCEXs" :key="cex" class="form-check form-check-inline">
-                          <input class="form-check-input" type="checkbox" :id="'edit-cex-' + cex" :value="cex" v-model="formData.selectedCex" disabled>
-                          <label class="form-check-label" :for="'edit-cex-' + cex">{{ cex }}</label>
-                        </div>
-                      </div>
-                    </div>
-                    <div v-for="cex in formData.selectedCex" :key="'ticker-edit-' + cex" class="col-md-6">
-                      <label class="form-label small fw-semibold">Ticker di {{ cex }}</label>
-                      <div class="input-group input-group-sm">
-                        <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
-                        <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" style="text-transform: uppercase;">
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- CEX Info -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-building me-1"></i>Informasi CEX</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Nama CEX</label>
-                      <select class="form-select form-select-sm" v-model="formData.selectedCex[0]" disabled>
-                        <option v-for="cex in activeCEXs" :key="cex" :value="cex">{{ cex }}</option>
-                      </select>
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label small fw-semibold">Ticker di CEX</label>
-                      <input type="text" class="form-control form-control-sm" v-model="formData.cex_tickers[formData.selectedCex[0]]" style="text-transform: uppercase;">
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Pair Config -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-arrow-left-right me-1"></i>Konfigurasi Pair</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row g-3">
-                    <div class="col-12">
-                      <label class="form-label small fw-semibold">Pilih Pair</label>
-                      <select class="form-select form-select-sm" v-model="formData.selectedPairType">
-                        <option v-for="pair in availablePairOptions" :key="pair.key" :value="pair.key">{{ pair.symbol }}</option>
-                        <option value="NON">NON (Input Manual)</option>
-                      </select>
-                    </div>
-                    <div class="col-12" v-if="isNonPair">
-                      <div class="bg-info bg-opacity-10 border border-info rounded p-3">
-                        <div class="row g-3">
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Symbol Pair</label>
-                            <input type="text" class="form-control form-control-sm" v-model="formData.nonData.symbol" placeholder="USDT" style="text-transform: uppercase;">
-                          </div>
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">SC Pair</label>
-                            <input type="text" class="form-control form-control-sm" v-model="formData.nonData.sc" placeholder="0x...">
-                          </div>
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Decimals</label>
-                            <input type="number" class="form-control form-control-sm" v-model.number="formData.nonData.des" min="0" max="32">
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- DEX Selection -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-grid me-1"></i>Pilih DEX</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row">
-                    <div class="col-md-6" v-for="dex in availableDexOptions" :key="dex.key">
-                      <div class="card mb-2" :class="{ 'border-primary': formData.selectedDex.includes(dex.key) }">
-                        <div class="card-body p-2">
-                          <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" :id="'dex-edit-' + dex.key"
-                                   :checked="formData.selectedDex.includes(dex.key)"
-                                   @change="toggleDexSelection(dex.key)">
-                            <label class="form-check-label fw-semibold small" :for="'dex-edit-' + dex.key" :style="{ color: dex.color }">
-                              {{ dex.name }}
-                            </label>
-                          </div>
-                          <div v-if="formData.selectedDex.includes(dex.key)" class="row g-1">
-                            <div class="col-6">
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control"
-                                       :value="formData.dexModals[dex.key]?.modalKiri || 100"
-                                       @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)">
-                              </div>
-                            </div>
-                            <div class="col-6">
-                              <div class="input-group input-group-sm">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control"
-                                       :value="formData.dexModals[dex.key]?.modalKanan || 100"
-                                       @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)">
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-sm btn-outline-danger" @click="closeEditModal">Batal</button>
-              <button type="button" class="btn btn-sm btn-success" @click="saveEditToken">
-                <i class="bi bi-save me-1"></i>Update Token
+              <button type="button" class="btn btn-sm btn-danger" @click="closeFormModal">Batal</button>
+              <button type="button" class="btn btn-sm btn-success" @click="handleFormSave">
+                <i class="bi bi-save me-1"></i>{{ formMode === 'add' ? 'Simpan Token' : 'Update Token' }}
               </button>
             </div>
           </div>

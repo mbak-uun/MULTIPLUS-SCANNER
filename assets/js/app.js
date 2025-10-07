@@ -8,8 +8,7 @@ const app = createApp({
   mixins: [
     // Mixin utilitas
     utilitiesMixin,
-    notificationsMixin,
-    telegramMixin,
+    notificationsMixin, // Tetap ada untuk toast, dll.
     historyLoggerMixin,
     routerMixin,
     themeMixin,
@@ -58,6 +57,10 @@ const app = createApp({
       // Initialization flag
       isAppInitialized: false,
 
+      // Global services
+      web3Service: null,
+      realtimeDataFetcher: null, // Tambahkan service baru di sini
+
       // Filters
       filters: {
         chains: {},
@@ -83,6 +86,11 @@ const app = createApp({
       await DB.initDB();
       this.dbStatus = 'success';
 
+      // FIX: Tandai bahwa inisialisasi selesai SEBELUM memuat pengaturan.
+      // Ini akan memberi sinyal ke komponen anak (seperti scanning-tab) bahwa DB sudah siap.
+      this.isAppInitialized = true;
+      console.log('🚀 [PRE-INIT] Database siap, aplikasi siap untuk memuat data.');
+
       const allStores = DB.getAllStoreNames();
     //  console.log('📦 Database berhasil dimuat dengan stores:', allStores);
      // console.log(`✅ Total ${allStores.length} stores dibuat`);
@@ -99,6 +107,17 @@ const app = createApp({
         this.isGlobalSettingsRequired = true;
       } else {
         console.log('🟢 [CHECK OK] Pengaturan global valid.');
+
+        // REFAKTOR: Inisialisasi Web3Service secara terpusat
+        if (window.Web3Service && !this.web3Service) {
+          this.web3Service = new window.Web3Service(this.config);
+          console.log('✅ Web3Service initialized globally.');
+        }
+        // Inisialisasi RealtimeDataFetcher
+        if (window.RealtimeDataFetcher && !this.realtimeDataFetcher) {
+          this.realtimeDataFetcher = new window.RealtimeDataFetcher(this.config, window.Http);
+          console.log('✅ RealtimeDataFetcher initialized globally.');
+        }
       }
 
     } catch (error) {
@@ -128,8 +147,7 @@ const app = createApp({
       document.body.classList.remove('app-loading');
     }, 500);
 
-    // Tandai bahwa inisialisasi selesai
-    this.isAppInitialized = true;
+    // isAppInitialized sudah dipindahkan ke atas setelah DB init.
     console.log('🚀 [5/5] Aplikasi selesai dimuat!');
   },
 
@@ -199,6 +217,14 @@ const app = createApp({
         this.loadDatabaseInfo();
       }
     },
+    appTitle: {
+      immediate: true,
+      handler(newTitle) {
+        if (newTitle) {
+          document.title = newTitle;
+        }
+      }
+    }
 
   },
 
@@ -211,6 +237,20 @@ const app = createApp({
 
       const chainConfig = this.config.CHAINS[this.activeChain];
       return chainConfig ? { key: this.activeChain, name: chainConfig.NAMA_CHAIN } : { key: this.activeChain, name: this.activeChain.toUpperCase() };
+    },
+    appName() {
+      return (this.config?.APP?.NAME || 'MultiPlus Scanner').toString();
+    },
+    appVersion() {
+      const version = this.config?.APP?.VERSION;
+      return version ? version.toString() : '';
+    },
+    appDisplayName() {
+      const suffix = this.appVersion ? ` v${this.appVersion}` : '';
+      return `${this.appName}${suffix}`;
+    },
+    appTitle() {
+      return `${this.appDisplayName} — CEX ⇄ DEX`;
     },
 
     // --- Computed Properties untuk Konten Dinamis ---
@@ -438,32 +478,46 @@ const app = createApp({
       console.log(`✅ Total ${this.allCoins.length} koin dimuat untuk filter count.`);
     },
 
-    // REVISI: Method ini sekarang ada di root component agar bisa diakses global
+    // REFACTOR: Method ini digantikan oleh filterAutoSaveMixin
+    // Tetap dipertahankan untuk backward compatibility dan untuk akses dari $root
     async saveFilterChange(filterType) {
       if (!this.filterSettings || !this.filterSettings.chainKey) {
-        console.warn('Chain key tidak ditemukan di filterSettings');
+        console.warn('[App] Chain key tidak ditemukan di filterSettings');
         return;
       }
 
       const chainKey = this.filterSettings.chainKey;
-
-      // Sinkronisasi dari filters (UI) ke filterSettings (state untuk DB)
-      this.filterSettings.cex = this.filters.cex;
-      this.filterSettings.dex = this.filters.dex;
-      this.filterSettings.chains = this.filters.chains;
-      this.filterSettings.pairs = this.filters.pairs;
-      this.filterSettings.favoritOnly = this.filters.favoritOnly;
-      this.filterSettings.autorun = this.filters.autorun;
-      this.filterSettings.autoscroll = this.filters.autoscroll;
-      this.filterSettings.minPnl = this.filters.minPnl;
-      this.filterSettings.run = this.filters.run;
-
-      const storeName = DB.getStoreNameByChain('SETTING_FILTER', chainKey);
-      const storeKey = 'SETTING_FILTER';
+      console.log(`[App] Saving filter change "${filterType}" for chain: ${chainKey}`);
 
       try {
-        const cleanSettings = this.cleanDataForDB(this.filterSettings);
-        await DB.saveData(storeName, cleanSettings, storeKey);
+        // PERBAIKAN: Clone data menggunakan JSON untuk menghilangkan Vue reactivity
+        const plainFilterSettings = JSON.parse(JSON.stringify(this.filterSettings));
+        const plainFilters = JSON.parse(JSON.stringify(this.filters));
+
+        // Gabungkan nilai lama dan baru
+        const mergedSettings = {
+          ...plainFilterSettings,
+          ...plainFilters,
+          key: 'SETTING_FILTER',
+          chainKey
+        };
+
+        // Gunakan repository jika tersedia
+        const settingsRepo = window.AppContainer?.get('settingsRepository');
+        if (settingsRepo) {
+          await settingsRepo.saveFilterSettings(chainKey, mergedSettings);
+        } else {
+          // Fallback ke DB langsung
+          const storeName = DB.getStoreNameByChain('SETTING_FILTER', chainKey);
+          await DB.saveData(storeName, mergedSettings, 'SETTING_FILTER');
+        }
+
+        // Sinkronkan state lokal
+        this.filterSettings = mergedSettings;
+        this.filters = {
+          ...this.filters,
+          ...mergedSettings
+        };
 
         const message = this.getFilterChangeMessage(filterType);
         this.showToast(message, 'success', 2000);
@@ -472,10 +526,10 @@ const app = createApp({
 
         // Log aksi perubahan filter
         if (['cex', 'dex', 'chains', 'pairs'].includes(filterType)) {
-            this.logAction('UPDATE_FILTER', {
-                message: `Filter '${filterType}' untuk chain '${chainKey.toUpperCase()}' telah diubah.`,
-                chain: chainKey
-            });
+          this.logAction('UPDATE_FILTER', {
+            message: `Filter '${filterType}' untuk chain '${chainKey.toUpperCase()}' telah diubah.`,
+            chain: chainKey
+          });
         }
       } catch (error) {
         console.error('❌ Error saving filter:', error);

@@ -333,26 +333,10 @@ const SyncTab = {
 
     // REFACTOR: Fungsi ini ditambahkan kembali untuk memperbaiki error.
     // Fungsi ini memformat ticker sesuai aturan CEX dari config.json.
+    // REVISI: Fungsi ini sekarang HANYA mengembalikan base ticker.
+    // Logika pembentukan URL lengkap dipindahkan ke CexPriceFetcher.
     _formatCexTicker(cex, baseTicker) {
-      if (!cex || !baseTicker) return (baseTicker || '').toUpperCase();
-
-      const cexConfig = this.config.CEX?.[cex.toUpperCase()];
-      const tradeUrl = cexConfig?.URLS?.TRADE_TOKEN;
-
-      if (!tradeUrl) return `${baseTicker.toUpperCase()}USDT`; // Fallback jika URL tidak ada
-
-      // Ekstrak format dari URL
-      if (tradeUrl.includes('{token}_USDT')) {
-        return `${baseTicker.toUpperCase()}_USDT`;
-      }
-      if (tradeUrl.includes('{token}-USDT')) {
-        return `${baseTicker.toUpperCase()}-USDT`;
-      }
-      if (tradeUrl.includes('{token}IDR')) {
-        return `${baseTicker.toUpperCase()}IDR`;
-      }
-      // Default ke format tanpa pemisah (paling umum untuk USDT)
-      return `${baseTicker.toUpperCase()}USDT`;
+      return (baseTicker || '').toUpperCase();
     },
 
     // =================================================================
@@ -545,10 +529,10 @@ const SyncTab = {
 
         // Cek desimal. Jika tidak ada atau 0, coba fetch dari web3.
         if (!record.des_token && record.sc_token) {
-          if (window.web3Fetcher) {
+          if (this.$root.web3Service) { // REVISI: Gunakan service dari root
             try {
               this.$root.loadingText = `[${upperCex}] Mencari desimal untuk ${record.nama_token}...`;
-              record.des_token = await window.web3Fetcher.getDecimals(this.activeChain, record.sc_token);
+              record.des_token = await this.$root.web3Service.getDecimals(this.activeChain, record.sc_token);
             } catch (decError) {
               console.warn(`Gagal fetch desimal untuk ${record.nama_token}:`, decError.message);
               record.des_token = 18; // Fallback
@@ -642,11 +626,7 @@ const SyncTab = {
       }
 
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const data = await response.json();
+        const data = await window.Http.get(url, { responseType: 'json' });
         return data || {};
       } catch (error) {
         this.$emit('show-toast', `Gagal mengambil data JSON: ${error.message}`, 'danger');
@@ -1301,137 +1281,96 @@ const SyncTab = {
 
             <!-- Body -->
             <div class="modal-body">
-              
-
-              <!-- Konfigurasi Pair -->
-              <div class="card mb-3">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-gear me-1"></i>Konfigurasi Pair</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div class="row g-3">
-                    <div class="col-12">
-                      <label class="form-label small fw-semibold">Pilih Pair</label>
-                      <select class="form-select form-select-sm" v-model="importConfig.selectedPairType" @change="onPairChange">
-                        <option v-for="pair in availablePairOptions" :key="pair.key" :value="pair.key">{{ pair.symbol }}</option>
-                       
-                      </select>
+              <div class="row g-3">
+                <!-- Kolom Kiri: Konfigurasi Pair & Ringkasan -->
+                <div class="col-lg-5">
+                  <!-- Konfigurasi Pair -->
+                  <div class="card h-100">
+                    <div class="card-header py-2">
+                      <h6 class="mb-0 small fw-bold"><i class="bi bi-gear me-1"></i>KONFIGURASI PAIR</h6>
                     </div>
+                    <div class="card-body p-2">
+                      <div class="mb-2">
+                        <label class="form-label small fw-semibold">Pilih Pair</label>
+                        <select class="form-select form-select-sm" v-model="importConfig.selectedPairType" @change="onPairChange">
+                          <option v-for="pair in availablePairOptions" :key="pair.key" :value="pair.key">{{ pair.symbol }}</option>
+                        </select>
+                      </div>
+                      <!-- Detail Pair (Non-NON) -->
+                      <div v-if="!isNonPair" class="p-2 bg-light border rounded small">
+                          <div class="d-flex justify-content-between">
+                            <span class="text-muted">Symbol:</span> <strong class="text-primary">{{ pairDisplayInfo.symbol }}</strong>
+                          </div>
+                          <div class="d-flex justify-content-between">
+                            <span class="text-muted">Decimals:</span> <strong>{{ pairDisplayInfo.decimals }}</strong>
+                          </div>
+                          <div class="text-muted">SC:</div>
+                          <code class="d-block text-truncate small" v-if="pairDisplayInfo.sc && pairDisplayInfo.sc !== '-'">{{ pairDisplayInfo.sc }}</code>
+                          <span v-else class="text-muted small">-</span>
+                      </div>
+                      <!-- Input NON (Pair Manual) -->
+                      <div v-if="isNonPair" class="mt-2">
+                        <div class="bg-info bg-opacity-10 border border-info rounded p-2">
+                          <div class="fw-semibold small mb-2 text-info"><i class="bi bi-pencil-square me-1"></i>Input Detail Pair Manual</div>
+                          <div class="row g-2">
+                            <div class="col-12">
+                              <label class="form-label small fw-semibold">Symbol Pair <span class="text-danger">*</span></label>
+                              <input type="text" class="form-control form-control-sm" :class="{ 'is-invalid': nonInputState.missing.includes('symbol') }" v-model="importConfig.nonData.symbol" placeholder="Contoh: BUSD" style="text-transform: uppercase;">
+                            </div>
+                            <div class="col-12">
+                              <label class="form-label small fw-semibold">Smart Contract Pair <span class="text-danger">*</span></label>
+                              <input type="text" class="form-control form-control-sm" :class="{ 'is-invalid': nonInputState.missing.includes('sc') }" v-model="importConfig.nonData.sc" placeholder="0x..." maxlength="42">
+                            </div>
+                            <div class="col-12">
+                              <label class="form-label small fw-semibold">Decimals Pair <span class="text-danger">*</span></label>
+                              <input type="number" class="form-control form-control-sm" :class="{ 'is-invalid': nonInputState.missing.includes('des') }" v-model.number="importConfig.nonData.des" placeholder="18" min="0" max="32">
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                    <!-- Detail Pair (Non-NON) -->
-                    <div class="col-12" v-if="!isNonPair">
-                      <label class="form-label small fw-semibold d-flex align-items-center gap-1">
-                        <i class="bi bi-info-circle text-primary"></i>
-                        Detail Pair
-                      </label>
-                      <div class="p-3 bg-light border rounded small d-flex gap-4 flex-wrap">
-                        <div>
-                          <div class="text-muted small">Symbol</div>
-                          <div class="fw-semibold">{{ pairDisplayInfo.symbol }}</div>
-                        </div>
-                        <div>
-                          <div class="text-muted small">Smart Contract</div>
-                          <div>
-                            <code v-if="pairDisplayInfo.sc && pairDisplayInfo.sc !== '-'">{{ pairDisplayInfo.sc }}</code>
-                            <span v-else class="text-muted">-</span>
-                          </div>
-                        </div>
-                        <div>
-                          <div class="text-muted small">Decimals</div>
-                          <div>{{ pairDisplayInfo.decimals }}</div>
-                        </div>
-                      </div>
-                      <div v-if="!pairDisplayInfo.available" class="text-warning mt-2 small">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        Detail pair tidak ditemukan di konfigurasi chain.
-                      </div>
-                    </div>
 
-                    <!-- Input NON (Pair Manual) -->
-                    <div class="col-12" v-if="isNonPair">
-                      <div class="bg-info bg-opacity-10 border border-info rounded p-3">
-                        <div class="d-flex align-items-center mb-3">
-                          <i class="bi bi-pencil-square text-info me-2 fs-5"></i>
-                          <div>
-                            <div class="fw-semibold">Input Detail Pair Manual</div>
-                            <small class="text-muted">Masukkan detail pair yang tidak tersedia di daftar. Token tetap dari CEX yang dipilih.</small>
-                          </div>
-                        </div>
-                        <div class="row g-3">
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Symbol Pair <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control form-control-sm"
-                                   :class="{ 'is-invalid': nonInputState.missing.includes('symbol') }"
-                                   v-model="importConfig.nonData.symbol"
-                                   placeholder="Contoh: BUSD, DAI" style="text-transform: uppercase;">
-                            <div class="invalid-feedback">Symbol pair wajib diisi.</div>
-                          </div>
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Smart Contract Pair <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control form-control-sm"
-                                   :class="{ 'is-invalid': nonInputState.missing.includes('sc') }"
-                                   v-model="importConfig.nonData.sc"
-                                   placeholder="0x..." maxlength="42">
-                            <div class="invalid-feedback">Alamat smart contract pair wajib diisi.</div>
-                          </div>
-                          <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Decimals Pair <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control form-control-sm"
-                                   :class="{ 'is-invalid': nonInputState.missing.includes('des') }"
-                                   v-model.number="importConfig.nonData.des"
-                                   placeholder="18" min="0" max="32">
-                            <div class="invalid-feedback">Masukkan nilai decimals yang valid.</div>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Pilih DEX (Untuk semua termasuk NON) -->
-              <div class="mb-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label mb-0 fw-semibold">Pilih DEX untuk Trading</label>
-                  <div>
-                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="selectAllDex">
-                      Pilih Semua DEX
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="clearAllDex">
-                      Clear All
-                    </button>
-                  </div>
-                </div>
-
-                <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
-                  <div class="row">
-                    <div class="col-12" v-for="dex in dexByCategory.DEX" :key="dex.key">
-                      <div class="d-flex align-items-center gap-2 border rounded p-2 mb-2" :class="{ 'border-primary bg-primary-subtle': importConfig.selectedDex.includes(dex.key) }">
+                <!-- Kolom Kanan: Pilih DEX -->
+                <div class="col-lg-7">
+                  <div class="card h-100">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                      <h6 class="mb-0 small fw-bold"><i class="bi bi-grid me-1"></i>PILIH DEX & MODAL</h6>
+                      <div>
+                        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1 me-1" @click="selectAllDex" title="Pilih Semua">All</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1" @click="clearAllDex" title="Kosongkan">Clear</button>
+                      </div>
+                    </div>
+                    <div class="card-body p-2" style="max-height: 250px; overflow-y: auto;">
+                      <div v-for="dex in dexByCategory.DEX" :key="dex.key" class="d-flex align-items-center gap-2 border rounded p-2 mb-2" :class="{ 'border-primary bg-primary-subtle': importConfig.selectedDex.includes(dex.key) }">
                         <!-- Checkbox dan Label -->
                         <div class="form-check flex-grow-1">
                           <input class="form-check-input" type="checkbox" :id="'dex-' + dex.key"
-                                 :checked="importConfig.selectedDex.includes(dex.key)"
-                                 @change="toggleDexSelection(dex.key)">
+                                :checked="importConfig.selectedDex.includes(dex.key)"
+                                @change="toggleDexSelection(dex.key)">
                           <label class="form-check-label fw-semibold small" :for="'dex-' + dex.key" :style="{ color: dex.color }">
                             {{ dex.name }}
                           </label>
                         </div>
                         <!-- Grup Input Modal -->
-                        <div v-if="importConfig.selectedDex.includes(dex.key)" class="d-flex gap-2" style="width: 200px;">
+                        <div v-if="importConfig.selectedDex.includes(dex.key)" class="d-flex gap-2" style="width: 250px;">
                           <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control"
-                                   :value="getDexModal(dex.key).modalKiri"
-                                   @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)"
-                                   placeholder="100" min="1">
+                                  :value="getDexModal(dex.key).modalKiri"
+                                  @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)"
+                                  placeholder="100" min="1" title="Modal Kiri">
                           </div>
                           <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control"
-                                   :value="getDexModal(dex.key).modalKanan"
-                                   @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)"
-                                   placeholder="100" min="1">
-                            </div>
+                                  :value="getDexModal(dex.key).modalKanan"
+                                  @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)"
+                                  placeholder="100" min="1">
+                           </div>
                           </div>
                       </div>
                     </div>
@@ -1440,49 +1379,27 @@ const SyncTab = {
               </div>
 
               <!-- Ringkasan Import -->
-              <div class="card">
-                <div class="card-header">
-                  <h6 class="mb-0"><i class="bi bi-list-check me-1"></i>Ringkasan Import</h6>
-                </div>
-                <div class="card-body p-3">
-                  <div v-if="syncSelectedTokens.length > 0 && (importConfig.selectedDex.length > 0 || isNonPair)">
-                    <div class="row">
-                      <div class="col-md-8">
-                        <div class="mb-2">
-                          <strong>CEX:</strong> <span class="text-primary">{{ selectedCexSummary }}</span><br>
-                          <strong>Chain:</strong> <span class="text-success">{{ activeChain ? activeChain.toUpperCase() : '-' }}</span><br>
-                          <strong>Pair:</strong>
-                          <span class="text-info">
-                            <span v-if="isNonPair">
-                              {{ importConfig.nonData.symbol || '?' }}/USDT
-                            </span>
-                            <span v-else>
-                              {{ pairDisplayInfo.symbol }}
-                            </span>
-                          </span>
-                        </div>
-                        <div>
-                          <strong>Total:</strong>
-                          <strong class="text-success">{{ syncSelectedTokens.length }} koin</strong> akan diimport
-                        </div>
-                      </div>
-                      <div class="col-md-4">
-                        <small class="text-muted" style="white-space: pre-line;">
-                          <strong>DEX + Modal:</strong><br>
-                          {{ dexModalSummary }}
-                          <span v-if="isNonPair" class="d-block text-warning mt-1">
-                            NON: {{ importConfig.nonData.symbol || '?' }}/USDT
-                          </span>
-                        </small>
-                      </div>
+              <div class="alert alert-secondary small mt-3 mb-0">
+                <div v-if="syncSelectedTokens.length > 0 && (importConfig.selectedDex.length > 0 || isNonPair)">
+                  <div class="d-flex justify-content-between flex-wrap gap-2">
+                    <div>
+                      <i class="bi bi-box-arrow-in-down me-1"></i>
+                      Akan mengimpor <strong class="text-success">{{ syncSelectedTokens.length }} koin</strong>
+                      dari <strong class="text-primary">{{ selectedCexSummary }}</strong>
+                      ke chain <strong class="text-success">{{ activeChain ? activeChain.toUpperCase() : '-' }}</strong>
+                      dengan pair <strong class="text-info">{{ isNonPair ? (importConfig.nonData.symbol || 'CUSTOM') : pairDisplayInfo.symbol }}</strong>.
+                    </div>
+                    <div class="text-muted" style="white-space: pre-line;">
+                      <strong>DEX Aktif:</strong> {{ importConfig.selectedDex.join(', ') || 'Tidak ada' }}
                     </div>
                   </div>
-                  <div v-else class="text-muted text-center py-2">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Pilih koin dan konfigurasi untuk melihat ringkasan
-                  </div>
+                </div>
+                <div v-else class="text-center">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Pilih koin dan konfigurasi untuk melihat ringkasan.
                 </div>
               </div>
+
             </div>
 
             <!-- Footer -->

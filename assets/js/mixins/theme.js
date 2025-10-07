@@ -31,34 +31,7 @@ const themeMixin = {
       const theme = nextValue ? 'dark' : 'light';
       document.documentElement.setAttribute('data-bs-theme', theme);
 
-      const chainKey = this.filterSettings.chainKey;
-      if (!chainKey) {
-        console.warn('Chain key tidak ditemukan saat menyimpan preferensi tema.');
-        return;
-      }
-
-      try {
-        const storeName = DB.getStoreNameByChain('SETTING_FILTER', chainKey);
-        const storeKey = 'SETTING_FILTER';
-        const cleanSettings = this.cleanDataForDB(this.filterSettings);
-        await DB.saveData(storeName, cleanSettings, storeKey);
-
-        if (typeof this.showToast === 'function') {
-          this.showToast(`Mode ${nextValue ? 'gelap' : 'terang'} diaktifkan.`, 'success', 2000);
-        }
-
-        if (typeof this.logAction === 'function') {
-          this.logAction('UPDATE_THEME', {
-            chain: chainKey,
-            darkMode: nextValue
-          });
-        }
-      } catch (error) {
-        console.error('❌ Error saving theme preference:', error);
-        if (typeof this.showToast === 'function') {
-          this.showToast('Gagal menyimpan preferensi tema.', 'danger');
-        }
-      }
+      await this.saveFilterChange('darkMode');
     },
     normalizeHex(hex) {
       if (!hex) return '#6c757d';

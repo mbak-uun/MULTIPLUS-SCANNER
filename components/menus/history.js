@@ -17,6 +17,14 @@ const HistoryMenu = {
   },
 
   computed: {
+    // Get repository from container
+    historyRepo() {
+      return window.AppContainer.get('historyRepository');
+    },
+
+    formatters() {
+      return window.Formatters;
+    },
     filteredRiwayat() {
       let filtered = this.riwayat;
 
@@ -67,9 +75,8 @@ const HistoryMenu = {
     async loadRiwayat() {
       this.isLoading = true;
       try {
-        const data = await DB.getAllData('RIWAYAT_AKSI');
-        // Urutkan dari yang terbaru
-        this.riwayat = data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        // ✅ REFACTORED: Using repository instead of direct DB access
+        this.riwayat = await this.historyRepo.getRecent(1000); // Get last 1000 records
       } catch (error) {
         console.error('Gagal memuat riwayat aksi:', error);
         this.$root.showToast('Gagal memuat riwayat.', 'danger');
@@ -81,7 +88,8 @@ const HistoryMenu = {
     async deleteAksi(aksi) {
       if (confirm(`Anda yakin ingin menghapus log ini? "${aksi.message}"`)) {
         try {
-          await DB.deleteData('RIWAYAT_AKSI', aksi.id);
+          // ✅ REFACTORED: Using repository
+          await this.historyRepo.delete('RIWAYAT_AKSI', aksi.id);
           this.riwayat = this.riwayat.filter(item => item.id !== aksi.id);
           this.$root.showToast('Log berhasil dihapus.', 'success');
         } catch (error) {
@@ -94,7 +102,8 @@ const HistoryMenu = {
     async clearAllRiwayat() {
       if (confirm('Anda yakin ingin menghapus SEMUA riwayat aksi? Aksi ini tidak dapat dibatalkan.')) {
         try {
-          await DB.clearStore('RIWAYAT_AKSI');
+          // ✅ REFACTORED: Using repository
+          await this.historyRepo.clearAllHistory();
           this.riwayat = [];
           this.$root.showToast('Semua riwayat berhasil dihapus.', 'success');
         } catch (error) {
@@ -105,8 +114,8 @@ const HistoryMenu = {
     },
 
     formatTimestamp(timestamp) {
-      if (!timestamp) return '-';
-      return new Date(timestamp).toLocaleString('id-ID');
+      // ✅ REFACTORED: Using Formatters utility
+      return this.formatters.datetime(timestamp);
     },
 
     getStatusBadgeClass(status) {

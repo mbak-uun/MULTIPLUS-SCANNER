@@ -147,11 +147,6 @@ const FilterSettings = {
     async saveFilterChange(filterType) {
       // REVISI: Panggil metode terpusat yang sudah ada di root component (app.js)
       this.$root.saveFilterChange(filterType);
-    },
-
-    getFilterChangeMessage(filterType) {
-      // REVISI: Metode ini tidak lagi digunakan karena notifikasi ditangani oleh `saveFilterChange` di root.
-      return `Filter ${filterType} berhasil diubah`;
     }
   }
 };

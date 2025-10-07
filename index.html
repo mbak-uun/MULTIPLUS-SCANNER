@@ -43,7 +43,7 @@
       <div class="container-fluid px-0">
         <!-- Judul Aplikasi -->
         <a class="navbar-brand" href="#">
-          <span class="header-subtitle me-2">MULTIPLUS SCANNER</span>
+          <span class="header-subtitle me-2">{{ appDisplayName }}</span>
           <span class="fw-bolder" :style="getColorStyles('chain', activeChain, 'text')">[ {{ activeChainInfo.key.toUpperCase() }} ]</span>
         </a>
 
@@ -57,10 +57,12 @@
           <!-- REVISI: ms-auto akan mendorong menu ke kanan -->
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
             <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'mode' }" href="#" @click.prevent="setActiveMenu('mode', 'scan')"><i class="bi bi-grid-3x3-gap me-1"></i>Mode Chain</a></li>
-            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'db' }" href="#" @click.prevent="setActiveMenu('db')"><i class="bi bi-database me-1"></i>Database</a></li>
             <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'settings' }" href="#" @click.prevent="setActiveMenu('settings')"><i class="bi bi-gear me-1"></i>Settings</a></li>
+                        <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'portfolio' }" href="#" @click.prevent="setActiveMenu('portfolio')"><i class="bi bi-cash-stack me-1"></i>Portfolio</a></li>
+
             <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'history' }" href="#" @click.prevent="setActiveMenu('history')"><i class="bi bi-clock-history me-1"></i>History</a></li>
-            <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'portfolio' }" href="#" @click.prevent="setActiveMenu('portfolio')"><i class="bi bi-cash-stack me-1"></i>Portfolio</a></li>
+                        <li class="nav-item"><a class="nav-link" :class="{ active: activeMenu === 'db' }" href="#" @click.prevent="setActiveMenu('db')"><i class="bi bi-database me-1"></i>Database</a></li>
+
             <!-- REVISI: Ganti menu teks menjadi tombol ikon dinamis untuk tema -->
             <li class="nav-item">
               <a class="nav-link" href="#" @click.prevent="reloadAndToggleTheme" :title="isDarkMode ? 'Reload & Ganti ke Tema Terang' : 'Reload & Ganti ke Tema Gelap'">
@@ -80,29 +82,30 @@
         <div class="row g-2 align-items-center">
           <div class="col-12 col-lg" role="group" aria-label="Chain Picker">
             <div class="d-flex flex-wrap gap-1 align-items-center">
+              <div class="chain-picker-icon bg-success"
+                   :class="{ active: activeChain === 'multi' }"
+                   @click="activeChain = 'multi'" title="Multi Chain">
+                <i class="bi bi-bounding-box"></i>
+              </div>
           <!-- Chain Picker -->
           <div v-for="chain in chainList"
                :key="chain.key"
-               class="btn btn-sm d-inline-flex align-items-center"
-               :class="[activeChain === chain.key ? 'btn-primary' : 'btn-outline-secondary', { disabled: !activeChains.includes(chain.key) }]"
+               class="chain-picker-icon"
+               :class="{ active: activeChain === chain.key, disabled: !activeChains.includes(chain.key) }"
                @click="activeChains.includes(chain.key) ? (activeChain = chain.key) : null"
                :title="chain.NAMA_CHAIN + (!activeChains.includes(chain.key) ? ' (Non-aktif)' : '')">
-            <img :src="chain.ICON" :alt="chain.NAMA_CHAIN" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover;"/>
+            <img :src="chain.ICON" :alt="chain.NAMA_CHAIN" />
           </div>
             </div>
           </div>
           <div class="col-12 col-lg-auto">
             <div class="d-flex flex-wrap justify-content-lg-end align-items-center gap-2">
-              <div class="fw-bold small text-uppercase fs-6">
+              <!-- <div class="fw-bold small text-uppercase fs-6">
                 <span class="text-muted">Chain:</span>
                 <span>{{ activeChainInfo.key }}</span>
-              </div>
-              <div class="btn-group btn-group-sm">
-                <button class="btn" :class="activeChain === 'multi' ? 'btn-success' : 'btn-outline-success'" @click="activeChain = 'multi'" title="Multi Chain">
-                  <i class="bi bi-bounding-box"></i>
-                </button>
-                
-              </div>
+              </div> -->
+              <!-- REVISI: Mengubah tombol Multi Chain menjadi ikon bulat yang konsisten -->
+              
             </div>
           </div>
         </div>
@@ -188,42 +191,84 @@
   <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
 
   <!-- Main App JS -->
-  <!-- 1. Muat file konfigurasi dan database terlebih dahulu -->
+  <!-- ========================================================================== -->
+  <!-- LAYER 1: CORE FOUNDATION -->
+  <!-- ========================================================================== -->
   <script src="assets/js/config_app.js"></script>
   <script src="assets/js/db.js"></script>
   <script src="assets/js/mixins/Http.js"></script>
-  <script src="assets/js/mixins/CheckWalletExchanger.js"></script>
-  <script src="assets/js/portfolio-web3-helper.js"></script>
 
-  <!-- 3. Muat semua Mixin -->
+  <!-- ========================================================================== -->
+  <!-- LAYER 2: UTILITIES & HELPERS -->
+  <!-- ========================================================================== -->
+  <script src="assets/js/utils/formatters.js"></script>
+  <script src="assets/js/utils/validators.js"></script>
+  <script src="assets/js/utils/scanning-formatters.js"></script>
+  <script src="assets/js/utils/database-helpers.js"></script>
+
+  <!-- ========================================================================== -->
+  <!-- LAYER 3: REPOSITORIES (Data Access Layer) -->
+  <!-- ========================================================================== -->
+  <script src="assets/js/repositories/base.repository.js"></script>
+  <script src="assets/js/repositories/coin.repository.js"></script>
+  <script src="assets/js/repositories/sync.repository.js"></script>
+  <script src="assets/js/repositories/settings.repository.js"></script>
+  <script src="assets/js/repositories/history.repository.js"></script>
+
+  <!-- ========================================================================== -->
+  <!-- LAYER 4: SERVICES (Business Logic) -->
+  <!-- ========================================================================== -->
+  <script src="assets/js/services/cex-price-fetcher.js"></script>
+  <script src="assets/js/services/web3-service.js"></script>
+  <script src="assets/js/mixins/CheckWalletExchanger.js"></script>
+  <script src="assets/js/services/realtime-data-fetcher.js"></script>
+  <script src="assets/js/services/quote-dex.js"></script>
+  <script src="assets/js/services/pnl-calculator.js"></script>
+  <script src="assets/js/services/telegram-service.js"></script>
+  <script src="assets/js/services/price-scanner.js"></script>
+
+  <!-- ========================================================================== -->
+  <!-- LAYER 5: VUE MIXINS (Legacy - untuk backward compatibility) -->
+  <!-- ========================================================================== -->
   <script src="assets/js/mixins/utilities.js"></script>
   <script src="assets/js/mixins/notifications.js"></script>
-  <script src="assets/js/mixins/telegram.js"></script>
   <script src="assets/js/mixins/history-logger.js"></script>
   <script src="assets/js/mixins/settings.js"></script>
   <script src="assets/js/mixins/router.js"></script>
   <script src="assets/js/mixins/filter.js"></script>
+  <script src="assets/js/mixins/filter-autosave.mixin.js"></script>
   <script src="assets/js/mixins/theme.js"></script>
   <script src="assets/js/mixins/database.js"></script>
+  <script src="assets/js/mixins/scanner.js"></script>
 
-  <!-- 2. Muat semua komponen APLIKASI -->
-  <!-- 2.1 Komponen Umum (Common) -->
+  <!-- ========================================================================== -->
+  <!-- LAYER 6: DEPENDENCY INJECTION SETUP -->
+  <!-- ========================================================================== -->
+  <script src="assets/js/core/container.js"></script>
+  <script src="assets/js/core/bootstrap.js"></script>
+
+  <!-- ========================================================================== -->
+  <!-- LAYER 7: VUE COMPONENTS -->
+  <!-- ========================================================================== -->
+  <!-- Common Components -->
   <script src="components/common/filter-settings.js"></script>
   <script src="components/common/tab-navigation.js"></script>
 
-  <!-- 2.2 Komponen Tab Utama -->
+  <!-- Tab Components -->
   <script src="components/tabs/scanning-tab.js"></script>
   <script src="components/tabs/management-tab.js"></script>
   <script src="components/tabs/sync-tab.js"></script>
   <script src="components/tabs/wallet-tab.js"></script>
 
-  <!-- 2.3 Komponen Menu -->
+  <!-- Menu Components -->
   <script src="components/menus/settings.js"></script>
   <script src="components/menus/database.js"></script>
   <script src="components/menus/history.js"></script>
   <script src="components/menus/portfolio.js"></script>
 
-  <!-- 4. Terakhir, muat file app.js utama yang akan menggabungkan semuanya. INI HARUS PALING AKHIR. -->
+  <!-- ========================================================================== -->
+  <!-- LAYER 8: MAIN APP (Must be last!) -->
+  <!-- ========================================================================== -->
   <script src="assets/js/app.js"></script>
 
 </body>

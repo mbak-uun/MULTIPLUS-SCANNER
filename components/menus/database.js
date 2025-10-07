@@ -84,11 +84,33 @@ const DatabaseMenu = {
     },
     // Helper untuk class badge status WD/DP
     getDbBadgeClass(status) {
-      return status ? 'badge bg-success' : 'badge bg-danger';
+      if (typeof status === 'boolean') {
+        return status ? 'badge bg-success' : 'badge bg-danger';
+      }
+      if (typeof status === 'string') {
+        const normalized = status.trim().toLowerCase();
+        if (['on', 'yes', 'run', 'active', 'enabled', 'success'].includes(normalized)) {
+          return 'badge bg-success';
+        }
+        if (['off', 'no', 'stop', 'inactive', 'disabled', 'failed', 'error'].includes(normalized)) {
+          return 'badge bg-danger';
+        }
+        return 'badge bg-secondary';
+      }
+      if (status === null || status === undefined) {
+        return 'badge bg-secondary';
+      }
+      return 'badge bg-secondary';
     },
     // Helper untuk label badge status WD/DP
     getDbBadgeLabel(status) {
-      return status ? 'ON' : 'OFF';
+      if (typeof status === 'boolean') {
+        return status ? 'ON' : 'OFF';
+      }
+      if (status === null || status === undefined || status === '') {
+        return 'N/A';
+      }
+      return String(status).toUpperCase();
     },
     // Muat data detail untuk store yang dipilih
     async loadStoreData(storeName) {
@@ -115,7 +137,15 @@ const DatabaseMenu = {
         try {
           await DB.clearStore(storeName);
           this.$root.showToast(`Tabel "${storeName}" berhasil dikosongkan.`, 'success');
-          this.loadDatabaseInfo(); // Refresh info
+          // Segarkan ringkasan database dan data detail yang sedang terbuka
+          await this.loadDatabaseInfo(); // Refresh info summary
+          if (this.selectedStore === storeName) {
+            // Reset dahulu agar method loadStoreData tetap melakukan fetch
+            this.selectedStore = null;
+            await this.loadStoreData(storeName); // Reload detail jika panel tengah terbuka
+          }
+          // Beri info tambahan agar user tahu daftar telah diperbarui
+          this.$root.showToast(`Daftar tabel "${storeName}" diperbarui.`, 'info');
         } catch (error) {
           console.error(`Gagal mengosongkan tabel ${storeName}:`, error);
           this.$root.showToast(`Gagal mengosongkan tabel.`, 'danger');
@@ -150,6 +180,11 @@ const DatabaseMenu = {
               <i class="bi bi-database"></i>
               Manajemen Database
             </h5>
+            <div class="small text-muted ms-4">
+              <span v-if="dbInfo.name">{{ dbInfo.name }}</span>
+              <span v-else>Database tidak tersedia</span>
+              <span v-if="dbInfo.version !== null && dbInfo.version !== undefined"> (v{{ dbInfo.version }})</span>
+            </div>
           </div>
           <div class="col-12 col-md-6 col-lg-auto">
             <div class="d-flex justify-content-md-end">
@@ -163,7 +198,7 @@ const DatabaseMenu = {
                 </button>
 
                 <button class="btn btn-sm btn-danger" @click="confirmDeleteDB">
-                  <i class="bi bi-trash-fill me-1"></i> Hapus DB
+                  <i class="bi bi-trash-fill me-1"></i> Kosongkan Database
                 </button>
               </div>
               
@@ -268,6 +303,7 @@ const DatabaseMenu = {
                         <th>NAMA TOKEN</th>
                         <th>TICKER</th>
                         <th>CEX</th>
+                        <th class="text-center">STATUS</th>
                         <th>SC TOKEN</th>
                         <th>DES TOKEN</th>
                         <th class="text-center">WD</th>
@@ -286,6 +322,7 @@ const DatabaseMenu = {
                         <td class="fw-semibold">{{ record.nama_token }}</td>
                         <td class="fw-semibold">{{ record.cex_ticker_token }}</td>
                         <td class="fw-semibold">{{ record.cex_name }}</td>
+                        <td class="text-center"><span :class="getDbBadgeClass(record.status)">{{ getDbBadgeLabel(record.status) }}</span></td>
                         <td class="font-monospace text-truncate" style="max-width: 150px;" :title="record.sc_token">{{ record.sc_token }}</td>
                         <td>{{ record.des_token }}</td>
                         <td class="text-center"><span :class="getDbBadgeClass(record.cex_withdraw_status)">{{ getDbBadgeLabel(record.cex_withdraw_status) }}</span></td>
@@ -328,8 +365,8 @@ const DatabaseMenu = {
                   </table>
                 </div>
 
-                <!-- Tampilan Ringkasan untuk SETTING_GLOBAL, SETTING_FILTER, ASET, RIWAYAT_MODAL -->
-                <div v-else-if="store.name.startsWith('SETTING_') || store.name.startsWith('ASET_') || store.name === 'RIWAYAT_MODAL'" class="overflow-auto" style="max-height: 60vh;">
+                <!-- Tampilan Ringkasan untuk SETTING_GLOBAL, ASET, RIWAYAT_MODAL -->
+                <div v-else-if="store.name.startsWith('SETTING_') || store.name.startsWith('ASET_')" class="overflow-auto" style="max-height: 60vh;">
                    <div v-if="!filteredRecordData || filteredRecordData.length === 0" class="alert alert-secondary text-center">
                     Tidak ada data yang cocok dengan pencarian.
                   </div>

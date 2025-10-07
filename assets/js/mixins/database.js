@@ -5,7 +5,10 @@ const databaseMixin = {
   data() {
     return {
       dbInfo: {
+        name: '',
+        version: null,
         totalStores: 0,
+        totalRecords: 0,
         // totalRecords tidak lagi dihitung di sini
         // dbInfo sekarang hanya berisi ringkasan untuk daftar store
         stores: []
@@ -80,6 +83,7 @@ const databaseMixin = {
         const storeNames = DB.getAllStoreNames();
         const storesInfo = [];
         let totalRecords = 0; // Deklarasikan variabel untuk menghitung total record
+        const meta = typeof DB.getDatabaseMeta === 'function' ? DB.getDatabaseMeta() : {};
 
         for (const name of storeNames) {
           const count = await DB.countRecords(name);
@@ -90,6 +94,8 @@ const databaseMixin = {
         }
 
         this.dbInfo = {
+          name: meta?.name || '',
+          version: meta?.version ?? null,
           totalStores: storeNames.length,
           totalRecords,
           stores: storesInfo.sort((a, b) => a.name.localeCompare(b.name))
@@ -111,7 +117,10 @@ const databaseMixin = {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `multiplus_backup_${new Date().toISOString().split('T')[0]}.json`;
+        const meta = typeof DB.getDatabaseMeta === 'function' ? DB.getDatabaseMeta() : {};
+        const baseName = (meta?.name || 'multiplus_backup').toString().toLowerCase();
+        const sanitizedBase = baseName.replace(/[^a-z0-9]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        a.download = `${sanitizedBase || 'multiplus_backup'}_${new Date().toISOString().split('T')[0]}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

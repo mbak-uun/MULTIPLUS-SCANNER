@@ -320,9 +320,9 @@ const settingsMixin = {
         this.isGlobalSettingsRequired = !this.isGlobalSettingsValid;
 
         // Jika settings tidak lengkap, paksa user untuk mengisi
-        if (!this.isGlobalSettingsValid) {
-          this.showToast('⚠️ Harap lengkapi Setting Global terlebih dahulu!', 'warning', 8000);
-        }
+        // if (!this.isGlobalSettingsValid) {
+        //   this.showToast('⚠️ Harap Setting Aplikasi terlebih dahulu!', 'warning', 8000);
+        // }
 
         return settings;
       } catch (error) {
@@ -344,14 +344,46 @@ const settingsMixin = {
           loadedSettings = this.getDefaultFilterSettings(chainKey);
 
           if (loadedSettings) {
+            // Pastikan record selalu memiliki key dan chainKey sebelum disimpan
+            loadedSettings.key = storeKey;
+            loadedSettings.chainKey = chainKey;
             await DB.saveData(storeName, loadedSettings, storeKey);
           }
+        } else if (!loadedSettings.key || loadedSettings.key !== storeKey) {
+          // Normalisasi data lama yang belum memiliki properti key
+          loadedSettings.key = storeKey;
+          loadedSettings.chainKey = chainKey;
+          await DB.saveData(storeName, loadedSettings, storeKey);
         }
 
         // REVISI: Langsung update state filterSettings DAN state filters (UI)
         // Ini adalah langkah kunci untuk memastikan UI selalu sinkron.
-        this.filterSettings = loadedSettings || {};
-        this.filters = { ...this.filters, ...this.filterSettings };
+        let plainSettings = loadedSettings || {};
+        try {
+          plainSettings = JSON.parse(JSON.stringify(plainSettings));
+        } catch (cloneError) {
+          console.warn('⚠️ Gagal melakukan JSON clone pada filter settings, menggunakan data asli.', cloneError);
+        }
+        this.filterSettings = plainSettings;
+
+        const {
+          chains = {},
+          cex = {},
+          dex = {},
+          pairs = {},
+          key: _storeKey,
+          chainKey: _storeChain,
+          ...scalarFilters
+        } = plainSettings;
+
+        this.filters = {
+          ...this.filters,
+          ...scalarFilters,
+          chains,
+          cex,
+          dex,
+          pairs
+        };
 
         // Auto-apply dark mode
         if (this.filterSettings.darkMode !== undefined) {
@@ -423,7 +455,7 @@ const settingsMixin = {
       // Validasi format alamat Ethereum
       const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
       if (!ethAddressRegex.test(walletMetaTrimmed)) {
-        return this.showToast('❌ Format Alamat Wallet tidak valid. Harus alamat Ethereum (0x...).', 'danger');
+        return this.showToast('❌ Format Alamat Wallet tidak valid. Format Alamat Walle (0x...).', 'danger');
       }
 
       // Validasi Anggota Grup

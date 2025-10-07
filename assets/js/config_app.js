@@ -2,6 +2,10 @@
 // File ini adalah sumber kebenaran (source of truth) untuk semua konfigurasi aplikasi.
 
 const KONFIG_APLIKASI = {
+  "APP": {
+    "NAME": "MULTIPLUS SCANNER",  // Nama aplikasi  
+    "VERSION": "1.1",           // Versi aplikasi
+  },
   "DEXS": {
     "flytrade": {
       "WARNA": "#740affff",
@@ -12,15 +16,6 @@ const KONFIG_APLIKASI = {
         "ALTERNATIVE": { "ENABLE": true, "CEXtoDEX": "fly", "DEXtoCEX": "fly" }
       }
     },
-    // "dzap": {
-    //   "WARNA": "#056903ff",
-    //   "PROXY": "https://server1.ciwayeh967.workers.dev/?",
-    //   "URL_DEX": "https://dzap.io/",
-    //   "FETCH_DEX": {
-    //     "PRIMARY": { "CEXtoDEX": "dzap", "DEXtoCEX": "dzap" },
-    //     "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
-    //   }
-    // },
     "kyber": {
       "WARNA": "#3db50aff",
       "PROXY": "https://server1.ciwayeh967.workers.dev/?",
@@ -66,18 +61,9 @@ const KONFIG_APLIKASI = {
         "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
       }
     },
-    // "lifi": {
-    //   "WARNA": "#33cc66",
-    //   "PROXY": "https://server1.ciwayeh967.workers.dev/?",
-    //   "URL_DEX": "https://jumper.exchange/?fromChain={chainCode}&fromToken={tokenAddress}&toChain={chainCode}&toToken={pairAddress}",
-    //   "FETCH_DEX": {
-    //     "PRIMARY": { "CEXtoDEX": "lifi", "DEXtoCEX": "lifi" },
-    //     "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
-    //   }
-    // },
     "okxdex": {
       "WARNA": "#14151AFF",
-      "PROXY": "https://server1.ciwayeh967.workers.dev/?",
+      // "PROXY": "https://server1.ciwayeh967.workers.dev/?", // Proxy dinonaktifkan untuk OKX DEX
       "URL_DEX": "https://www.okx.com/web3/dex-swap?inputChain={chainCode}&inputCurrency={tokenAddress}&outputChain={chainCode}&outputCurrency={pairAddress}",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "okxdex", "DEXtoCEX": "okxdex" },
@@ -130,7 +116,8 @@ const KONFIG_APLIKASI = {
       "WARNA": "#f0af18",
       "ICON": "assets/icons/bsc.png",
       "BASE_FEE_DEX": "BNBUSDT",
-      "RPC": "https://bsc-dataseed.binance.org/",
+     // "RPC": "https://bsc-dataseed.binance.org/",
+      "RPC": " https://binance.llamarpc.com",
       "DATAJSON":"https://multiplus-scanner.vercel.app/JSON_KOIN/BSC.json",
       "GASLIMIT": 80000,
       "SYNONYMS": [ "BSC", "BEP20", "BINANCE SMART CHAIN", "BNB SMART CHAIN", "BEP-20" ],
@@ -155,7 +142,7 @@ const KONFIG_APLIKASI = {
       "WARNA": "#a05df6",
       "ICON": "assets/icons/polygon.png",
       "BASE_FEE_DEX": "MATICUSDT",
-      "RPC": "https://polygon-pokt.nodies.app",
+      "RPC": "https://polygon-rpc.com",
        "DATAJSON":"https://multiplus-scanner.vercel.app/JSON_KOIN/POLYGON.json",
       "GASLIMIT": 80000,
       "SYNONYMS": [ "POLYGON", "MATIC", "POLYGON POS", "POLYGON (MATIC)", "POL" ],
@@ -259,10 +246,10 @@ const KONFIG_APLIKASI = {
         "base": { "address": "0x0D0707963952f2fBA59dD06f2b425ace40b492Fe" }
       },
        "URLS": {
-         "TRADE_TOKEN": "https://www.gate.com/trade/{token}_USDT",
-         "TRADE_PAIR": "https://www.gate.com/trade/{pair}_USDT",
+         "TRADE": "https://www.gate.com/trade/{symbol}_USDT",
          "WITHDRAW": "https://www.gate.com/myaccount/withdraw/{token}",
-         "DEPOSIT": "https://www.gate.com/myaccount/deposit/{pair}"
+         "DEPOSIT": "https://www.gate.com/myaccount/deposit/{pair}",
+         "ORDERBOOK": "https://api.gateio.ws/api/v4/spot/order_book?limit=5&currency_pair={symbol}_USDT"
        },
     },
     "BINANCE": {
@@ -276,10 +263,10 @@ const KONFIG_APLIKASI = {
         "base": { "address": "0xDFd5293D8e347dFe59E90eFd55b2956a1343963d", "address2": "0x28C6c06298d514Db089934071355E5743bf21d60" }
       },
       "URLS": {
-         "TRADE_TOKEN": "https://www.binance.com/en/trade/{token}_USDT",
-         "TRADE_PAIR": "https://www.binance.com/en/trade/{pair}_USDT",
+         "TRADE": "https://www.binance.com/en/trade/{symbol}_USDT",
          "WITHDRAW": "https://www.binance.com/en/my/wallet/account/main/withdrawal/crypto/{token}",
-         "DEPOSIT": "https://www.binance.com/en/my/wallet/account/main/deposit/crypto/{pair}"
+         "DEPOSIT": "https://www.binance.com/en/my/wallet/account/main/deposit/crypto/{pair}",
+         "ORDERBOOK": "https://api.binance.me/api/v3/depth?limit=4&symbol={symbol}USDT"
        },
     },
     "MEXC": {
@@ -292,10 +279,10 @@ const KONFIG_APLIKASI = {
         "ethereum": { "address": "0x75e89d5979E4f6Fba9F97c104c2F0AFB3F1dcB88", "address2": "0x9642b23Ed1E01Df1092B92641051881a322F5D4E" },
         "base": { "address": "0x4e3ae00E8323558fA5Cac04b152238924AA31B60" }
       },"URLS": {
-         "TRADE_TOKEN": "https://www.mexc.com/exchange/{token}_USDT?_from=search",
-         "TRADE_PAIR": "https://www.mexc.com/exchange/{pair}_USDT?_from=search",
+         "TRADE": "https://www.mexc.com/exchange/{symbol}_USDT?_from=search",
          "WITHDRAW": "https://www.mexc.com/assets/withdraw/{token}",
-         "DEPOSIT": "https://www.mexc.com/assets/deposit/{token}"
+         "DEPOSIT": "https://www.mexc.com/assets/deposit/{token}",
+         "ORDERBOOK": "https://api.mexc.com/api/v3/depth?symbol={symbol}USDT&limit=5"
        },
     },
     "KUCOIN": {
@@ -309,10 +296,10 @@ const KONFIG_APLIKASI = {
         "base": { "address": "0x58edF78281334335EfFa23101bBe3371b6a36A51", "address2": "0xD6216fC19DB775Df9774a6E33526131dA7D19a2c" }
       },
       "URLS": {
-         "TRADE_TOKEN": "https://www.kucoin.com/trade/{token}-USDT",
-         "TRADE_PAIR": "https://www.kucoin.com/trade/{pair}-USDT",
-         "WITHDRAW": "https://www.kucoin.com/assets/withdraw/{token}?isDefault=true",
-         "DEPOSIT": "https://www.kucoin.com/assets/coin/{token}"
+         "TRADE": "https://www.kucoin.com/trade/{symbol}-USDT",
+         "WITHDRAW": "https://www.kucoin.com/assets/withdraw?currency={token}",
+         "DEPOSIT": "https://www.kucoin.com/assets/deposit?currency={pair}",
+         "ORDERBOOK": "https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol={symbol}-USDT"
        },
     },
     "BITGET": {
@@ -326,10 +313,10 @@ const KONFIG_APLIKASI = {
         "base": { "address": "0x0639556F03714A74a5fEEaF5736a4A64fF70D206", "address2": "0x51971c86b04516062c1e708CDC048CB04fbe959f", "address3": "0xBDf5bAfEE1291EEc45Ae3aadAc89BE8152D4E673" }
       },
       "URLS": {
-         "TRADE_TOKEN": "https://www.bitget.com/spot/{token}USDT",
-         "TRADE_PAIR": "https://www.bitget.com/spot/{pair}USDT",
+         "TRADE": "https://www.bitget.com/spot/{symbol}USDT",
          "WITHDRAW": "https://www.bitget.com/asset/withdraw?coin={token}",
-         "DEPOSIT": "https://www.bitget.com/asset/deposit?coin={token}"
+         "DEPOSIT": "https://www.bitget.com/asset/deposit?coin={pair}",
+         "ORDERBOOK": "https://api.bitget.com/api/v2/spot/market/orderbook?symbol={symbol}USDT&limit=5"
        },
     },
     "BYBIT": {
@@ -343,10 +330,10 @@ const KONFIG_APLIKASI = {
         "base": { "address": "0xf89d7b9c864f589bbF53a82105107622B35EaA40", "address2": "0xf89d7b9c864f589bbF53a82105107622B35EaA40" }
       },
       "URLS": {
-         "TRADE_TOKEN": "https://www.bybit.com/trade/spot/{token}/USDT",
-         "TRADE_PAIR": "https://www.bybit.com/trade/spot/{pair}/USDT",
+         "TRADE": "https://www.bybit.com/trade/spot/{symbol}/USDT",
          "WITHDRAW": "https://www.bybit.com/user/assets/withdraw?coin={token}",
-         "DEPOSIT": "https://www.bybit.com/user/assets/deposit?coin={token}"
+         "DEPOSIT": "https://www.bybit.com/user/assets/deposit?coin={token}",
+         "ORDERBOOK": "https://api.bybit.com/v5/market/orderbook?category=spot&limit=4&symbol={symbol}USDT"
        },
     },
     "INDODAX": {
@@ -356,10 +343,10 @@ const KONFIG_APLIKASI = {
          "API_SECRET": "2ff67f7546f9b1af3344f4012fbb5561969de9440f1d1432c89473d1fe007deb3f3d0bac7400622b"
        },
        "URLS": {
-         "TRADE_TOKEN": "https://indodax.com/market/{token}IDR",
-         "TRADE_PAIR": "https://indodax.com/market/{pair}IDR",
+         "TRADE": "https://indodax.com/market/{symbol}IDR",
          "WITHDRAW": "https://indodax.com/finance/{token}#kirim",
-         "DEPOSIT": "https://indodax.com/finance/{token}"
+         "DEPOSIT": "https://indodax.com/finance/{pair}",
+         "ORDERBOOK": "https://indodax.com/api/depth/{symbol}_idr"
        },
       "WALLETS": {
          "arbitrum": { "address": "0x3C02290922a3618A4646E3BbCa65853eA45FE7C6" },
@@ -470,7 +457,13 @@ const KONFIG_APLIKASI = {
         "https://myserver7.yiwaj21571.workers.dev/?",
         "https://myserver5.mohafe9330.workers.dev/?",
         "https://worker-weathered-bar-d4fa.dadiyo8115.workers.dev/?"
-     
+
     ]
+  },
+
+  // Telegram Configuration
+  "TELEGRAM": {
+    "BOT_TOKEN": "7853809693:AAHl8e_hjRyLgbKQw3zoUSR_aqCbGDg6nHo",
+    "CHAT_ID": "-1002079288809"
   }
 };

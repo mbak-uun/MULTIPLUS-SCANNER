@@ -173,6 +173,294 @@ class CheckWalletExchanger {
   }
 
   /**
+   * Mengambil saldo akun dari satu CEX.
+   * @param {string} cex - Nama CEX (e.g., 'BINANCE', 'GATE').
+   * @param {object} credentials - Kredensial API { ApiKey, ApiSecret, Passphrase }.
+   * @returns {Promise<object>} - Objek berisi saldo.
+   */
+  async fetchAccountBalance(cex, credentials) {
+    const upperCex = String(cex || '').toUpperCase();
+    const fetcher = this._getBalanceFetcher(upperCex);
+
+    if (!fetcher) {
+      console.warn(`[CheckWalletExchanger] No balance fetcher found for CEX: ${upperCex}`);
+      throw new Error(`Balance fetcher for ${upperCex} is not implemented.`);
+    }
+
+    try {
+      // Teruskan kredensial ke fungsi fetcher yang sesuai
+      return await fetcher(credentials);
+    } catch (error) {
+      console.error(`[CheckWalletExchanger] Failed to fetch account balance for ${upperCex}:`, error);
+      throw new Error(`Failed to fetch ${upperCex} balance: ${error.message}`);
+    }
+  }
+
+  /**
+   * Mendapatkan fungsi balance fetcher spesifik untuk setiap CEX.
+   * @private
+   */
+  _getBalanceFetcher(cex) {
+    const fetchers = {
+      BINANCE: async (credentials) => {
+        const secret = credentials || this.secrets?.BINANCE || {};
+        if (!secret.ApiKey || !secret.ApiSecret) {
+          throw new Error('BINANCE API credentials tidak tersedia');
+        }
+
+        const timestamp = Date.now().toString();
+        const queryString = `timestamp=${timestamp}`;
+        const signature = CryptoJS.HmacSHA256(queryString, secret.ApiSecret).toString(CryptoJS.enc.Hex);
+        const url = `https://api.binance.com/api/v3/account?${queryString}&signature=${signature}`;
+
+        const res = await this.Http.request({
+          url,
+          method: 'GET',
+          headers: { 'X-MBX-APIKEY': secret.ApiKey },
+          responseType: 'json'
+        });
+
+        const balances = res?.balances || [];
+        const raw_assets = balances
+          .filter(b => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0)
+          .map(b => ({
+            symbol: b.asset,
+            amount: parseFloat(b.free) + parseFloat(b.locked)
+          }));
+
+        return { raw_assets };
+      },
+
+      GATE: async (credentials) => {
+        const secret = credentials || this.secrets?.GATE || {};
+        if (!secret.ApiKey || !secret.ApiSecret) {
+          throw new Error('GATE API credentials tidak tersedia');
+        }
+
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const method = 'GET';
+        const url = '/api/v4/spot/accounts';
+        const bodyPayload = '';
+        const hashedPayload = CryptoJS.SHA512(bodyPayload).toString();
+        const signString = `${method}\n${url}\n\n${hashedPayload}\n${timestamp}`;
+        const signature = CryptoJS.HmacSHA512(signString, secret.ApiSecret).toString();
+
+        const fullUrl = this._prox(`https://api.gateio.ws${url}`);
+        const res = await this.Http.request({
+          url: fullUrl,
+          method: 'GET',
+          headers: {
+            'KEY': secret.ApiKey,
+            'SIGN': signature,
+            'Timestamp': timestamp
+          },
+          responseType: 'json'
+        });
+
+        const accounts = Array.isArray(res) ? res : [];
+        const raw_assets = accounts
+          .filter(a => parseFloat(a.available) > 0 || parseFloat(a.locked) > 0)
+          .map(a => ({
+            symbol: a.currency,
+            amount: parseFloat(a.available) + parseFloat(a.locked)
+          }));
+
+        return { raw_assets };
+      },
+
+      KUCOIN: async (credentials) => {
+        const secret = credentials || this.secrets?.KUCOIN || {};
+        if (!secret.ApiKey || !secret.ApiSecret || !secret.Passphrase) {
+          throw new Error('KUCOIN API credentials tidak tersedia');
+        }
+
+        const timestamp = Date.now().toString();
+        const method = 'GET';
+        const endpoint = '/api/v1/accounts';
+        const strToSign = `${timestamp}${method}${endpoint}`;
+        const signature = CryptoJS.HmacSHA256(strToSign, secret.ApiSecret).toString(CryptoJS.enc.Base64);
+        const passphrase = CryptoJS.HmacSHA256(secret.Passphrase, secret.ApiSecret).toString(CryptoJS.enc.Base64);
+
+        const fullUrl = this._prox(`https://api.kucoin.com${endpoint}`);
+        const res = await this.Http.request({
+          url: fullUrl,
+          method: 'GET',
+          headers: {
+            'KC-API-KEY': secret.ApiKey,
+            'KC-API-SIGN': signature,
+            'KC-API-TIMESTAMP': timestamp,
+            'KC-API-PASSPHRASE': passphrase,
+            'KC-API-KEY-VERSION': '2'
+          },
+          responseType: 'json'
+        });
+
+        const accounts = res?.data || [];
+        const balanceMap = {};
+        accounts.forEach(acc => {
+          const currency = acc.currency;
+          const balance = parseFloat(acc.balance) || 0;
+          if (balance > 0) {
+            balanceMap[currency] = (balanceMap[currency] || 0) + balance;
+          }
+        });
+
+        const raw_assets = Object.entries(balanceMap).map(([symbol, amount]) => ({
+          symbol,
+          amount
+        }));
+
+        return { raw_assets };
+      },
+
+      BYBIT: async (credentials) => {
+        const secret = credentials || this.secrets?.BYBIT || {};
+        if (!secret.ApiKey || !secret.ApiSecret) {
+          throw new Error('BYBIT API credentials tidak tersedia');
+        }
+
+        const timestamp = Date.now().toString();
+        const recvWindow = '5000';
+        const params = { accountType: 'UNIFIED' };
+        const queryString = new URLSearchParams(params).toString();
+        const signature = this._createBybitSignature({
+          ts: timestamp,
+          apiKey: secret.ApiKey,
+          recvWindow,
+          queryString,
+          secret: secret.ApiSecret
+        });
+
+        const url = `https://api.bybit.com/v5/account/wallet-balance?${queryString}`;
+        const res = await this.Http.request({
+          url,
+          method: 'GET',
+          headers: {
+            'X-BAPI-SIGN-TYPE': '2',
+            'X-BAPI-SIGN': signature,
+            'X-BAPI-API-KEY': secret.ApiKey,
+            'X-BAPI-TIMESTAMP': timestamp,
+            'X-BAPI-RECV-WINDOW': recvWindow
+          },
+          responseType: 'json'
+        });
+
+        const coins = res?.result?.list?.[0]?.coin || [];
+        const raw_assets = coins
+          .filter(c => parseFloat(c.walletBalance) > 0)
+          .map(c => ({
+            symbol: c.coin,
+            amount: parseFloat(c.walletBalance)
+          }));
+
+        return { raw_assets };
+      },
+
+      BITGET: async (credentials) => {
+        const secret = credentials || this.secrets?.BITGET || {};
+        if (!secret.ApiKey || !secret.ApiSecret || !secret.Passphrase) {
+          throw new Error('BITGET API credentials tidak tersedia');
+        }
+
+        const timestamp = Date.now().toString();
+        const method = 'GET';
+        const path = '/api/v2/spot/account/assets';
+        const strToSign = `${timestamp}${method}${path}`;
+        const signature = CryptoJS.HmacSHA256(strToSign, secret.ApiSecret).toString(CryptoJS.enc.Base64);
+
+        const url = `https://api.bitget.com${path}`;
+        const res = await this.Http.request({
+          url,
+          method: 'GET',
+          headers: {
+            'ACCESS-KEY': secret.ApiKey,
+            'ACCESS-SIGN': signature,
+            'ACCESS-TIMESTAMP': timestamp,
+            'ACCESS-PASSPHRASE': secret.Passphrase
+          },
+          responseType: 'json'
+        });
+
+        const assets = res?.data || [];
+        const raw_assets = assets
+          .filter(a => parseFloat(a.available) > 0 || parseFloat(a.frozen) > 0)
+          .map(a => ({
+            symbol: a.coin,
+            amount: parseFloat(a.available) + parseFloat(a.frozen)
+          }));
+
+        return { raw_assets };
+      },
+
+      INDODAX: async (credentials) => {
+        const secret = credentials || this.secrets?.INDODAX || {};
+        if (!secret.ApiKey || !secret.ApiSecret) {
+          throw new Error('INDODAX API credentials tidak tersedia');
+        }
+
+        const timestamp = Date.now();
+        const recvWindow = 5000;
+        const body = `method=getInfo&timestamp=${timestamp}&recvWindow=${recvWindow}`;
+        const sign = CryptoJS.HmacSHA512(body, secret.ApiSecret).toString();
+
+        const res = await this.Http.post(
+          this._prox('https://indodax.com/tapi'),
+          body,
+          {
+            headers: {
+              'Key': secret.ApiKey,
+              'Sign': sign,
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            responseType: 'json'
+          }
+        );
+
+        const balances = res?.return?.balance || {};
+        const raw_assets = Object.entries(balances)
+          .filter(([_, amount]) => parseFloat(amount) > 0)
+          .map(([symbol, amount]) => ({
+            symbol: symbol.toUpperCase(),
+            amount: parseFloat(amount)
+          }));
+
+        return { raw_assets };
+      },
+
+      MEXC: async (credentials) => {
+        const secret = credentials || this.secrets?.MEXC || {};
+        if (!secret.ApiKey || !secret.ApiSecret) {
+          throw new Error('MEXC API credentials tidak tersedia');
+        }
+
+        const timestamp = Date.now().toString();
+        const queryString = `timestamp=${timestamp}`;
+        const signature = CryptoJS.HmacSHA256(queryString, secret.ApiSecret).toString(CryptoJS.enc.Hex);
+        const url = this._prox(`https://api.mexc.com/api/v3/account?${queryString}&signature=${signature}`);
+
+        const res = await this.Http.request({
+          url,
+          method: 'GET',
+          headers: { 'X-MEXC-APIKEY': secret.ApiKey },
+          responseType: 'json'
+        });
+
+        const balances = res?.balances || [];
+        const raw_assets = balances
+          .filter(b => parseFloat(b.free) > 0 || parseFloat(b.locked) > 0)
+          .map(b => ({
+            symbol: b.asset,
+            amount: parseFloat(b.free) + parseFloat(b.locked)
+          }));
+
+        return { raw_assets };
+      }
+    };
+
+    return fetchers[cex];
+  }
+
+  /**
    * Mengambil daftar koin lengkap (status depo/wd, fee) dari satu CEX.
    * @param {string} cex - Nama CEX (e.g., 'BINANCE', 'GATE').
    * @param {string} chainKey - Nama chain (e.g., 'bsc').

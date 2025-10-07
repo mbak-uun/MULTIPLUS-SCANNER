@@ -2,8 +2,24 @@
 // Modul untuk pengelolaan IndexedDB
 
 const DB = (() => {
-  const DB_NAME = 'MULTIPLUS_APP';
-  const DB_VERSION = 2; // Dinaikkan karena struktur tabel berubah
+  const APP_CONFIG = (typeof KONFIG_APLIKASI !== 'undefined' && KONFIG_APLIKASI.APP) ? KONFIG_APLIKASI.APP : {};
+  const RAW_APP_NAME = APP_CONFIG.NAME || 'MULTIPLUS SCANNER';
+  const SANITIZED_APP_NAME = RAW_APP_NAME
+    .toString()
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toUpperCase() || 'MULTIPLUS_SCANNER';
+  const RAW_APP_VERSION = APP_CONFIG.VERSION || '1.0';
+  const VERSION_SUFFIX = RAW_APP_VERSION
+    .toString()
+    .replace(/[^0-9A-Za-z]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toUpperCase() || '1';
+  const DB_NAME = `${SANITIZED_APP_NAME}_DB_V${VERSION_SUFFIX}`;
+  const PARSED_DB_VERSION = parseInt(RAW_APP_VERSION.toString().replace(/[^0-9]/g, ''), 10);
+  const DB_VERSION = Number.isFinite(PARSED_DB_VERSION) && PARSED_DB_VERSION > 0 ? PARSED_DB_VERSION : 1;
   let db;
 
   // Fungsi untuk menghasilkan daftar store dinamis berdasarkan KONFIG_APLIKASI
@@ -11,15 +27,15 @@ const DB = (() => {
     const stores = [
       { name: 'SETTING_GLOBAL' }, // Store untuk satu objek setting global. Key statis.
       { name: 'RIWAYAT_AKSI', options: { keyPath: 'id', autoIncrement: true }, indexes: [{ name: 'by_timestamp', keyPath: 'timestamp' }] }, // Store untuk log aktivitas
-      { name: 'ASET_EXCHANGER', options: { keyPath: 'name_cex' } }, // Setiap record adalah satu akun CEX
-      { name: 'ASET_WALLET', options: { keyPath: 'key' } }, // Setiap record adalah satu wallet
-      { name: 'RIWAYAT_MODAL', options: { keyPath: 'id', autoIncrement: true }, indexes: [{ name: 'by_timestamp', keyPath: 'timestamp' }] }
+      { name: 'ASET_EXCHANGER', options: { keyPath: 'name_cex' } },
+      { name: 'ASET_WALLET', options: { keyPath: 'key' } }
     ];
 
     // Tambahkan store untuk mode 'MULTI' secara eksplisit
     stores.push({ name: `KOIN_MULTI`, options: { keyPath: 'id' } });
     stores.push({ name: `SYNC_KOIN_MULTI`, options: { keyPath: 'id' }, indexes: [{ name: 'by_cex', keyPath: 'cex' }] });
     stores.push({ name: `SETTING_FILTER_MULTI` });
+    // stores.push({ name: `SCAN_RESULTS_MULTI`, options: { keyPath: 'id' } }); // DIKEMBALIKAN: Hapus store hasil scan
 
     // Generate store untuk setiap chain
     if (typeof KONFIG_APLIKASI !== 'undefined' && KONFIG_APLIKASI.CHAINS) {
@@ -43,6 +59,8 @@ const DB = (() => {
         stores.push({
           name: `SETTING_FILTER_${chainUpper}`
         });
+
+        // DIKEMBALIKAN: Hapus store SCAN_RESULTS_<CHAIN>
       });
     }
 
@@ -343,6 +361,13 @@ const DB = (() => {
     });
   }
 
+  function getDatabaseMeta() {
+    return {
+      name: DB_NAME,
+      version: DB_VERSION
+    };
+  }
+
   // Expose public methods
   return {
     initDB,
@@ -357,6 +382,13 @@ const DB = (() => {
     getFirstRecord,
     backupDatabase,
     restoreDatabase,
-    deleteDatabase
+    deleteDatabase,
+    getDatabaseMeta
   };
 })();
+
+// Expose DB ke global scope
+if (typeof window !== 'undefined') {
+  window.DB = DB;
+  console.log('✅ DB Service exposed to window.DB');
+}
