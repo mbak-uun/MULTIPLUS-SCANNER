@@ -58,16 +58,16 @@
   --radius-3xl: 2rem;
   --radius-pill: 9999px;
 
-  --radius-surface: var(--radius-xl);
-  --radius-surface-lg: var(--radius-2xl);
-  --radius-interactive: var(--radius-md);
+  --radius-surface: var(--radius-lg);
+  --radius-surface-lg: var(--radius-xl);
+  --radius-interactive: calc(var(--radius-md) - 0.1rem);
 
-  --surface-glass-blur: 18px;
-  --surface-glass-border: rgba(148, 163, 184, 0.25);
-  --surface-glass-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
-  --surface-glass-overlay: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 100%);
-  --surface-glass-highlight: rgba(255, 255, 255, 0.45);
-  --surface-glass-accent: rgba(var(--brand-rgb), 0.16);
+  --surface-glass-blur: 22px;
+  --surface-glass-border: rgba(148, 163, 184, 0.18);
+  --surface-glass-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  --surface-glass-overlay: linear-gradient(135deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.05) 100%);
+  --surface-glass-highlight: rgba(255, 255, 255, 0.35);
+  --surface-glass-accent: rgba(var(--brand-rgb), 0.14);
 
   /* ====== SEMANTIC COLORS ====== */
   --success: #10b981;
@@ -100,14 +100,14 @@
   --table-stripe: rgba(148, 163, 184, 0.05);
   --table-hover: rgba(148, 163, 184, 0.1);
   --table-border: var(--border-light);
-  --card-padding-y: var(--spacing-sm);
-  --card-padding-x: var(--spacing-md);
-  --toolbar-gap: var(--spacing-md);
-  --btn-padding-y: 0.45rem;
-  --btn-padding-x: 0.9rem;
-  --input-padding-y: 0.5rem;
-  --input-padding-x: 0.75rem;
-  --badge-font-size: 0.75rem;
+  --card-padding-y: 0.65rem;
+  --card-padding-x: 0.85rem;
+  --toolbar-gap: 0.75rem;
+  --btn-padding-y: 0.38rem;
+  --btn-padding-x: 0.75rem;
+  --input-padding-y: 0.42rem;
+  --input-padding-x: 0.65rem;
+  --badge-font-size: 0.7rem;
 
   --mode-btn-bg: #f1f5f9;
   --mode-btn-border: #cbd5e1;

@@ -50,6 +50,11 @@ const filterAutoSaveMixin = {
          */
         async loadFilterSettings() {
             if (!this.activeChain || this._isLoadingFilters) return;
+            const isReady = await this._ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('[FilterAutoSave] Skip load: database belum siap.');
+                return;
+            }
 
             this._isLoadingFilters = true;
             console.log(`[FilterAutoSave] Loading filter settings for chain: ${this.activeChain}`);
@@ -113,6 +118,11 @@ const filterAutoSaveMixin = {
                 console.log(`[FilterAutoSave] Saving filter field "${field}" for chain: ${this.activeChain}`);
 
                 try {
+                    const isReady = await this._ensureDatabaseReady();
+                    if (!isReady) {
+                        console.warn('[FilterAutoSave] Skip save: database belum siap.');
+                        return;
+                    }
                     // PERBAIKAN: Clone data menggunakan JSON untuk menghilangkan Vue reactivity
                     const plainData = JSON.parse(JSON.stringify(this.filters));
 
@@ -139,6 +149,33 @@ const filterAutoSaveMixin = {
                     }
                 }
             }, debounceTime);
+        },
+        /**
+         * Pastikan database sudah siap sebelum operasi read/write.
+         * @returns {Promise<boolean>}
+         */
+        async _ensureDatabaseReady() {
+            const root = this.$root;
+            const maxAttempts = 20;
+            let attempt = 0;
+
+            while (attempt < maxAttempts) {
+                if (!root) break;
+
+                if (root.dbStatus === 'success' || root.isAppInitialized) {
+                    return true;
+                }
+
+                if (root.dbStatus === 'error') {
+                    console.error('[FilterAutoSave] Database gagal diinisialisasi, tidak bisa melanjutkan.');
+                    return false;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempt += 1;
+            }
+
+            return root?.dbStatus === 'success';
         },
 
         /**

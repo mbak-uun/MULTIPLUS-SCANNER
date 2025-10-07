@@ -28,12 +28,12 @@ body::before,
 body::after {
   content: '';
   position: fixed;
-  width: min(60vw, 520px);
-  height: min(60vw, 520px);
+  width: min(48vw, 420px);
+  height: min(48vw, 420px);
   border-radius: 999px;
   background: radial-gradient(circle at center, var(--surface-glass-accent) 0%, transparent 70%);
-  filter: blur(90px);
-  opacity: 0.55;
+  filter: blur(80px);
+  opacity: 0.45;
   z-index: -2;
   pointer-events: none;
   transition: opacity var(--transition-base), transform var(--transition-slow);
@@ -51,8 +51,8 @@ body::after {
 
 html[data-bs-theme="dark"] body::before,
 html[data-bs-theme="dark"] body::after {
-  filter: blur(120px);
-  opacity: 0.35;
+  filter: blur(110px);
+  opacity: 0.28;
 }
 
 /* ====== TYPOGRAPHY SCALE ====== */
@@ -120,26 +120,26 @@ body.app-loading {
 /* ====== CONTAINER FULL WIDTH ====== */
 .container-fluid {
   max-width: 100%;
-  padding-left: var(--spacing-sm);
-  padding-right: var(--spacing-sm);
+  padding-left: clamp(0.5rem, 2vw, 0.9rem);
+  padding-right: clamp(0.5rem, 2vw, 0.9rem);
   margin: 0 auto;
 }
 
 @media (min-width: 1400px) {
   .container-fluid {
-    padding-left: var(--spacing-md);
-    padding-right: var(--spacing-md);
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
   }
 }
 
 /* ====== NAVIGATION ====== */
 .navbar {
-  padding-top: var(--spacing-xs);
-  padding-bottom: var(--spacing-xs);
+  padding-top: calc(var(--spacing-xs) - 0.1rem);
+  padding-bottom: calc(var(--spacing-xs) - 0.1rem);
 }
 
 .navbar-nav {
-  gap: var(--spacing-xs);
+  gap: 0.35rem;
 }
 
 .navbar-nav .nav-link {

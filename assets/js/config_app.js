@@ -3,7 +3,7 @@
 
 const KONFIG_APLIKASI = {
   "APP": {
-    "NAME": "MULTIPLUS SCANNER",  // Nama aplikasi  
+    "NAME": "MULTIPLUS CHATGPT",  // Nama aplikasi  
     "VERSION": "1.1",           // Versi aplikasi
   },
   "DEXS": {

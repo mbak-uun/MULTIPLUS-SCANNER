@@ -1,1429 +1,1429 @@
 [
   {
     "cex": "BITGET",
-    "nama_koin": "RCADE",
     "nama_token": "RCADE",
+    "ticker": "RCADE",
     "sc": "0x077574441c4f8763a37a2cfee2ecb444aa60a15e",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "RCADE",
     "nama_token": "RCADE",
+    "ticker": "RCADE",
     "sc": "0x077574441C4F8763a37a2cFeE2ECb444aA60A15e",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "RCADE Network",
-    "nama_token": "RCADE",
+    "nama_token": "RCADE Network",
+    "ticker": "RCADE",
     "sc": "0x077574441c4f8763a37a2cfee2ecb444aa60a15e",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "RCADE",
     "nama_token": "RCADE",
+    "ticker": "RCADE",
     "sc": "0x077574441c4f8763a37a2cfee2ecb444aa60a15e",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Synapse",
-    "nama_token": "SYN",
+    "nama_token": "Synapse",
+    "ticker": "SYN",
     "sc": "0x080f6aed32fc474dd5717105dba5ea57268f46eb",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "AIDOGE",
     "nama_token": "AIDOGE",
+    "ticker": "AIDOGE",
     "sc": "0x09E18590E8f76b6Cf471b3cd75fE1A1a9D2B2c2b",
     "decimals": 6
   },
   {
     "cex": "GATE",
-    "nama_koin": "ArbDoge AI",
-    "nama_token": "AIDOGE",
+    "nama_token": "ArbDoge AI",
+    "ticker": "AIDOGE",
     "sc": "0x09E18590E8f76b6Cf471b3cd75fE1A1a9D2B2c2b",
     "decimals": 6
   },
   {
     "cex": "BITGET",
-    "nama_koin": "AIDOGE",
     "nama_token": "AIDOGE",
+    "ticker": "AIDOGE",
     "sc": "0x09e18590e8f76b6cf471b3cd75fe1a1a9d2b2c2b",
     "decimals": 6
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Merlin Token",
-    "nama_token": "MRLN",
+    "nama_token": "Merlin Token",
+    "ticker": "MRLN",
     "sc": "0x0B3547CD0E14e7D42f8921b0c370FdFD708bff6C",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Opulous",
-    "nama_token": "OPUL",
+    "nama_token": "Opulous",
+    "ticker": "OPUL",
     "sc": "0x0c5fa0E07949F941A6c2C29a008252db1527d6EE",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Pendle",
-    "nama_token": "PENDLE",
+    "nama_token": "Pendle",
+    "ticker": "PENDLE",
     "sc": "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "PENDLE",
     "nama_token": "PENDLE",
+    "ticker": "PENDLE",
     "sc": "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "PENDLE",
     "nama_token": "PENDLE",
+    "ticker": "PENDLE",
     "sc": "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Zeeverse",
-    "nama_token": "VEE",
+    "nama_token": "Zeeverse",
+    "ticker": "VEE",
     "sc": "0x0CAAdd427A6Feb5B5Fc1137eB05aA7Ddd9c08ce9",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "AEGIS token",
-    "nama_token": "AEGIS",
+    "nama_token": "AEGIS token",
+    "ticker": "AEGIS",
     "sc": "0x0eC739BdB1F6f021FeB624218A9665D44c9D87a2",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Dolomite",
-    "nama_token": "DOLO",
+    "nama_token": "Dolomite",
+    "ticker": "DOLO",
     "sc": "0x0f81001ef0a83ecce5ccebf63eb302c70a39a654",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "TRN",
     "nama_token": "TRN",
+    "ticker": "TRN",
     "sc": "0x1114982539a2bfb84e8b9e4e320bbc04532a9e44",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "YieldBricks",
-    "nama_token": "YBR",
+    "nama_token": "YieldBricks",
+    "ticker": "YBR",
     "sc": "0x11920f139a3121c2836E01551D43F95B3c31159c",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Curve",
-    "nama_token": "CRV",
+    "nama_token": "Curve",
+    "ticker": "CRV",
     "sc": "0x11cdb42b0eb46d95f990bedd4695a6e3fa034978",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "LAVA",
     "nama_token": "LAVA",
+    "ticker": "LAVA",
     "sc": "0x11e969e9B3f89cB16D686a03Cd8508C9fC0361AF",
     "decimals": 6
   },
   {
     "cex": "GATE",
-    "nama_koin": "Lava Network",
-    "nama_token": "LAVA",
+    "nama_token": "Lava Network",
+    "ticker": "LAVA",
     "sc": "0x11e969e9b3f89cb16d686a03cd8508c9fc0361af",
     "decimals": 6
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Lava Network",
-    "nama_token": "LAVA",
+    "nama_token": "Lava Network",
+    "ticker": "LAVA",
     "sc": "0x11e969e9B3f89cB16D686a03Cd8508C9fC0361AF",
     "decimals": 6
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "LAVA",
     "nama_token": "LAVA",
+    "ticker": "LAVA",
     "sc": "0x11e969e9b3f89cb16d686a03cd8508c9fc0361af",
     "decimals": 6
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "SQD",
     "nama_token": "SQD",
+    "ticker": "SQD",
     "sc": "0x1337420ded5adb9980cfc35f8f2b054ea86f8ab1",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "SQD",
     "nama_token": "SQD",
+    "ticker": "SQD",
     "sc": "0x1337420ded5adb9980cfc35f8f2b054ea86f8ab1",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "SQD",
     "nama_token": "SQD",
+    "ticker": "SQD",
     "sc": "0x1337420dED5ADb9980CFc35f8f2B054ea86f8aB1",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Subsquid",
-    "nama_token": "SQD",
+    "nama_token": "Subsquid",
+    "ticker": "SQD",
     "sc": "0x1337420dED5ADb9980CFc35f8f2B054ea86f8aB1",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Subsquid",
-    "nama_token": "SQD",
+    "nama_token": "Subsquid",
+    "ticker": "SQD",
     "sc": "0x1337420dED5ADb9980CFc35f8f2B054ea86f8aB1",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "GNS",
     "nama_token": "GNS",
+    "ticker": "GNS",
     "sc": "0x18c11fd286c5ec11c3b683caa813b77f5163a122",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Gains Network",
-    "nama_token": "GNS",
+    "nama_token": "Gains Network",
+    "ticker": "GNS",
     "sc": "0x18c11FD286C5EC11c3b683Caa813B77f5163A122",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Gains Network",
-    "nama_token": "GNS",
+    "nama_token": "Gains Network",
+    "ticker": "GNS",
     "sc": "0x18c11fd286c5ec11c3b683caa813b77f5163a122",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "GNS",
     "nama_token": "GNS",
+    "ticker": "GNS",
     "sc": "0x18c11fd286c5ec11c3b683caa813b77f5163a122",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Gains Network",
-    "nama_token": "GNS",
+    "nama_token": "Gains Network",
+    "ticker": "GNS",
     "sc": "0x18c11FD286C5EC11c3b683Caa813B77f5163A122",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "UXLINK",
     "nama_token": "UXLINK",
+    "ticker": "UXLINK",
     "sc": "0x1a6b3a62391eccaaa992ade44cd4afe6bec8cff1",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "ZTX",
     "nama_token": "ZTX",
+    "ticker": "ZTX",
     "sc": "0x1C43D05be7E5b54D506e3DdB6f0305e8A66CD04e",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "ZTX",
     "nama_token": "ZTX",
+    "ticker": "ZTX",
     "sc": "0x1C43D05be7E5b54D506e3DdB6f0305e8A66CD04e",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Aperture Finance",
-    "nama_token": "APTR",
+    "nama_token": "Aperture Finance",
+    "ticker": "APTR",
     "sc": "0x1C986661170c1834db49C3830130D4038eEeb866",
     "decimals": 6
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Stobox",
-    "nama_token": "STBU",
+    "nama_token": "Stobox",
+    "ticker": "STBU",
     "sc": "0x1cb9bD2c6E7F4A7DE3778547d46C8D4c22abC093",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "OBT",
     "nama_token": "OBT",
+    "ticker": "OBT",
     "sc": "0x1cd9a56c8c2ea913c70319a44da75e99255aa46f",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "OBT",
     "nama_token": "OBT",
+    "ticker": "OBT",
     "sc": "0x1CD9a56c8C2eA913c70319A44Da75e99255aa46f",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Orbiter Finance",
-    "nama_token": "OBT",
+    "nama_token": "Orbiter Finance",
+    "ticker": "OBT",
     "sc": "0x1cd9a56c8c2ea913c70319a44da75e99255aa46f",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "OBT",
     "nama_token": "OBT",
+    "ticker": "OBT",
     "sc": "0x1CD9a56c8C2eA913c70319A44Da75e99255aa46f",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Axelar",
-    "nama_token": "AXL",
+    "nama_token": "Axelar",
+    "ticker": "AXL",
     "sc": "0x23ee2343b892b1bb63503a4fabc840e0e2c6810f",
     "decimals": 6
   },
   {
     "cex": "BITGET",
-    "nama_koin": "AXL",
     "nama_token": "AXL",
+    "ticker": "AXL",
     "sc": "0x23ee2343b892b1bb63503a4fabc840e0e2c6810f",
     "decimals": 6
   },
   {
     "cex": "GATE",
-    "nama_koin": "Axelar",
-    "nama_token": "WAXL",
+    "nama_token": "Axelar",
+    "ticker": "WAXL",
     "sc": "0x23ee2343B892b1BB63503a4FAbc840E0e2C6810f",
     "decimals": 6
   },
   {
     "cex": "MEXC",
-    "nama_koin": "RAIN",
     "nama_token": "RAIN",
+    "ticker": "RAIN",
     "sc": "0x25118290e6A5f4139381D072181157035864099d",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Livepeer",
-    "nama_token": "LPT",
+    "nama_token": "Livepeer",
+    "ticker": "LPT",
     "sc": "0x289ba1701c2f088cf0faf8b3705246331cb8a839",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "AI Meta Club",
-    "nama_token": "AMC",
+    "nama_token": "AI Meta Club",
+    "ticker": "AMC",
     "sc": "0x299142a6370e1912156E53fBD4f25D7ba49DdcC5",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "BTC",
     "nama_token": "BTC",
+    "ticker": "BTC",
     "sc": "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f",
     "decimals": 8
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "RDNT",
     "nama_token": "RDNT",
+    "ticker": "RDNT",
     "sc": "0x3082cc23568ea640225c2467653db90e9250aaa0",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "RDNT",
     "nama_token": "RDNT",
+    "ticker": "RDNT",
     "sc": "0x3082cc23568ea640225c2467653db90e9250aaa0",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "RDNT",
     "nama_token": "RDNT",
+    "ticker": "RDNT",
     "sc": "0x3082cc23568ea640225c2467653db90e9250aaa0",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Radiant Capital",
-    "nama_token": "RDNT",
+    "nama_token": "Radiant Capital",
+    "ticker": "RDNT",
     "sc": "0x3082cc23568ea640225c2467653db90e9250aaa0",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Radiant",
-    "nama_token": "RDNT",
+    "nama_token": "Radiant",
+    "ticker": "RDNT",
     "sc": "0x3082CC23568eA640225c2467653dB90e9250AaA0",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Radiant",
-    "nama_token": "RDNT",
+    "nama_token": "Radiant",
+    "ticker": "RDNT",
     "sc": "0x3082cc23568ea640225c2467653db90e9250aaa0",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "RDNT",
     "nama_token": "RDNT",
+    "ticker": "RDNT",
     "sc": "0x3082cc23568ea640225c2467653db90e9250aaa0",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Xend Finance",
-    "nama_token": "XRWA",
+    "nama_token": "Xend Finance",
+    "ticker": "XRWA",
     "sc": "0x3096e7BFd0878Cc65be71f8899Bc4CFB57187Ba3",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "JoeToken",
-    "nama_token": "JOE",
+    "nama_token": "JoeToken",
+    "ticker": "JOE",
     "sc": "0x371c7ec6d8039ff7933a2aa28eb827ffe1f52f07",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "JOE",
     "nama_token": "JOE",
+    "ticker": "JOE",
     "sc": "0x371c7ec6d8039ff7933a2aa28eb827ffe1f52f07",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "MLK",
     "nama_token": "MLK",
+    "ticker": "MLK",
     "sc": "0x374c5FB7979d5fDBAAd2d95409e235e5CBdfD43C",
     "decimals": 8
   },
   {
     "cex": "GATE",
-    "nama_koin": "MiL.k",
-    "nama_token": "MLK",
+    "nama_token": "MiL.k",
+    "ticker": "MLK",
     "sc": "0x374c5fb7979d5fdbaad2d95409e235e5cbdfd43c",
     "decimals": 8
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "MLK",
     "nama_token": "MLK",
+    "ticker": "MLK",
     "sc": "0x374c5fb7979d5fdbaad2d95409e235e5cbdfd43c",
     "decimals": 8
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "ANIME",
     "nama_token": "ANIME",
+    "ticker": "ANIME",
     "sc": "0x37a645648df29205c6261289983fb04ecd70b4b3",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Animecoin",
-    "nama_token": "ANIME",
+    "nama_token": "Animecoin",
+    "ticker": "ANIME",
     "sc": "0x37a645648dF29205C6261289983FB04ECD70b4B3",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "ANIME",
     "nama_token": "ANIME",
+    "ticker": "ANIME",
     "sc": "0x37a645648dF29205C6261289983FB04ECD70b4B3",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Animecoin",
-    "nama_token": "ANIME",
+    "nama_token": "Animecoin",
+    "ticker": "ANIME",
     "sc": "0x37a645648df29205c6261289983fb04ecd70b4b3",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Animecoin",
-    "nama_token": "ANIME",
+    "nama_token": "Animecoin",
+    "ticker": "ANIME",
     "sc": "0x37a645648df29205c6261289983fb04ecd70b4b3",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "ANIME",
     "nama_token": "ANIME",
+    "ticker": "ANIME",
     "sc": "0x37a645648df29205c6261289983fb04ecd70b4b3",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "GRAIL",
     "nama_token": "GRAIL",
+    "ticker": "GRAIL",
     "sc": "0x3d9907f9a368ad0a51be60f7da3b97cf940982d8",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Camelot Token",
-    "nama_token": "GRAIL",
+    "nama_token": "Camelot Token",
+    "ticker": "GRAIL",
     "sc": "0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Camelot Token",
-    "nama_token": "GRAIL",
+    "nama_token": "Camelot Token",
+    "ticker": "GRAIL",
     "sc": "0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Antmons",
-    "nama_token": "AMS",
+    "nama_token": "Antmons",
+    "ticker": "AMS",
     "sc": "0x41e7D39DD8D1De42EfA6e9B98402e05F5C2D12f8",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Xai",
-    "nama_token": "XAI",
+    "nama_token": "Xai",
+    "ticker": "XAI",
     "sc": "0x4cb9a7ae498cedcbb5eae9f25736ae7d428c9d66",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "XAI",
     "nama_token": "XAI",
+    "ticker": "XAI",
     "sc": "0x4cb9a7ae498cedcbb5eae9f25736ae7d428c9d66",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "XAI",
     "nama_token": "XAI",
+    "ticker": "XAI",
     "sc": "0x4Cb9a7AE498CEDcBb5EAe9f25736aE7d428C9D66",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "XAI",
     "nama_token": "XAI",
+    "ticker": "XAI",
     "sc": "0x4cb9a7ae498cedcbb5eae9f25736ae7d428c9d66",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Xai",
-    "nama_token": "XAI",
+    "nama_token": "Xai",
+    "ticker": "XAI",
     "sc": "0x4Cb9a7AE498CEDcBb5EAe9f25736aE7d428C9D66",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Xai",
-    "nama_token": "XAI",
+    "nama_token": "Xai",
+    "ticker": "XAI",
     "sc": "0x4Cb9a7AE498CEDcBb5EAe9f25736aE7d428C9D66",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Quantlytica",
-    "nama_token": "QTLX",
+    "nama_token": "Quantlytica",
+    "ticker": "QTLX",
     "sc": "0x4D840b741bc05FDE325D4Ec0B4CFCD0CeA237e4E",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Brightpool Finance",
-    "nama_token": "BRI",
+    "nama_token": "Brightpool Finance",
+    "ticker": "BRI",
     "sc": "0x51F6EE60108CBCB3b613093BD3F224cB49Aa1610",
     "decimals": 9
   },
   {
     "cex": "GATE",
-    "nama_koin": "Across Protocol",
-    "nama_token": "ACX",
+    "nama_token": "Across Protocol",
+    "ticker": "ACX",
     "sc": "0x53691596d1BCe8CEa565b84d4915e69e03d9C99d",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Across Protocol",
-    "nama_token": "ACX",
+    "nama_token": "Across Protocol",
+    "ticker": "ACX",
     "sc": "0x53691596d1BCe8CEa565b84d4915e69e03d9C99d",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "MAGIC",
     "nama_token": "MAGIC",
+    "ticker": "MAGIC",
     "sc": "0x539bde0d7dbd336b79148aa742883198bbf60342",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Magic",
-    "nama_token": "MAGIC",
+    "nama_token": "Magic",
+    "ticker": "MAGIC",
     "sc": "0x539bdE0d7Dbd336b79148AA742883198BBF60342",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "MAGIC",
     "nama_token": "MAGIC",
+    "ticker": "MAGIC",
     "sc": "0x539bde0d7dbd336b79148aa742883198bbf60342",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "MAGIC",
     "nama_token": "MAGIC",
+    "ticker": "MAGIC",
     "sc": "0x539bdE0d7Dbd336b79148AA742883198BBF60342",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "MAGIC",
     "nama_token": "MAGIC",
+    "ticker": "MAGIC",
     "sc": "0x539bdE0d7Dbd336b79148AA742883198BBF60342",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Treasure",
-    "nama_token": "MAGIC",
+    "nama_token": "Treasure",
+    "ticker": "MAGIC",
     "sc": "0x539bde0d7dbd336b79148aa742883198bbf60342",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "MAGIC",
     "nama_token": "MAGIC",
+    "ticker": "MAGIC",
     "sc": "0x539bde0d7dbd336b79148aa742883198bbf60342",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Sperax",
-    "nama_token": "SPA",
+    "nama_token": "Sperax",
+    "ticker": "SPA",
     "sc": "0x5575552988A3A80504bBaeB1311674fCFd40aD4B",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "SPA",
     "nama_token": "SPA",
+    "ticker": "SPA",
     "sc": "0x5575552988a3a80504bbaeb1311674fcfd40ad4b",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Sperax",
-    "nama_token": "SPA",
+    "nama_token": "Sperax",
+    "ticker": "SPA",
     "sc": "0x5575552988A3A80504bBaeB1311674fCFd40aD4B",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Beyond Gaming",
-    "nama_token": "BDG",
+    "nama_token": "Beyond Gaming",
+    "ticker": "BDG",
     "sc": "0x56264286b18903889d03de41cf6acfab1fe1defc",
     "decimals": 6
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "GSWIFT",
     "nama_token": "GSWIFT",
+    "ticker": "GSWIFT",
     "sc": "0x580E933D90091b9cE380740E3a4A39c67eB85B4c",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "GameSwift",
-    "nama_token": "GSWIFT",
+    "nama_token": "GameSwift",
+    "ticker": "GSWIFT",
     "sc": "0x580E933D90091b9cE380740E3a4A39c67eB85B4c",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "LogX Network",
-    "nama_token": "LOGX",
+    "nama_token": "LogX Network",
+    "ticker": "LOGX",
     "sc": "0x59062301Fb510F4ea2417B67404CB16D31E604BA",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "LOGX",
     "nama_token": "LOGX",
+    "ticker": "LOGX",
     "sc": "0x59062301fb510f4ea2417b67404cb16d31e604ba",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "LogX Network",
-    "nama_token": "LOGX",
+    "nama_token": "LogX Network",
+    "ticker": "LOGX",
     "sc": "0x59062301Fb510F4ea2417B67404CB16D31E604BA",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "SLING",
     "nama_token": "SLING",
+    "ticker": "SLING",
     "sc": "0x5f8a7c646511a790c53f171891e5d469ca884ede",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "TridentDao",
-    "nama_token": "PSI",
+    "nama_token": "TridentDao",
+    "ticker": "PSI",
     "sc": "0x602Eb0D99A5e3e76D1510372C4d2020e12EaEa8a",
     "decimals": 9
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "AFG",
     "nama_token": "AFG",
+    "ticker": "AFG",
     "sc": "0x619C82392cb6E41778b7d088860Fea8447941f4c",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "AFG",
     "nama_token": "AFG",
+    "ticker": "AFG",
     "sc": "0x619c82392cb6e41778b7d088860fea8447941f4c",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "APEX",
     "nama_token": "APEX",
+    "ticker": "APEX",
     "sc": "0x61A1ff55C5216b636a294A07D77C6F4Df10d3B56",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Skate",
-    "nama_token": "SKATE",
+    "nama_token": "Skate",
+    "ticker": "SKATE",
     "sc": "0x61DBbBb552dc893ab3aAd09F289f811E67cEf285",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "SKATE",
     "nama_token": "SKATE",
+    "ticker": "SKATE",
     "sc": "0x61dbbbb552dc893ab3aad09f289f811e67cef285",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Skate",
-    "nama_token": "SKATE",
+    "nama_token": "Skate",
+    "ticker": "SKATE",
     "sc": "0x61dbbbb552dc893ab3aad09f289f811e67cef285",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "TRUST AI",
-    "nama_token": "TRT",
+    "nama_token": "TRUST AI",
+    "ticker": "TRT",
     "sc": "0x63db244bC895b3AcCEC6698cE11b0dbD1d3e1C44",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "STG",
     "nama_token": "STG",
+    "ticker": "STG",
     "sc": "0x6694340fc020c5e6b96567843da2df01b2ce1eb6",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Stargate Finance",
-    "nama_token": "STG",
+    "nama_token": "Stargate Finance",
+    "ticker": "STG",
     "sc": "0x6694340fc020c5e6b96567843da2df01b2ce1eb6",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "LayerZero",
-    "nama_token": "ZRO",
+    "nama_token": "LayerZero",
+    "ticker": "ZRO",
     "sc": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "LayerZero",
-    "nama_token": "ZRO",
+    "nama_token": "LayerZero",
+    "ticker": "ZRO",
     "sc": "0x6985884C4392D348587B19cb9eAAf157F13271cd",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "ZRO",
     "nama_token": "ZRO",
+    "ticker": "ZRO",
     "sc": "0x6985884C4392D348587B19cb9eAAf157F13271cd",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "LayerZero",
-    "nama_token": "ZRO",
+    "nama_token": "LayerZero",
+    "ticker": "ZRO",
     "sc": "0x6985884C4392D348587B19cb9eAAf157F13271cd",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "ZRO",
     "nama_token": "ZRO",
+    "ticker": "ZRO",
     "sc": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "ZRO",
     "nama_token": "ZRO",
+    "ticker": "ZRO",
     "sc": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "ZRO",
     "nama_token": "ZRO",
+    "ticker": "ZRO",
     "sc": "0x6985884c4392d348587b19cb9eaaf157f13271cd",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "DODO",
     "nama_token": "DODO",
+    "ticker": "DODO",
     "sc": "0x69eb4fa4a2fbd498c257c57ea8b7655a2559a581",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Aipocalypto",
-    "nama_token": "AIPO",
+    "nama_token": "Aipocalypto",
+    "ticker": "AIPO",
     "sc": "0x6c511dc18572d31C2c3f7b1505cB2BBC08282FcC",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "KernelDAO",
-    "nama_token": "KERNEL",
+    "nama_token": "KernelDAO",
+    "ticker": "KERNEL",
     "sc": "0x6e401189c8a68d05562c9bab7f674f910821eacf",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "KernelDAO",
-    "nama_token": "KERNEL",
+    "nama_token": "KernelDAO",
+    "ticker": "KERNEL",
     "sc": "0x6E401189c8A68D05562c9Bab7f674f910821EAcF",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "ether.fi",
-    "nama_token": "ETHFI",
+    "nama_token": "ether.fi",
+    "ticker": "ETHFI",
     "sc": "0x7189fb5b6504bbff6a852b13b7b82a3c118fdc27",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Maverick Protocol",
-    "nama_token": "MAV",
+    "nama_token": "Maverick Protocol",
+    "ticker": "MAV",
     "sc": "0x7448c7456a97769f6cd04f1e83a4a23ccdc46abd",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Arowana",
-    "nama_token": "ARW",
+    "nama_token": "Arowana",
+    "ticker": "ARW",
     "sc": "0x747952a59292a9b3862f3c59664b95e8b461ef45",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Arowana",
-    "nama_token": "ARW",
+    "nama_token": "Arowana",
+    "ticker": "ARW",
     "sc": "0x747952A59292a9B3862F3C59664B95e8B461eF45",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "PERP",
     "nama_token": "PERP",
+    "ticker": "PERP",
     "sc": "0x753d224bcf9aafacd81558c32341416df61d3dac",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "EYWA",
     "nama_token": "EYWA",
+    "ticker": "EYWA",
     "sc": "0x7a10f506e4c7658e6ad15fdf0443d450b7fa80d7",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "EYWA",
     "nama_token": "EYWA",
+    "ticker": "EYWA",
     "sc": "0x7A10F506E4c7658e6AD15Fdf0443d450B7FA80D7",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "EYWA",
     "nama_token": "EYWA",
+    "ticker": "EYWA",
     "sc": "0x7a10f506e4c7658e6ad15fdf0443d450b7fa80d7",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "EGP",
     "nama_token": "EGP",
+    "ticker": "EGP",
     "sc": "0x7e7a7c916c19a45769f6bdaf91087f93c6c12f78",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Eigenpie",
-    "nama_token": "EGP",
+    "nama_token": "Eigenpie",
+    "ticker": "EGP",
     "sc": "0x7E7a7C916c19a45769f6BDAF91087f93c6C12F78",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "EGP 1,00",
     "nama_token": "EGP 1,00",
+    "ticker": "EGP 1,00",
     "sc": "0x7E7a7C916c19a45769f6BDAF91087f93c6C12F78",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "YFI",
     "nama_token": "YFI",
+    "ticker": "YFI",
     "sc": "0x82e3a8f066a6989666b031d916c43672085b1582",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Hashflow",
-    "nama_token": "HFT",
+    "nama_token": "Hashflow",
+    "ticker": "HFT",
     "sc": "0x835bfe0ac8ea77f22e13795a49054ab2d6699982",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "GameonForge",
-    "nama_token": "GO4",
+    "nama_token": "GameonForge",
+    "ticker": "GO4",
     "sc": "0x85b7fa2a3cfe5ed48b619ec967750462a1fd9557",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Ninja Squad Token",
-    "nama_token": "NST",
+    "nama_token": "Ninja Squad Token",
+    "ticker": "NST",
     "sc": "0x88a269Df8fe7F53E590c561954C52FCCC8EC0cFB",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "aZen",
-    "nama_token": "AZEN",
+    "nama_token": "aZen",
+    "ticker": "AZEN",
     "sc": "0x8A23fa9Ca68226a1ea9FB2Df42b9E87a1728381E",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Dream Machine Token",
-    "nama_token": "DMT",
+    "nama_token": "Dream Machine Token",
+    "ticker": "DMT",
     "sc": "0x8B0E6f19Ee57089F7649A455D89D7bC6314D04e8",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "ARB",
     "nama_token": "ARB",
+    "ticker": "ARB",
     "sc": "0x912ce59144191c1204e64559fe8253a0e49e6548",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Arbitrum",
-    "nama_token": "ARB",
+    "nama_token": "Arbitrum",
+    "ticker": "ARB",
     "sc": "0x912CE59144191C1204E64559FE8253a0e49E6548",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Arbitrum",
-    "nama_token": "ARB",
+    "nama_token": "Arbitrum",
+    "ticker": "ARB",
     "sc": "0x912CE59144191C1204E64559FE8253a0e49E6548",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "ARB",
     "nama_token": "ARB",
+    "ticker": "ARB",
     "sc": "0x912CE59144191C1204E64559FE8253a0e49E6548",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Arbitrum",
-    "nama_token": "ARB",
+    "nama_token": "Arbitrum",
+    "ticker": "ARB",
     "sc": "0x912ce59144191c1204e64559fe8253a0e49e6548",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "ARB",
     "nama_token": "ARB",
+    "ticker": "ARB",
     "sc": "0x912ce59144191c1204e64559fe8253a0e49e6548",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "ARB",
     "nama_token": "ARB",
+    "ticker": "ARB",
     "sc": "0x912ce59144191c1204e64559fe8253a0e49e6548",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Kima",
-    "nama_token": "KIMA",
+    "nama_token": "Kima",
+    "ticker": "KIMA",
     "sc": "0x94fcd9c18f99538c0f7c61c5500ca79f0d5c4dab",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Kima Network",
-    "nama_token": "KIMA",
+    "nama_token": "Kima Network",
+    "ticker": "KIMA",
     "sc": "0x94fCD9c18f99538C0f7C61c5500cA79F0D5C4dab",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "KIMA",
     "nama_token": "KIMA",
+    "ticker": "KIMA",
     "sc": "0x94fcd9c18f99538c0f7c61c5500ca79f0d5c4dab",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "VRTX",
     "nama_token": "VRTX",
+    "ticker": "VRTX",
     "sc": "0x95146881b86b3ee99e63705ec87afe29fcc044d9",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "GRT",
     "nama_token": "GRT",
+    "ticker": "GRT",
     "sc": "0x9623063377ad1b27544c965ccd7342f7ea7e88c7",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "The Graph",
-    "nama_token": "GRT",
+    "nama_token": "The Graph",
+    "ticker": "GRT",
     "sc": "0x9623063377AD1B27544C965cCd7342f7EA7e88C7",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "The Graph",
-    "nama_token": "GRT",
+    "nama_token": "The Graph",
+    "ticker": "GRT",
     "sc": "0x9623063377ad1b27544c965ccd7342f7ea7e88c7",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "IXORAPAD",
-    "nama_token": "IXORA",
+    "nama_token": "IXORAPAD",
+    "ticker": "IXORA",
     "sc": "0x99110990b602def65deb578a55f43793b4894a0a",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "TMX",
     "nama_token": "TMX",
+    "ticker": "TMX",
     "sc": "0xa057Bf62b7760ae11d782DaB5e081728BCDA7017",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "HIPPOP",
     "nama_token": "HIPPOP",
+    "ticker": "HIPPOP",
     "sc": "0xa0995d43901551601060447f9aBf93ebc277cEC2",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Autonomi",
-    "nama_token": "AUTONOMI",
+    "nama_token": "Autonomi",
+    "ticker": "AUTONOMI",
     "sc": "0xa78d8321B20c4Ef90eCd72f2588AA985A4BDb684",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "VEMP",
     "nama_token": "VEMP",
+    "ticker": "VEMP",
     "sc": "0xaf7e3f16d747e77e927dc94287f86eb95a64d83d",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "VEMP",
     "nama_token": "VEMP",
+    "ticker": "VEMP",
     "sc": "0xaf7e3f16d747e77e927dc94287f86eb95a64d83d",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "USDC",
     "nama_token": "USDC",
+    "ticker": "USDC",
     "sc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     "decimals": 6
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "USDC",
     "nama_token": "USDC",
+    "ticker": "USDC",
     "sc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
     "decimals": 6
   },
   {
     "cex": "GATE",
-    "nama_koin": "USDCoin",
-    "nama_token": "USDC",
+    "nama_token": "USDCoin",
+    "ticker": "USDC",
     "sc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
     "decimals": 6
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "USDC",
     "nama_token": "USDC",
+    "ticker": "USDC",
     "sc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
     "decimals": 6
   },
   {
     "cex": "BITGET",
-    "nama_koin": "USDC",
     "nama_token": "USDC",
+    "ticker": "USDC",
     "sc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
     "decimals": 6
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "USDC",
     "nama_token": "USDC",
+    "ticker": "USDC",
     "sc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     "decimals": 6
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Hydranet",
-    "nama_token": "HDN",
+    "nama_token": "Hydranet",
+    "ticker": "HDN",
     "sc": "0xB0F66Bdb39acBb043308eb9Dbe78F5bB47ea5430",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "StarHeroes",
-    "nama_token": "STARHEROES",
+    "nama_token": "StarHeroes",
+    "ticker": "STARHEROES",
     "sc": "0xB299751B088336E165dA313c33e3195B8c6663A6",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "TRUF Network",
-    "nama_token": "TRUF",
+    "nama_token": "TRUF Network",
+    "ticker": "TRUF",
     "sc": "0xB59c8912c83157a955f9D715E556257F432C35D7",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "TRUF",
     "nama_token": "TRUF",
+    "ticker": "TRUF",
     "sc": "0xb59c8912c83157a955f9d715e556257f432c35d7",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "WeatherXM",
-    "nama_token": "WXM",
+    "nama_token": "WeatherXM",
+    "ticker": "WXM",
     "sc": "0xB6093B61544572Ab42A0E43AF08aBaFD41bf25A6",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "CATCH",
     "nama_token": "CATCH",
+    "ticker": "CATCH",
     "sc": "0xbC4c97Fb9befaa8B41448e1dFcC5236dA543217F",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "SpaceCatch",
-    "nama_token": "CATCH",
+    "nama_token": "SpaceCatch",
+    "ticker": "CATCH",
     "sc": "0xbC4c97Fb9befaa8B41448e1dFcC5236dA543217F",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "CARV",
     "nama_token": "CARV",
+    "ticker": "CARV",
     "sc": "0xc08cd26474722ce93f4d0c34d16201461c10aa8c",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "G3",
     "nama_token": "G3",
+    "ticker": "G3",
     "sc": "0xc24a365a870821eb83fd216c9596edd89479d8d7",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "GAM3S.GG",
-    "nama_token": "G3",
+    "nama_token": "GAM3S.GG",
+    "ticker": "G3",
     "sc": "0xc24A365A870821EB83Fd216c9596eDD89479d8d7",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "G3",
     "nama_token": "G3",
+    "ticker": "G3",
     "sc": "0xc24A365A870821EB83Fd216c9596eDD89479d8d7",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Hyperlane",
-    "nama_token": "HYPER",
+    "nama_token": "Hyperlane",
+    "ticker": "HYPER",
     "sc": "0xc9d23ed2adb0f551369946bd377f8644ce1ca5c4",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Aark",
-    "nama_token": "AARK",
+    "nama_token": "Aark",
+    "ticker": "AARK",
     "sc": "0xCa4e51F6AD4AFd9d1068E5899De9dd7d73F3463D",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "WOO",
     "nama_token": "WOO",
+    "ticker": "WOO",
     "sc": "0xcafcd85d8ca7ad1e1c6f82f651fa15e33aefd07b",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Credbull",
-    "nama_token": "CBL",
+    "nama_token": "Credbull",
+    "ticker": "CBL",
     "sc": "0xd6b3d81868770083307840f513a3491960b95cb6",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "WINR Protocol",
-    "nama_token": "WINR",
+    "nama_token": "WINR Protocol",
+    "ticker": "WINR",
     "sc": "0xD77B108d4f6cefaa0Cae9506A934e825BEccA46E",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "Marlin POND",
-    "nama_token": "POND",
+    "nama_token": "Marlin POND",
+    "ticker": "POND",
     "sc": "0xda0a57b710768ae17941a9fa33f8b720c8bd9ddd",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Marlin",
-    "nama_token": "POND",
+    "nama_token": "Marlin",
+    "ticker": "POND",
     "sc": "0xda0a57b710768ae17941a9fa33f8b720c8bd9ddd",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "Dai",
-    "nama_token": "DAI",
+    "nama_token": "Dai",
+    "ticker": "DAI",
     "sc": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Neuron",
-    "nama_token": "NRN",
+    "nama_token": "Neuron",
+    "ticker": "NRN",
     "sc": "0xdadeca1167fe47499e53Eb50F261103630974905",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "NRN",
     "nama_token": "NRN",
+    "ticker": "NRN",
     "sc": "0xdadeca1167fe47499e53Eb50F261103630974905",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "Neuron",
-    "nama_token": "NRN",
+    "nama_token": "Neuron",
+    "ticker": "NRN",
     "sc": "0xdadeca1167fe47499e53Eb50F261103630974905",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "NRN",
     "nama_token": "NRN",
+    "ticker": "NRN",
     "sc": "0xdadeca1167fe47499e53eb50f261103630974905",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "handle.fi",
-    "nama_token": "FOREX",
+    "nama_token": "handle.fi",
+    "ticker": "FOREX",
     "sc": "0xDb298285FE4C5410B05390cA80e8Fbe9DE1F259B",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Airdrop2049",
-    "nama_token": "AIRDROP",
+    "nama_token": "Airdrop2049",
+    "ticker": "AIRDROP",
     "sc": "0xdc5F1BF636DcAdaE7e285A484Dc71A1F5adeE0A1",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Edge Matrix Chain",
-    "nama_token": "EMC",
+    "nama_token": "Edge Matrix Chain",
+    "ticker": "EMC",
     "sc": "0xDFB8BE6F8c87f74295A87de951974362CedCFA30",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "MOZ",
     "nama_token": "MOZ",
+    "ticker": "MOZ",
     "sc": "0xe16e2548a576ad448fb014bbe85284d7f3542df5",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Lumoz",
-    "nama_token": "MOZ",
+    "nama_token": "Lumoz",
+    "ticker": "MOZ",
     "sc": "0xe16e2548a576ad448fb014bbe85284d7f3542df5",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "MOZ",
     "nama_token": "MOZ",
+    "ticker": "MOZ",
     "sc": "0xE16e2548A576ad448FB014bBE85284D7f3542dF5",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Blade Games",
-    "nama_token": "BLADE",
+    "nama_token": "Blade Games",
+    "ticker": "BLADE",
     "sc": "0xe8b201be5357c07f0aa58693f98fb048323777f9",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "G7",
     "nama_token": "G7",
+    "ticker": "G7",
     "sc": "0xF18e4466F26B4cA55bbAb890b314a54976E45B17",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "GAME7",
-    "nama_token": "G7",
+    "nama_token": "GAME7",
+    "ticker": "G7",
     "sc": "0xf18e4466f26b4ca55bbab890b314a54976e45b17",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "G7",
     "nama_token": "G7",
+    "ticker": "G7",
     "sc": "0xf18e4466f26b4ca55bbab890b314a54976e45b17",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "Kunji Finance",
-    "nama_token": "KNJ",
+    "nama_token": "Kunji Finance",
+    "ticker": "KNJ",
     "sc": "0xfbbb21d8e7A461f06e5E27efD69703aCB5C732A8",
     "decimals": 18
   },
   {
     "cex": "INDODAX",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
     "decimals": 18
   },
   {
     "cex": "GATE",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
     "decimals": 18
   },
   {
     "cex": "BINANCE",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
     "decimals": 18
   },
   {
     "cex": "BITGET",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
     "decimals": 18
   },
   {
     "cex": "KUCOIN",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
     "decimals": 18
   },
   {
     "cex": "MEXC",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
     "decimals": 18
   },
   {
     "cex": "BYBIT",
-    "nama_koin": "GMX",
     "nama_token": "GMX",
+    "ticker": "GMX",
     "sc": "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a",
     "decimals": 18
   }
