@@ -83,10 +83,10 @@ Dokumen ini memberikan rincian teknis untuk setiap *Object Store* (tabel) dalam 
       "polygon": false,
        ...
     },
+    // REFAKTOR: Key tidak lagi menggunakan prefix 'chain.pair', hanya nama pair.
     "pairs": {
-      "bsc.BNB": true,
-      "bsc.USDT": true,
-      "polygon.USDT": false,
+      "BNB": true,
+      "USDT": true,
        ...
     }
   }
