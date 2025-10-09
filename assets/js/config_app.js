@@ -3,8 +3,8 @@
 
 const KONFIG_APLIKASI = {
   "APP": {
-    "NAME": "MULTIPLUS-CHATGPT",  // Nama aplikasi  
-    "VERSION": "1.4",           // Versi aplikasi
+    "NAME": "MULTIPLUS-BETA[TEST]",  // Nama aplikasi  
+    "VERSION": "1.1",           // Versi aplikasi
   },
   "DEXS": {
     "flytrade": {
