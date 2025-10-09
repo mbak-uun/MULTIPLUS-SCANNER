@@ -72,7 +72,7 @@ class PriceScanner {
      */
     async startScan(tokens, filters, scanSettings = {}) {
         if (this.isScanning) {
-            console.warn('[PriceScanner] Scan already in progress');
+            // console.warn('[PriceScanner] Scan already in progress');
             return;
         }
 
@@ -106,8 +106,8 @@ class PriceScanner {
             // PENTING: Ambil chain dari token yang akan di-scan, bukan dari filter
             // Karena filter.chains mungkin berisi semua chain (true), tapi token yang akan di-scan hanya beberapa chain
             const uniqueChains = [...new Set(tokens.map(t => t.chain.toLowerCase()))];
-            console.log('[PriceScanner] Chains from tokens to scan:', uniqueChains);
-            console.log('[PriceScanner] Total tokens:', tokens.length);
+            // console.log('[PriceScanner] Chains from tokens to scan:', uniqueChains);
+            // console.log('[PriceScanner] Total tokens:', tokens.length);
 
             const realtimeData = await this.realtimeFetcher.getAllRealtimeData(uniqueChains);
             const { gasData, usdtRate } = realtimeData;
@@ -131,10 +131,24 @@ class PriceScanner {
                     break;
                 }
 
-                // Proses setiap token dalam batch secara paralel
-                await Promise.all(
-                    batch.map(token => this._processToken(token, filters, gasData, usdtRate))
-                );
+                // ADOPSI APLIKASI LAMA: Proses token dengan stagger delay untuk menghindari rate limit
+                // Setiap token dalam batch diberi jeda (stagger) agar tidak request bersamaan
+                // PRIORITAS: globalSettings (user) > config.SCANNING_DELAYS (default) > hardcoded
+                const jedaKoin = this.settings.globalSettings?.jedaKoin ??
+                                this.config?.SCANNING_DELAYS?.jedaKoin ??
+                                500;
+
+                // Buat jobs dengan stagger delay per token (seperti app lama)
+                const jobs = batch.map((token, tokenIndex) => (async () => {
+                    // Stagger: token pertama langsung, token kedua tunggu jedaKoin, dst
+                    if (tokenIndex > 0) {
+                        await this._delay(tokenIndex * jedaKoin);
+                    }
+                    return this._processToken(token, filters, gasData, usdtRate);
+                })());
+
+                // Jalankan semua jobs dan tunggu selesai (gunakan allSettled agar satu error tidak stop semua)
+                await Promise.allSettled(jobs);
 
                 // Callback: Batch complete
                 this.callbacks.onBatchComplete({
@@ -156,8 +170,12 @@ class PriceScanner {
                         aborted = true;
                         break;
                     }
-                    // REVISI: Gunakan jeda dari globalSettings
-                    const delay = this.settings.globalSettings?.jedaTimeGroup || 2000;
+                    // ADOPSI APLIKASI LAMA: Gunakan jedaTimeGroup dari config
+                    // PRIORITAS: globalSettings (user) > config.SCANNING_DELAYS (default) > hardcoded
+                    const delay = this.settings.globalSettings?.jedaTimeGroup ??
+                                 this.config?.SCANNING_DELAYS?.jedaTimeGroup ??
+                                 2000;
+                    this._logProgress('BATCH_JEDA', `Menunggu ${delay}ms sebelum batch berikutnya...`, { delay });
                     await this._delay(delay);
                 }
             }
@@ -191,7 +209,7 @@ class PriceScanner {
 
         } catch (error) {
             this.isScanning = false;
-            console.error('[PriceScanner] Scan error:', error);
+            // console.error('[PriceScanner] Scan error:', error);
             this.callbacks.onError(error);
             this._logProgress('ERROR', 'Terjadi kesalahan saat scanning.', { error: error.message }, 'error');
             await this.telegramService.sendStatus('ERROR');
@@ -229,6 +247,15 @@ class PriceScanner {
             const cexKey = token.cex_name;
 
             if (cexKey) {
+                // ADOPSI APLIKASI LAMA: Gunakan per-CEX delay dari config
+                // PRIORITAS: globalSettings.config_cex[].jeda > globalSettings.jedaPerAnggota > config.SCANNING_DELAYS > hardcoded
+                const cexKeyLower = cexKey.toLowerCase();
+                const cexKeyUpper = cexKey.toUpperCase();
+                const cexDelay = this.settings.globalSettings?.config_cex?.[cexKeyLower]?.jeda ??
+                                this.settings.globalSettings?.jedaPerAnggota ??
+                                this.config?.SCANNING_DELAYS?.JedaCexs?.[cexKeyUpper] ??
+                                200;
+
                 // Ambil orderbook untuk token utama
                 const tokenSymbol = (token.nama_token || token.cex_ticker_token || '').replace(/\s+/g, '');
                 if (!tokenSymbol) {
@@ -236,16 +263,20 @@ class PriceScanner {
                 } else {
                     this._logProgress('ORDERBOOK_TOKEN', `Mengambil orderbook ${tokenSymbol} di ${cexKey}.`, { tokenId });
                     cexPrices.token = await this.cexFetcher.getOrderbook(cexKey, tokenSymbol);
-                }
-                await this._delay(this.settings.globalSettings?.jedaPerAnggota || 200);
-                if (cexPrices.token) {
-                    this._logProgress('ORDERBOOK_TOKEN_SELESAI', `Orderbook token ${tokenSymbol} diterima.`, {
-                        tokenId,
-                        bestBid: cexPrices.token.bestBid,
-                        bestAsk: cexPrices.token.bestAsk
-                    });
-                } else {
+
+                    // ADOPSI APLIKASI LAMA: Delay setelah fetch orderbook token
+                    await this._delay(cexDelay);
+
+                    if (cexPrices.token) {
+                        this._logProgress('ORDERBOOK_TOKEN_SELESAI', `Orderbook token ${tokenSymbol} diterima (delay: ${cexDelay}ms).`, {
+                            tokenId,
+                            bestBid: cexPrices.token.bestBid,
+                            bestAsk: cexPrices.token.bestAsk,
+                            cexDelay
+                        });
+                    } else {
                         this._logProgress('ORDERBOOK_TOKEN_GAGAL', `Orderbook token ${tokenSymbol} tidak tersedia.`, { tokenId }, 'warn');
+                    }
                 }
 
                 // Ambil orderbook untuk pair jika ada
@@ -256,12 +287,16 @@ class PriceScanner {
                     } else {
                         this._logProgress('ORDERBOOK_PAIR', `Mengambil orderbook ${pairSymbol} di ${cexKey}.`, { tokenId });
                         cexPrices.pair = await this.cexFetcher.getOrderbook(cexKey, pairSymbol);
-                    await this._delay(this.settings.globalSettings?.jedaPerAnggota || 200);
+
+                        // ADOPSI APLIKASI LAMA: Delay setelah fetch orderbook pair
+                        await this._delay(cexDelay);
+
                         if (cexPrices.pair) {
-                            this._logProgress('ORDERBOOK_PAIR_SELESAI', `Orderbook pair ${pairSymbol} diterima.`, {
+                            this._logProgress('ORDERBOOK_PAIR_SELESAI', `Orderbook pair ${pairSymbol} diterima (delay: ${cexDelay}ms).`, {
                                 tokenId,
                                 bestBid: cexPrices.pair.bestBid,
-                                bestAsk: cexPrices.pair.bestAsk
+                                bestAsk: cexPrices.pair.bestAsk,
+                                cexDelay
                             });
                         } else {
                             this._logProgress('ORDERBOOK_PAIR_GAGAL', `Orderbook pair ${pairSymbol} tidak tersedia.`, { tokenId }, 'warn');
@@ -392,8 +427,14 @@ class PriceScanner {
                     });
                 }
 
-                // Delay sebelum fetch DEX berikutnya
-                const dexDelay = this.settings.globalSettings?.config_dex?.[dexKey]?.jeda || 300;
+                // ADOPSI APLIKASI LAMA: Delay sebelum fetch DEX berikutnya (per-DEX configuration)
+                // PRIORITAS: globalSettings.config_dex[].jeda > config.SCANNING_DELAYS > hardcoded
+                const dexKeyLower = dexKey.toLowerCase();
+                const dexDelay = this.settings.globalSettings?.config_dex?.[dexKeyLower]?.jeda ??
+                                this.config?.SCANNING_DELAYS?.JedaDexs?.[dexKeyLower] ??
+                                300;
+
+                this._logProgress('DEX_DELAY', `Menunggu ${dexDelay}ms sebelum DEX berikutnya...`, { dexKey, dexDelay });
                 await this._delay(dexDelay);
             }
 
@@ -416,7 +457,7 @@ class PriceScanner {
             });
 
         } catch (error) {
-            console.error(`[PriceScanner] Error processing token ${token.id}:`, error);
+            // console.error(`[PriceScanner] Error processing token ${token.id}:`, error);
             this.scanStats.errorCount++;
             this.scanStats.processedTokens++;
             this._logProgress('TOKEN_ERROR', `Kesalahan saat memproses ${token.id}.`, { error: error.message }, 'error');
@@ -458,7 +499,7 @@ class PriceScanner {
             };
 
         } catch (error) {
-            console.error(`[PriceScanner] DEX fetch error for ${dexKey}:`, error);
+            // console.error(`[PriceScanner] DEX fetch error for ${dexKey}:`, error);
             return null;
         }
     }
@@ -554,7 +595,7 @@ class PriceScanner {
             });
             await this.telegramService.sendSignal(message);
 
-            console.log(`[PriceScanner] 📢 Signal sent for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
+            // console.log(`[PriceScanner] 📢 Signal sent for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
         }
     }
 

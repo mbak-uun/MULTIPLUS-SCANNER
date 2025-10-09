@@ -55,28 +55,49 @@ class DexDataFetcher {
                 }
             },
             odos: {
+                // ADOPSI APLIKASI LAMA: Gunakan Odos API v3 dengan struktur yang sama
                 buildRequest: ({ chainCode, fromToken, toToken, amountInBig, walletAddress }) => {
-                    const url = "https://api.odos.xyz/sor/quote/v2";
+                    const url = "https://api.odos.xyz/sor/quote/v3";
                     return {
                         url,
                         method: 'POST',
                         data: {
                             chainId: chainCode,
-                            inputTokens: [{ tokenAddress: fromToken.address, amount: amountInBig.toString() }],
-                            outputTokens: [{ tokenAddress: toToken.address, proportion: 1 }],
-                            userAddr: walletAddress,
-                            slippageLimitPercent: 1,
-                            referralCode: 0,
+                            compact: true,
                             disableRFQs: true,
-                            compact: true
+                            userAddr: walletAddress,
+                            inputTokens: [{
+                                amount: amountInBig.toString(),
+                                tokenAddress: fromToken.address
+                            }],
+                            outputTokens: [{
+                                proportion: 1,
+                                tokenAddress: toToken.address
+                            }],
+                            slippageLimitPercent: 0.3  // 0.3% slippage sesuai app lama
                         }
                     };
                 },
                 parseResponse: (response, { toToken }) => {
-                    if (!response?.outAmounts?.[0]) throw new Error("Invalid Odos response");
+                    // PERBAIKAN CRITICAL: outAmounts adalah STRING, bukan array!
+                    // Struktur Odos v3 response:
+                    // {
+                    //   "outAmounts": "123456789",        // STRING, bukan array!
+                    //   "gasEstimateValue": 0.5,          // Fee dalam USD
+                    //   "netOutValue": 100.5,
+                    //   "pathId": "..."
+                    // }
+                    if (!response?.outAmounts) throw new Error("Invalid Odos response structure");
+
+                    // Parse outAmounts sebagai STRING langsung (sesuai app lama)
+                    const amountOut = parseFloat(response.outAmounts) / Math.pow(10, toToken.decimals);
+
+                    // gasEstimateValue adalah estimasi fee dalam USD (bukan wei/gwei)
+                    const gasFee = parseFloat(response.gasEstimateValue) || null;
+
                     return {
-                        amountOut: parseFloat(response.outAmounts[0]) / Math.pow(10, toToken.decimals),
-                        gasFee: parseFloat(response.gasEstimate) || null, // Odos v2 quote memiliki gasEstimate
+                        amountOut,
+                        gasFee,  // Fee sudah dalam USD
                         rawResponse: response
                     };
                 }
@@ -373,7 +394,19 @@ class DexDataFetcher {
                 url = `${dexConfig.PROXY}${url}`;
             }
 
-            const response = await this.Http.request({ ...requestDetails, url, responseType: 'json' });
+            // ADOPSI APLIKASI LAMA: Tambahkan timeout dari config
+            // PRIORITAS: globalSettings.WaktuTunggu (user) > config.SCANNING_DELAYS.dexTimeout (default) > hardcoded
+            const timeout = globalSettings?.WaktuTunggu ??
+                           this.config?.SCANNING_DELAYS?.dexTimeout ??
+                           10000;
+
+            const response = await this.Http.request({
+                ...requestDetails,
+                url,
+                responseType: 'json',
+                timeout // Tambahkan timeout
+            });
+
             const parsed = strategy.parseResponse(response, params);
             if (parsed && typeof parsed === 'object') {
                 return { ...parsed, rawResponse: response };
@@ -381,10 +414,21 @@ class DexDataFetcher {
             return { rawResponse: response };
 
         } catch (error) {
-            console.warn(`[DexDataFetcher] Primary fetch for ${dexKey} (${strategyKey}) failed: ${error.message}. Trying fallback...`);
-            
-            // Coba fallback jika ada
-            if (fallbackStrategyKey) {
+            const errorCode = error.status || error.code;
+            const isRateLimited = errorCode === 429 || error.message?.includes('rate limit');
+            const isTimeout = error.code === 'ETIMEDOUT' || error.message?.includes('timeout');
+
+            // ADOPSI APLIKASI LAMA: Logging error detail
+            console.warn(`[DexDataFetcher] Primary fetch for ${dexKey} (${strategyKey}) failed:`, {
+                error: error.message,
+                code: errorCode,
+                isRateLimited,
+                isTimeout
+            });
+
+            // ADOPSI APLIKASI LAMA: Coba fallback jika ada (terutama untuk rate limit 429)
+            if (fallbackStrategyKey && (isRateLimited || isTimeout)) {
+                console.log(`[DexDataFetcher] Trying fallback strategy '${fallbackStrategyKey}' for ${dexKey}...`);
                 const fallbackStrategy = this.dexStrategies[fallbackStrategyKey];
                 if (fallbackStrategy) {
                     try {
@@ -393,10 +437,24 @@ class DexDataFetcher {
                         if (dexConfig.PROXY) {
                             url = `${dexConfig.PROXY}${url}`;
                         }
-                        const response = await this.Http.request({ ...requestDetails, url, responseType: 'json' });
+
+                        // Tambahkan timeout juga untuk fallback
+                        // PRIORITAS: globalSettings.WaktuTunggu (user) > config.SCANNING_DELAYS.dexTimeout (default) > hardcoded
+                        const timeout = globalSettings?.WaktuTunggu ??
+                                       this.config?.SCANNING_DELAYS?.dexTimeout ??
+                                       10000;
+
+                        const response = await this.Http.request({
+                            ...requestDetails,
+                            url,
+                            responseType: 'json',
+                            timeout
+                        });
+
                         const parsed = fallbackStrategy.parseResponse(response, params);
                         if (parsed && typeof parsed === 'object') {
-                            return { ...parsed, rawResponse: response };
+                            console.log(`[DexDataFetcher] ✅ Fallback success for ${dexKey} using ${fallbackStrategyKey}`);
+                            return { ...parsed, rawResponse: response, usedFallback: true };
                         }
                         return { rawResponse: response };
                     } catch (fallbackError) {

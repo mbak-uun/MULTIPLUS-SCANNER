@@ -5,12 +5,18 @@ const ID_NUMBER_FORMAT = new Intl.NumberFormat('id-ID');
 
 const ManagementTab = {
   name: 'ManagementTab',
+  components: {
+    'filter-toolbar': FilterToolbar
+  },
   emits: ['show-toast', 'show-add-token-modal', 'import-tokens', 'export-tokens'],
-  mixins: [filterMixin], // REVISI: Hapus historyLoggerMixin yang berkonflik
+  mixins: [filterMixin, historyLoggerMixin, filterAutoSaveMixin], // REFACTOR: Tambahkan filterAutoSaveMixin
 
   data() {
     return {
       tokens: [],
+      // REVISI: State untuk sorting
+      sortKey: 'nama_koin', // Kolom default untuk sorting
+      sortDirection: 'asc', // Arah default
 
       // Modal states
       showDeleteModal: false, // Modal konfirmasi hapus
@@ -47,6 +53,9 @@ const ManagementTab = {
 
     activeChain() {
       return this.$root.activeChain;
+    },
+    isMultiChainMode() {
+      return this.$root.activeChain === 'multi';
     },
     // REVISI: Gunakan `filters` yang reaktif dari root, bukan `filterSettings` yang statis.
     filters() {
@@ -97,6 +106,25 @@ const ManagementTab = {
   },
 
   methods: {
+    toggleFavoritFilter() {
+      this.filters.favoritOnly = !this.filters.favoritOnly;
+      this.saveFilter('favoritOnly');
+      this.$emit('show-toast', `Filter Favorit ${this.filters.favoritOnly ? 'diaktifkan' : 'dinonaktifkan'}`, 'info');
+    },
+    toggleAutorun() {
+      if (!this.isMultiChainMode) return;
+      this.filters.autorun = !this.filters.autorun;
+      this.saveFilter('autorun');
+    },
+    toggleAutoscroll() {
+      this.filters.autoscroll = !this.filters.autoscroll;
+      this.saveFilter('autoscroll');
+    },
+    handleMinPnlChange() {
+      this.saveFilter('minPnl');
+      this.$emit('show-toast', `Min PnL diatur ke ${this.filters.minPnl}`, 'info');
+    },
+
     // Helper untuk mendapatkan CEX utama dari sebuah token
     getDexLeft(token, dexKey) {
       return (token.dex && token.dex[dexKey] && token.dex[dexKey].left) || '0';
@@ -120,51 +148,15 @@ const ManagementTab = {
     },
     // ✅ REFACTORED: Using repository
     async loadTokensFromDB() {
-      // GUARD: Block akses di mode multi
-      if (this.activeChain === 'multi') {
-        console.warn('[ManagementTab] Mode multi tidak mendukung manajemen koin. Tab ini hanya untuk single-chain.');
-        this.tokens = [];
-        return;
-      }
-
       if (!this.activeChain) {
         console.warn('[ManagementTab] activeChain tidak ada, skip loading');
         return;
       }
       console.log(`[ManagementTab] Memuat token untuk tab manajemen (Chain: ${this.activeChain})...`);
 
-      let chainsToLoad = [];
-      if (this.activeChain === 'multi') {
-        chainsToLoad = this.$root.activeChains || [];
-      } else if (this.activeChain) {
-        chainsToLoad = [this.activeChain];
-      } else {
-        this.tokens = [];
-        return;
-      }
+      await this.$root.loadCoinsForFilter();
+      this.tokens = this.$root.allCoins.map(token => ({ ...token }));
 
-      console.log(`[ManagementTab] Chains to load:`, chainsToLoad);
-
-      let allTokens = [];
-      for (const chainKey of chainsToLoad) {
-        try {
-          console.log(`[ManagementTab] Loading chain: ${chainKey}`);
-          const chainTokens = await this.coinRepo.getAllByChain(chainKey);
-          console.log(`[ManagementTab] Raw data from ${chainKey}:`, chainTokens.length, 'records');
-
-          // Filter record 'DATA_KOIN' dan tambahkan properti 'chain' jika belum ada
-          const validTokens = chainTokens
-            .filter(t => t.id !== 'DATA_KOIN')
-            .map(t => ({ ...t, chain: t.chain || chainKey.toUpperCase() }));
-
-          console.log(`[ManagementTab] Valid tokens from ${chainKey}:`, validTokens.length);
-          allTokens.push(...validTokens);
-        } catch (error) {
-          console.error(`[ManagementTab] Error loading ${chainKey}:`, error);
-        }
-      }
-
-      this.tokens = allTokens;
       console.log(`[ManagementTab] ✅ Total ${this.tokens.length} token dimuat untuk manajemen.`);
       console.log(`[ManagementTab] Sample token:`, this.tokens[0]);
       console.log(`[ManagementTab] Current filters:`, JSON.parse(JSON.stringify(this.filters)));
@@ -178,10 +170,16 @@ const ManagementTab = {
       });
     },
 
-    // Mengubah arah pengurutan
-    toggleSortDirection() {
-      const newDirection = (this.$root.filterSettings.sortDirection || 'asc') === 'desc' ? 'asc' : 'desc';
-      this.$root.filterSettings.sortDirection = newDirection;
+    // REVISI: Metode baru untuk menangani sorting
+    sortBy(key) {
+      if (this.sortKey === key) {
+        // Jika kolom yang sama diklik, balik arahnya
+        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        // Jika kolom baru diklik, set kolom baru dan default ke 'asc'
+        this.sortKey = key;
+        this.sortDirection = 'asc';
+      }
     },
     // Menghapus token dengan modal konfirmasi
     showDeleteConfirmation(token) {
@@ -204,6 +202,7 @@ const ManagementTab = {
 
       // Update state lokal dengan properti baru
       this.tokens[tokenIndex].isFavorite = newFavoriteStatus;
+      this.tokens[tokenIndex].isFavorit = newFavoriteStatus;
 
       try {
         // Clone token untuk dimodifikasi sebelum disimpan
@@ -216,7 +215,7 @@ const ManagementTab = {
         await this.coinRepo.save(cleanToken);
 
         this.$emit('show-toast', `${token.nama_koin} ${newFavoriteStatus ? 'ditambahkan ke' : 'dihapus dari'} favorit.`, 'success');
-        this.$root.loadCoinsForFilter();
+        await this.loadTokensFromDB();
       } catch (error) {
         console.error('Gagal memperbarui status favorit:', error);
         // Rollback state jika gagal
@@ -245,7 +244,7 @@ const ManagementTab = {
         await this.coinRepo.save(cleanToken);
 
         this.$emit('show-toast', `${token.nama_koin} ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`, 'success');
-        this.$root.loadCoinsForFilter();
+        await this.loadTokensFromDB();
       } catch (error) {
         console.error('Gagal memperbarui status:', error);
         // Rollback jika gagal
@@ -254,22 +253,6 @@ const ManagementTab = {
       }
     },
 
-    // Log management action
-    async logManagement(action, status, message, metadata = {}) {
-      try {
-        if (this.historyRepo) {
-          await this.historyRepo.add({
-            category: 'management',
-            action,
-            status,
-            message,
-            metadata
-          });
-        }
-      } catch (error) {
-        console.error('Failed to log management action:', error);
-      }
-    },
     getDexEntries(token) {
       if (!token || !token.dex || typeof token.dex !== 'object' || !this.filters.dex) return [];
 
@@ -301,12 +284,11 @@ const ManagementTab = {
       return status ? 'bg-success' : 'bg-danger';
     },
     getStatusBadgeLabel(status, type) {
-      return status ? type.toUpperCase() : type.toUpperCase() + 'X';
-    },
-
-    // Method untuk save filter
-    saveFilter(field) {
-      this.$root.saveFilterChange(field);
+      if (status) {
+        return type.toUpperCase(); // Jika aktif, tetap 'DP' atau 'WD'
+      }
+      // Jika tidak aktif, ganti huruf pertama dengan 'X'
+      return 'X' + type.toUpperCase().slice(1); // DP -> DX, WD -> WX
     },
 
     // ===== MODAL FORM (ADD/EDIT) METHODS =====
@@ -396,6 +378,7 @@ const ManagementTab = {
 
         this.$emit('show-toast', `Token ${token.nama_koin || token.from} berhasil dihapus.`, 'success');
         this.closeDeleteModal();
+        await this.loadTokensFromDB();
       } catch (error) {
         console.error('Error deleting token:', error);
         this.$emit('show-toast', 'Gagal menghapus token.', 'danger');
@@ -537,10 +520,7 @@ const ManagementTab = {
         
         // Update in list
         const index = this.tokens.findIndex(t => t.id === updatedToken.id);
-        // REVISI: Gunakan logAction dari root component, bukan dari mixin
-        this.$root.logAction('UPDATE_KOIN', {
-            message: `Token '${updatedToken.nama_koin}' di chain ${updatedToken.chain.toUpperCase()} telah diubah.`
-        });
+        await this.logManagement('edit_coin', 'success', `Token '${updatedToken.nama_koin}' di chain ${updatedToken.chain.toUpperCase()} telah diubah.`, { chain: updatedToken.chain });
         if (index > -1) {
           this.tokens.splice(index, 1, updatedToken);
         }
@@ -626,11 +606,7 @@ const ManagementTab = {
         link.click();
         document.body.removeChild(link);
         
-        // REVISI: Gunakan logAction dari root component
-        this.$root.logAction('EXPORT_CSV', {
-            message: `Export ${this.filteredTokens.length} token ke CSV dari chain ${this.activeChain.toUpperCase()}.`,
-            chain: this.activeChain
-        });
+        await this.logManagement('export_csv', 'success', `Export ${this.filteredTokens.length} token ke CSV dari chain ${this.activeChain.toUpperCase()}.`, { chain: this.activeChain });
         this.$emit('show-toast', `${this.filteredTokens.length} token berhasil di-export ke ${filename}`, 'success');
       } catch (error) {
         console.error('Error exporting CSV:', error);
@@ -756,11 +732,7 @@ const ManagementTab = {
           }
 
           // Log aksi dengan pesan yang lebih baik
-          // REVISI: Gunakan logAction dari root component
-          this.$root.logAction('IMPORT_CSV', {
-              message: `Import ${imported} token dari CSV ke chain ${this.activeChain.toUpperCase()}. Gagal: ${errors}.`,
-              chain: this.activeChain
-          });
+          await this.logManagement('import_csv', 'success', `Import ${imported} token dari CSV ke chain ${this.activeChain.toUpperCase()}. Gagal: ${errors}.`, { chain: this.activeChain });
           await this.loadTokensFromDB();
           this.$emit('show-toast', `Import selesai: ${imported} token berhasil, ${errors} gagal.`, 'success');
         } catch (error) {
@@ -777,7 +749,13 @@ const ManagementTab = {
   watch: {
     activeChain: {
       immediate: true,
-      handler() { this.loadTokensFromDB(); }
+      handler(newChain) {
+        this.loadTokensFromDB();
+        if (newChain !== 'multi' && this.filters?.autorun) {
+          this.filters.autorun = false;
+          this.saveFilter('autorun');
+        }
+      }
     }
   },
   activated() {
@@ -786,43 +764,34 @@ const ManagementTab = {
 
   template: `
     <div class="management-tab">
-      <!-- Management Toolbar -->
-      <div class="card card-body p-2 mb-3">
-        <div class="row g-2 align-items-center">
-          <!-- Grup Kiri: Judul, Pencarian, Filter -->
-          <div class="col-12 col-xl">
-            <div class="row g-2 align-items-center">
-              <div class="col-12 col-md-auto">
-                <h6 class="mb-0 d-flex align-items-center gap-2">
-                  <i class="bi bi-kanban"></i>
-                  Koin Manajemen
-                </h6>
-              </div>
-              <div class="col-12 col-sm-auto">
-                <div class="input-group input-group-sm w-100" style="min-width: 180px; max-width: 240px;">
-                  <span class="input-group-text">
-                    <i class="bi bi-search"></i>
-                  </span>
-                  <input type="text" class="form-control" placeholder="Cari token..." v-model="searchQuery">
-                </div>
-              </div>
-              <div class="col-12 col-sm-auto">
-                <label class="form-check form-check-inline mb-0 align-items-center d-flex gap-1">
-                  <input class="form-check-input" type="checkbox" v-model="filters.favoritOnly" @change="saveFilter('favoritOnly')">
-                  <span class="small fw-semibold text-warning"><i class="bi bi-star-fill"></i> Favorite</span>
-                </label>
-              </div>
-              <div class="col-12 col-sm-auto">
-                <span class="badge bg-light text-dark border w-100 text-center">
-                  Total: {{ filteredTokens.length }}
-                </span>
-              </div>
-            </div>
-          </div>
-          <!-- Grup Kanan: Tombol Aksi -->
-          <div class="col-12 col-xl-auto">
-            <div class="d-grid d-sm-inline-flex gap-2 justify-content-sm-end">
-             <button class="btn btn-sm btn-success" @click="openAddModal">
+      <!-- REFACTORED: Menggunakan komponen FilterToolbar -->
+      <filter-toolbar
+        title="Koin Manajemen"
+        icon="bi-kanban"
+        :filters="filters"
+        v-model:searchQuery="$root.searchQuery"
+        :filtered-tokens-count="filteredTokens.length"
+        :show-favorite-button="$root.activeChain !== 'multi'"
+        @update:filters="newFilters => $root.filters = newFilters"
+        @toggle-favorite="toggleFavoritFilter"
+        @toggle-autoscroll="toggleAutoscroll"
+        @handle-min-pnl-change="handleMinPnlChange"
+      >
+        <template #actions>
+          <!-- Tombol Autorun hanya muncul di mode multi-chain -->
+          <button
+            v-if="isMultiChainMode"
+            type="button"
+            class="btn btn-sm d-flex align-items-center gap-1"
+            :class="filters.autorun ? 'btn-primary' : 'btn-outline-secondary'"
+            @click="toggleAutorun"
+            title="Mulai scan otomatis (mode Scan)">
+            <i class="bi" :class="filters.autorun ? 'bi-lightning-charge-fill' : 'bi-lightning-charge'"></i>
+            <span class="small fw-semibold">Autorun</span>
+          </button>
+          
+          <!-- Tombol aksi spesifik untuk Manajemen -->
+          <button class="btn btn-sm btn-success" @click="openAddModal">
                 <i class="bi bi-plus-circle-fill"></i> Add Token
               </button>
               <div class="btn-group" role="group">
@@ -832,31 +801,32 @@ const ManagementTab = {
                 <button class="btn btn-sm btn-danger" @click="exportToCSV">
                   <i class="bi bi-download"></i> Export CSV
                 </button>
-              </div>
-
-             
-            </div>
           </div>
-        </div>
-      </div>
+        </template>
+      </filter-toolbar>
 
       <!-- Tabel Manajemen Koin -->
       <div class="table-responsive" style="max-height: calc(100vh - 250px);">
         <table class="table table-sm table-hover table-striped align-middle management-table">
           <thead class="sticky-top">
-            <tr class="text-center text-uppercase small" :style="$root.getColorStyles('chain', $root.activeChain, 'solid')">
+            <tr class="text-center text-uppercase small sortable-header" :style="$root.getColorStyles('chain', $root.activeChain, 'solid')">
               <th class="text-nowrap">No</th>
-              <th class="text-nowrap" @click="toggleSortDirection" style="cursor: pointer;">
+              <th class="text-nowrap" @click="sortBy('nama_koin')">
                 Token / Pair
-                <i class="bi ms-1" :class="{
-                  'bi-arrow-down': $root.filterSettings?.sortDirection === 'desc',
-                  'bi-arrow-up': $root.filterSettings?.sortDirection === 'asc'
-                }"></i>
+                <i v-if="sortKey === 'nama_koin'" class="bi ms-1" :class="sortDirection === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'"></i>
               </th>
-              <th class="text-nowrap">Exchanger</th>
+              <th class="text-nowrap" @click="sortBy('status')">
+                Status
+                <i v-if="sortKey === 'status'" class="bi ms-1" :class="sortDirection === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'"></i>
+              </th>
+              <th class="text-nowrap" @click="sortBy('cex_name')">
+                Exchanger & Aksi
+                <i v-if="sortKey === 'cex_name'" class="bi ms-1" :class="sortDirection === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'"></i>
+              </th>
               <th class="text-nowrap">Status CEX</th>
-              <th class="text-nowrap">Dex & Modal</th>
-              <th class="text-nowrap" style="width: 150px;">Action</th>
+              <th>
+                Dex & Modal
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -888,20 +858,37 @@ const ManagementTab = {
                 </div>
               </td>
               <td>
-                <div class="d-flex flex-column align-items-center gap-1">
-                  <!-- REVISI: Sejajarkan bintang dan nama CEX secara horizontal -->
-                  <div class="d-flex align-items-center justify-content-center gap-2">
-                    <button class="btn btn-sm btn-icon" :class="(token.isFavorite || token.isFavorit) ? 'btn-warning' : 'btn-outline-secondary'"
-                      @click="toggleTokenFavorit(token.id)" title="Toggle Favorit">
+                  <div class="form-check form-switch" title="Aktifkan/Nonaktifkan Token">
+                    <input class="form-check-input" type="checkbox" role="switch" :id="'status-' + token.id" :checked="Boolean(token.status)" @change="toggleTokenStatus(token.id)">
+                    <label class="form-check-label small" :for="'status-' + token.id">{{ token.status ? 'Aktif' : 'Nonaktif' }}</label>
+                  </div>
+                </td>
+              <td>
+                <div class="d-flex flex-column align-items-center gap-2">
+                  <!-- 1. Nama CEX & Ticker -->
+                  <div v-if="token.cex_name" class="text-center">
+                    <span class="fw-bold" :style="$root.getColorStyles('cex', token.cex_name, 'text')">
+                      {{ token.cex_name.toUpperCase() }} |                     <small class=" text-dark">{{ token.cex_ticker_token }}</small>
+
+                    </span>
+                  </div>
+                  <span v-else class="text-muted small">-</span>
+
+                  <!-- 2. Grup Tombol Aksi -->
+                  <div class=" " role="group">
+                    <button class="btn btn-sm btn-icon" :class="(token.isFavorite || token.isFavorit) ? 'btn-warning' : 'btn-outline-secondary'" @click="toggleTokenFavorit(token.id)" title="Toggle Favorit">
                       <i class="bi" :class="(token.isFavorite || token.isFavorit) ? 'bi-star-fill' : 'bi-star'"></i>
                     </button>
-                    <div v-if="token.cex_name" class="d-flex flex-column align-items-center">
-                      <span class="fw-bold" :style="$root.getColorStyles('cex', token.cex_name, 'text')">{{ token.cex_name.toUpperCase() }}</span>
-                      <small class="text-muted">{{ token.cex_ticker_token }}</small>
-                    </div>
-                    <span v-else class="text-muted small">-</span>
+                    <button class="btn btn-sm btn-outline-primary btn-icon" @click="openEditModal(token)" title="Edit Token">
+                      <i class="bi bi-pencil-fill"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger btn-icon" @click="showDeleteConfirmation(token)" title="Hapus Token" :disabled="token.id === 'DATA_KOIN'">
+                      <i class="bi bi-trash-fill"></i>
+                    </button>
                   </div>
+
                 </div>
+
               </td>
               <td>
                 <div class="d-flex flex-column gap-1 small">
@@ -921,29 +908,16 @@ const ManagementTab = {
                 </div>
               </td>
               <td class="text-center">
-                <div v-if="getDexEntries(token).length" class="d-flex flex-wrap gap-2 justify-content-center">
-                  <span v-for="dex in getDexEntries(token)" :key="dex.key" class="badge" :style="$root.getColorStyles('dex', dex.key, 'soft')">
-                    {{ dex.name }}
-                    <span class="text-muted small">[{{ formatDexValue(dex.left) }}|{{ formatDexValue(dex.right) }}]</span>
-                  </span>
+                <div v-if="getDexEntries(token).length" class="row g-1 justify-content-center">
+                  <div v-for="dex in getDexEntries(token)" :key="dex.key" class="col-6">
+                    <span class="badge w-100" :style="$root.getColorStyles('dex', dex.key, 'soft')">
+                      {{ dex.name }}
+                      <span class="text-muted small">[{{ formatDexValue(dex.left) }}|{{ formatDexValue(dex.right) }}]</span>
+                    </span>
+                  </div>
                 </div>
                 <span v-else class="text-muted small">-</span>
-              </td>
-              <td class="text-center">
-                <div class="btn-group btn-group-sm">
-                  <div class="form-check form-switch form-check-inline me-2" title="Aktifkan/Nonaktifkan Token">
-                    <input class="form-check-input" type="checkbox" role="switch" :id="'status-' + token.id"
-                      :checked="Boolean(token.status)" @change="toggleTokenStatus(token.id)">
-                  </div>
-                 
-                  <button class="btn btn-sm btn-outline-primary btn-icon" @click="openEditModal(token)" title="Edit Token">
-                    <i class="bi bi-pencil-fill"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger btn-icon" @click="showDeleteConfirmation(token)" title="Hapus Token" :disabled="token.id === 'DATA_KOIN'">
-                    <i class="bi bi-trash-fill"></i>
-                  </button>
-                </div>
-              </td>
+              </td> 
             </tr>
           </tbody>
         </table>
@@ -984,7 +958,7 @@ const ManagementTab = {
               </p>
             </div>
             <div class="modal-footer py-2">
-              <button type="button" class="btn btn-sm btn-outline-danger" @click="closeDeleteModal">Batal</button>
+              <button type="button" class="btn btn-sm btn-info" @click="closeDeleteModal">Batal</button>
               <button type="button" class="btn btn-sm btn-danger" @click="confirmDelete">
                 <i class="bi bi-trash-fill me-1"></i>Hapus Token
               </button>
@@ -1008,7 +982,7 @@ const ManagementTab = {
               <div class="row g-4">
                 <!-- Kolom Kiri -->
                 <div class="col-lg-5" :style="$root.getColorStyles('chain', $root.activeChain, 'soft-bg')">
-                  <h6 class="mb-3 fw-bold"><i class="bi bi-coin me-2"></i>1. Informasi Dasar Token</h6>
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-coin me-2"></i>Informasi Dasar Token</h6>
                   <div class="mb-3">
                     <label class="form-label small fw-semibold">Nama Token <span v-if="formMode === 'add'" class="text-danger">*</span></label>
                     <input type="text" class="form-control form-control-sm" v-model="formData.tokenData.name" placeholder="Contoh: PancakeSwap">
@@ -1025,17 +999,20 @@ const ManagementTab = {
 
                   <hr class="my-3">
 
-                  <h6 class="mb-3 fw-bold"><i class="bi bi-building me-2"></i>2. Konfigurasi CEX</h6>
-                  <div class="p-3 border rounded bg-light">
-                    <label class="form-label small fw-semibold mb-2">Pilih CEX & Ticker <span v-if="formMode === 'add'" class="text-danger">*</span></label>
-                    <div class="vstack gap-2">
-                      <div v-for="cex in activeCEXs" :key="'form-cex-wrap-' + cex" class="d-flex align-items-center gap-2">
-                        <div class="form-check flex-grow-1">
-                          <input class="form-check-input" type="checkbox" :id="'form-cex-' + cex" :value="cex" v-model="formData.selectedCex" :disabled="formMode === 'edit' && editingToken.cex_name !== cex">
-                        </div>
-                        <div class="input-group input-group-sm"  >
-                          <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
-                          <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" placeholder="BTC_USDT" style="text-transform: uppercase;" :disabled="!formData.selectedCex.includes(cex)">
+                  <!-- REVISI: Sembunyikan bagian ini saat mode edit -->
+                  <div v-if="formMode === 'add'">
+                    <h6 class="mb-3 fw-bold"><i class="bi bi-building me-2"></i>Konfigurasi CEX</h6>
+                    <div class="p-3 border rounded bg-light">
+                      <label class="form-label small fw-semibold mb-2">Pilih CEX & Ticker <span class="text-danger">*</span></label>
+                      <div class="vstack gap-2">
+                        <div v-for="cex in activeCEXs" :key="'form-cex-wrap-' + cex" class="d-flex align-items-center gap-2">
+                          <div class="form-check flex-grow-1">
+                            <input class="form-check-input" type="checkbox" :id="'form-cex-' + cex" :value="cex" v-model="formData.selectedCex" :disabled="formMode === 'edit' && editingToken.cex_name !== cex">
+                          </div>
+                          <div class="input-group input-group-sm"  >
+                            <span class="input-group-text" :style="$root.getColorStyles('cex', cex, 'soft')">{{ cex }}</span>
+                            <input type="text" class="form-control" v-model="formData.cex_tickers[cex]" placeholder="BTC_USDT" style="text-transform: uppercase;" :disabled="!formData.selectedCex.includes(cex)">
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1044,7 +1021,7 @@ const ManagementTab = {
 
                 <!-- Kolom Kanan -->
                 <div class="col-lg-7" :style="$root.getColorStyles('chain', $root.activeChain, 'soft-bg')">
-                  <h6 class="mb-3 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>3. Konfigurasi Pair</h6>
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>Konfigurasi Pair</h6>
                   <div class="mb-2">
                     <label class="form-label small fw-semibold">Pilih Pair</label>
                     <select class="form-select form-select-sm" v-model="formData.selectedPairType">
@@ -1089,7 +1066,7 @@ const ManagementTab = {
                     </div>
 
 
-                  <h6 class="mb-3 fw-bold"><i class="bi bi-grid me-2"></i>4. Konfigurasi DEX</h6>
+                  <h6 class="mb-3 fw-bold"><i class="bi bi-grid me-2"></i>Konfigurasi DEX</h6>
                   <div class="p-3 border rounded">
                     <div class="vstack gap-2">
                       <div v-for="dex in availableDexOptions" :key="'form-dex-' + dex.key" 
@@ -1124,7 +1101,7 @@ const ManagementTab = {
               </div> <!-- end row -->
             </div>
             <div class="modal-footer py-2">
-              <button type="button" class="btn btn-sm btn-outline-secondary" 
+              <button type="button" class="btn btn-sm btn-secondary" 
                       :style="$root.getColorStyles('chain', $root.activeChain, 'outline')" 
                       @click="closeFormModal">Batal</button>
               <button type="button" class="btn btn-sm btn-primary" 

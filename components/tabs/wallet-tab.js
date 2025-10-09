@@ -2,7 +2,7 @@
 
 const WalletTab = {
   name: 'WalletTab',
-  emits: ['show-toast', 'copy-to-clipboard'],
+  emits: ['show-toast'],
 
   data() {
     return {
@@ -10,7 +10,8 @@ const WalletTab = {
       selectedCEXs: [],
       isChecking: false,
       fetchProgress: 0,
-      fetchedCoinData: {} // { CEX_KEY: { count: Number, error: String, disabledCoins: Array } }
+      fetchedCoinData: {}, // { CEX_KEY: { count, updated, coinsInDB, problematicCoins, perChain, error } }
+      selectedChains: []
     };
   },
 
@@ -29,11 +30,33 @@ const WalletTab = {
         .filter(key => this.globalSettings.config_cex[key].status);
     },
 
+    availableChainKeys() {
+      const chainKeys = Object.keys(this.chainConfig || {});
+      if (!this.globalSettings || !this.globalSettings.config_chain) {
+        return chainKeys;
+      }
+      const activeKeys = Object.keys(this.globalSettings.config_chain)
+        .filter(key => this.globalSettings.config_chain[key]?.status)
+        .map(key => this.normalizeChainKey(key))
+        .filter(key => chainKeys.includes(key));
+      return activeKeys.length ? activeKeys : chainKeys;
+    },
+
+    chainOptions() {
+      return this.availableChainKeys.map(chainKey => ({
+        key: chainKey,
+        label: this.getChainLabel(chainKey)
+      }));
+    },
+
     chainKeysToShow() {
       if (this.activeChain === 'multi') {
-        return Object.keys(this.chainConfig);
+        if (!this.selectedChains.length) return this.availableChainKeys;
+        const selectedSet = new Set(this.selectedChains.map(chain => this.normalizeChainKey(chain)));
+        return this.availableChainKeys.filter(key => selectedSet.has(key));
       }
-      return this.chainConfig[this.activeChain] ? [this.activeChain] : [];
+      const normalized = this.normalizeChainKey(this.activeChain);
+      return normalized ? [normalized] : [];
     },
 
     walletCards() {
@@ -42,11 +65,12 @@ const WalletTab = {
 
       // REVISI: Hanya tampilkan CEX yang aktif di SETTING_GLOBAL
       return this.activeCEXKeys.map(cexKey => {
-        const cexData = this.cexConfig[cexKey];
+        // FIX: Convert to uppercase untuk match dengan cexConfig keys
+        const cexData = this.cexConfig[cexKey.toUpperCase()];
         if (!cexData) return null;
 
         const chainEntries = chainKeys.reduce((entries, chainKey) => {
-          const walletInfo = cexData.WALLETS?.[chainKey];
+          const walletInfo = cexData.WALLETS?.[chainKey.toLowerCase()]; // FIX: Gunakan lowercase key
           if (!walletInfo) return entries;
 
           const addresses = Object.entries(walletInfo)
@@ -60,8 +84,8 @@ const WalletTab = {
           if (addresses.length === 0) return entries;
 
           entries.push({
-            chainKey,
-            chainLabel: chainConfig[chainKey]?.NAMA_CHAIN?.toUpperCase() || chainKey.toUpperCase(),
+            chainKey: chainKey.toLowerCase(), // Pastikan chainKey konsisten lowercase
+            chainLabel: chainConfig[chainKey.toLowerCase()]?.NAMA_CHAIN?.toUpperCase() || chainKey.toUpperCase(),
             addresses
           });
           return entries;
@@ -86,13 +110,51 @@ const WalletTab = {
         this.selectedCEXs = this.selectedCEXs.filter(key => availableKeys.includes(key));
       }
     },
-    activeChain() {
+    activeChain(newChain) {
       this.walletStatusMessage = 'Siap cek dompet';
       this.fetchedCoinData = {}; // Reset hasil saat ganti chain
+      this.fetchProgress = 0;
+      if (newChain === 'multi') {
+        this.selectedChains = [...this.availableChainKeys];
+      } else {
+        this.selectedChains = [];
+      }
+    },
+    availableChainKeys: {
+      immediate: true,
+      handler(newKeys) {
+        if (this.activeChain !== 'multi') return;
+        const allowed = new Set(newKeys);
+        this.selectedChains = this.selectedChains.filter(key => allowed.has(key));
+        if (!this.selectedChains.length) {
+          this.selectedChains = [...newKeys];
+        }
+      }
+    },
+    selectedChains() {
+      if (this.activeChain === 'multi') {
+        this.fetchedCoinData = {};
+        this.walletStatusMessage = 'Siap cek dompet';
+        this.fetchProgress = 0;
+      }
     }
   },
 
   methods: {
+    normalizeChainKey(chainKey) {
+      return (chainKey || '').toString().toLowerCase();
+    },
+    getChainLabel(chainKey) {
+      const normalized = this.normalizeChainKey(chainKey);
+      return this.chainConfig[normalized]?.NAMA_CHAIN?.toUpperCase() || normalized.toUpperCase();
+    },
+    selectAllChains() {
+      if (!this.availableChainKeys.length) return;
+      this.selectedChains = [...this.availableChainKeys];
+    },
+    clearSelectedChains() {
+      this.selectedChains = [];
+    },
     formatAddressLabel(rawKey) {
       if (!rawKey) return 'ADDRESS';
       const key = rawKey.toString();
@@ -129,7 +191,31 @@ const WalletTab = {
         color: info.color
       };
     },
-    copyAddress(address) { this.$emit('copy-to-clipboard', address, 'Alamat'); },
+    async copyAddress(address) {
+      if (!address) {
+        return;
+      }
+
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(address);
+        } else {
+          const tempInput = document.createElement('textarea');
+          tempInput.value = address;
+          tempInput.style.position = 'fixed';
+          tempInput.style.opacity = '0';
+          document.body.appendChild(tempInput);
+          tempInput.focus();
+          tempInput.select();
+          document.execCommand('copy');
+          document.body.removeChild(tempInput);
+        }
+        this.$emit('show-toast', 'Alamat dompet berhasil disalin.', 'success');
+      } catch (error) {
+        console.error('Gagal menyalin alamat dompet:', error);
+        this.$emit('show-toast', 'Gagal menyalin alamat dompet.', 'danger');
+      }
+    },
 
     // Helper untuk normalisasi status (diambil dari sync-tab.js)
     normalizeFlag(value) {
@@ -180,6 +266,17 @@ const WalletTab = {
         return;
       }
 
+      let chainsToProcess = this.activeChain === 'multi'
+        ? (this.selectedChains.length ? Array.from(new Set(this.selectedChains.map(chain => this.normalizeChainKey(chain)))) : [])
+        : [this.normalizeChainKey(this.activeChain)];
+
+      chainsToProcess = chainsToProcess.filter(chain => !!chain);
+
+      if (this.activeChain === 'multi' && chainsToProcess.length === 0) {
+        this.$emit('show-toast', 'Pilih minimal satu chain sebelum mengeksekusi pengecekan.', 'warning');
+        return;
+      }
+
       if (!window.CheckWalletExchanger) {
         this.$emit('show-toast', 'Modul CheckWalletExchanger tidak ditemukan.', 'danger');
         return;
@@ -187,146 +284,165 @@ const WalletTab = {
 
       this.isChecking = true;
       this.fetchProgress = 0;
-      this.fetchedCoinData = {}; // Kosongkan hasil sebelumnya
+      this.fetchedCoinData = {};
       const names = this.selectedCEXs.map(key => key.toUpperCase()).join(', ');
       const totalCEX = this.selectedCEXs.length;
       this.walletStatusMessage = `Mengecek: ${names}...`;
       this.$emit('show-toast', `Memulai pengecekan data koin untuk: ${names}`, 'info');
 
-      // Build secrets object dari config CEX
       const secrets = this.buildSecretsFromConfig();
       const fetcher = new CheckWalletExchanger(secrets, this.$root.config, window.Http);
-      const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
+
+      const totalJobs = Math.max(totalCEX * chainsToProcess.length, 1);
+      let jobIndex = 0;
 
       for (let i = 0; i < this.selectedCEXs.length; i++) {
         const cex = this.selectedCEXs[i];
-        try {
-          // 1. Fetch coin list dari CEX
-          this.walletStatusMessage = `Mengambil data dari ${cex}... (${i + 1}/${totalCEX})`;
-          this.fetchProgress = Math.round(((i / totalCEX) * 100));
-          const coinList = await fetcher.fetchCoinList(cex, this.activeChain);
+        const upperCex = cex.toUpperCase();
 
-          // REVISI: Buat map dari hasil fetch API untuk memudahkan pencarian status pair.
-          // Key: Symbol (uppercase), Value: Objek koin dari API
-          const apiCoinMap = new Map();
-          coinList.forEach(fetchedCoin => {
-            const symbol = String(fetchedCoin.nama_token || fetchedCoin.symbol || '').toUpperCase();
-            if (symbol) apiCoinMap.set(symbol, fetchedCoin);
-          });
+        const aggregatedResult = {
+          count: 0,
+          updated: 0,
+          coinsInDB: [],
+          problematicCoins: [],
+          perChain: {},
+          error: null
+        };
 
-          // 2. Load semua koin dari tabel KOIN
-          this.walletStatusMessage = `Memeriksa tabel KOIN_${this.activeChain}... (${i + 1}/${totalCEX})`;
-          this.fetchProgress = Math.round(((i + 0.3) / totalCEX) * 100);
-          const allCoinsInDB = await DB.getAllData(storeName);
+        for (const chainKeyRaw of chainsToProcess) {
+          const chainKey = this.normalizeChainKey(chainKeyRaw);
+          const chainLabel = this.getChainLabel(chainKey);
 
-          // 3. Proses setiap koin dari CEX
-          this.walletStatusMessage = `Memproses ${allCoinsInDB.length} koin dari database... (${i + 1}/${totalCEX})`;
-          this.fetchProgress = Math.round(((i + 0.5) / totalCEX) * 100);
-          let updatedCount = 0;
-          const coinsInDB = []; // Semua koin yang ada di DB
-          const problematicCoins = []; // Koin yang ada di DB dan bermasalah
+          this.walletStatusMessage = `Mengambil data ${upperCex} (${chainLabel})... (${i + 1}/${totalCEX})`;
+          this.fetchProgress = Math.round((jobIndex / totalJobs) * 100);
 
-          // REVISI: Tambahkan Set untuk melacak koin yang sudah ditambahkan ke daftar tampilan
-          // untuk mencegah duplikasi. Kunci bisa berupa sc_token atau nama_token.
-          const displayedCoinsTracker = new Set();
+          try {
+            const coinList = await fetcher.fetchCoinList(cex, chainKey);
+            aggregatedResult.count += coinList.length;
 
-          // REVISI: Iterasi melalui SEMUA koin di database, bukan hasil API.
-          // Ini memastikan semua record di-update, bahkan jika token utamanya tidak muncul di API.
-          for (const coinInDB of allCoinsInDB) {
-            if (coinInDB.id === 'DATA_KOIN') continue; // Skip snapshot
+            const apiCoinMap = new Map();
+            coinList.forEach(fetchedCoin => {
+              const symbol = String(fetchedCoin.nama_token || fetchedCoin.symbol || '').toUpperCase();
+              if (symbol) apiCoinMap.set(symbol, fetchedCoin);
+            });
 
-            const upperCex = String(cex).toUpperCase();
-            
-            // Hanya proses jika record ini memiliki data untuk CEX yang sedang dicek
-            if ((coinInDB.cex_name || '').toUpperCase() !== upperCex) continue;
+            const storeName = DB.getStoreNameByChain('KOIN', chainKey);
+            const allCoinsInDB = await DB.getAllData(storeName);
 
-            // 1. Cari status untuk TOKEN UTAMA dari hasil API
-            const tokenSymbol = String(coinInDB.nama_token || '').toUpperCase();
-            const tokenDataFromApi = apiCoinMap.get(tokenSymbol);
+            this.walletStatusMessage = `Memproses ${allCoinsInDB.length} koin (${chainLabel})... (${i + 1}/${totalCEX})`;
 
-            let hasDepositToken = false;
-            let hasWithdrawToken = false;
-            let isProblematic = true;
+            let updatedCount = 0;
+            const coinsInDB = [];
+            const problematicCoins = [];
+            const displayedCoinsTracker = new Set();
 
-            if (tokenDataFromApi) {
-              hasDepositToken = this.hasDeposit(tokenDataFromApi);
-              hasWithdrawToken = this.hasWithdraw(tokenDataFromApi);
-              isProblematic = !hasDepositToken || !hasWithdrawToken;
+            for (const coinInDB of allCoinsInDB) {
+              if (coinInDB.id === 'DATA_KOIN') continue;
+              if ((coinInDB.cex_name || '').toUpperCase() !== upperCex) continue;
 
-              // Update status TOKEN UTAMA
-              coinInDB.cex_deposit_status = hasDepositToken;
-              coinInDB.cex_withdraw_status = hasWithdrawToken;
-              coinInDB.cex_fee_wd = tokenDataFromApi.feeWD ?? tokenDataFromApi.withdrawFee ?? coinInDB.cex_fee_wd ?? null;
-            } else {
-              // Jika token utama tidak ditemukan di API, set statusnya ke false
-              coinInDB.cex_deposit_status = false;
-              coinInDB.cex_withdraw_status = false;
+              const tokenSymbol = String(coinInDB.nama_token || '').toUpperCase();
+              const pairSymbol = String(coinInDB.nama_pair || '').toUpperCase();
+              const tokenDataFromApi = apiCoinMap.get(tokenSymbol);
+              const pairDataFromApi = apiCoinMap.get(pairSymbol);
+
+              let hasDepositToken = false;
+              let hasWithdrawToken = false;
+              let isProblematic = true;
+
+              if (tokenDataFromApi) {
+                hasDepositToken = this.hasDeposit(tokenDataFromApi);
+                hasWithdrawToken = this.hasWithdraw(tokenDataFromApi);
+                isProblematic = !hasDepositToken || !hasWithdrawToken;
+                coinInDB.cex_deposit_status = hasDepositToken;
+                coinInDB.cex_withdraw_status = hasWithdrawToken;
+                coinInDB.cex_fee_wd = tokenDataFromApi.feeWD ?? tokenDataFromApi.withdrawFee ?? coinInDB.cex_fee_wd ?? null;
+              } else {
+                coinInDB.cex_deposit_status = false;
+                coinInDB.cex_withdraw_status = false;
+              }
+
+              if (pairDataFromApi) {
+                coinInDB.cex_pair_deposit_status = this.hasDeposit(pairDataFromApi);
+                coinInDB.cex_pair_withdraw_status = this.hasWithdraw(pairDataFromApi);
+              } else {
+                coinInDB.cex_pair_deposit_status = false;
+                coinInDB.cex_pair_withdraw_status = false;
+              }
+
+              coinInDB.updatedAt = new Date().toISOString();
+              await DB.saveData(storeName, coinInDB);
+              updatedCount++;
+
+              const coinDataForDisplay = {
+                nama_koin: coinInDB.nama_koin || tokenSymbol,
+                nama_token: tokenSymbol,
+                cex_ticker_token: coinInDB.cex_ticker_token || '',
+                sc_token: coinInDB.sc_token,
+                deposit: hasDepositToken,
+                withdraw: hasWithdrawToken,
+                isProblematic,
+                chainKey,
+                chainLabel
+              };
+
+              const displayKey = `${chainKey}:${coinDataForDisplay.sc_token || coinDataForDisplay.nama_token}`;
+              if (displayKey && !displayedCoinsTracker.has(displayKey)) {
+                coinsInDB.push(coinDataForDisplay);
+                if (isProblematic) {
+                  problematicCoins.push(coinDataForDisplay);
+                }
+                displayedCoinsTracker.add(displayKey);
+              }
             }
 
-            // 2. Cari status untuk PAIR dari hasil API
-            const pairSymbol = String(coinInDB.nama_pair || '').toUpperCase();
-            const pairDataFromApi = apiCoinMap.get(pairSymbol);
-
-            if (pairDataFromApi) {
-              // Update status PAIR
-              coinInDB.cex_pair_deposit_status = this.hasDeposit(pairDataFromApi);
-              coinInDB.cex_pair_withdraw_status = this.hasWithdraw(pairDataFromApi);
-            } else {
-              // Jika pair tidak ditemukan di API, set statusnya ke false
-              coinInDB.cex_pair_deposit_status = false;
-              coinInDB.cex_pair_withdraw_status = false;
-            }
-
-            // 3. Update timestamp dan simpan ke DB
-            coinInDB.updatedAt = new Date().toISOString();
-            await DB.saveData(storeName, coinInDB);
-            updatedCount++;
-
-            // 4. Siapkan data untuk ditampilkan di tabel hasil
-            const coinDataForDisplay = {
-              nama_koin: coinInDB.nama_koin || tokenSymbol,
-              nama_token: tokenSymbol,
-              cex_ticker_token: coinInDB.cex_ticker_token || '', // REVISI: Tambahkan ticker CEX
-              sc_token: coinInDB.sc_token,
-              deposit: hasDepositToken,
-              withdraw: hasWithdrawToken,
-              isProblematic: isProblematic
+            aggregatedResult.updated += updatedCount;
+            aggregatedResult.coinsInDB.push(...coinsInDB);
+            aggregatedResult.problematicCoins.push(...problematicCoins);
+            aggregatedResult.perChain[chainKey] = {
+              chainKey,
+              chainLabel,
+              count: coinList.length,
+              updated: updatedCount,
+              coinsInDB,
+              problematicCoins,
+              error: null
             };
 
-            // REVISI: Cek duplikasi sebelum menambahkan ke daftar tampilan.
-            const displayKey = coinDataForDisplay.sc_token || coinDataForDisplay.nama_token;
-            if (displayKey && !displayedCoinsTracker.has(displayKey)) {
-              coinsInDB.push(coinDataForDisplay);
-              if (isProblematic) {
-                problematicCoins.push(coinDataForDisplay);
-              }
-              // Tandai koin ini sudah ditampilkan
-              displayedCoinsTracker.add(displayKey);
-            }
+            this.$emit('show-toast', `✓ ${upperCex} (${chainLabel}): ${coinList.length} koin dari API, ${coinsInDB.length} ada di DB, ${problematicCoins.length} bermasalah`, 'success');
+          } catch (error) {
+            const message = error?.message || 'Gagal mengambil data';
+            this.walletStatusMessage = `Gagal mengambil data ${upperCex} (${chainLabel}): ${message}`;
+            aggregatedResult.perChain[chainKey] = {
+              chainKey,
+              chainLabel,
+              count: 0,
+              updated: 0,
+              coinsInDB: [],
+              problematicCoins: [],
+              error: message
+            };
+            aggregatedResult.error = aggregatedResult.error
+              ? `${aggregatedResult.error}; ${chainLabel}: ${message}`
+              : `${chainLabel}: ${message}`;
+            this.$emit('show-toast', `✗ ${upperCex} (${chainLabel}): ${message}`, 'danger');
+          } finally {
+            jobIndex += 1;
+            this.fetchProgress = Math.round((jobIndex / totalJobs) * 100);
           }
-
-          // 4. Simpan hasil
-          this.fetchProgress = Math.round(((i + 1) / totalCEX) * 100);
-          this.fetchedCoinData[cex] = {
-            count: coinList.length,
-            updated: updatedCount,
-            coinsInDB: coinsInDB, // Semua koin yang ada di DB
-            problematicCoins: problematicCoins, // Koin bermasalah yang ada di DB
-            error: null
-          };
-
-          this.$emit('show-toast', `✓ ${cex}: ${coinList.length} koin dari API, ${coinsInDB.length} ada di DB, ${problematicCoins.length} bermasalah`, 'success');
-        } catch (error) {
-          console.error(`Gagal mengambil data untuk ${cex}:`, error);
-          this.fetchedCoinData[cex] = {
-            count: 0,
-            updated: 0,
-            coinsInDB: [],
-            problematicCoins: [],
-            error: error.message || 'Gagal mengambil data'
-          };
-          this.$emit('show-toast', `✗ ${cex}: ${error.message || 'Error'}`, 'danger');
         }
+
+        aggregatedResult.coinsInDB.sort((a, b) => {
+          const chainCompare = (a.chainLabel || '').localeCompare(b.chainLabel || '');
+          if (chainCompare !== 0) return chainCompare;
+          return (a.nama_token || '').localeCompare(b.nama_token || '');
+        });
+        aggregatedResult.problematicCoins.sort((a, b) => {
+          const chainCompare = (a.chainLabel || '').localeCompare(b.chainLabel || '');
+          if (chainCompare !== 0) return chainCompare;
+          return (a.nama_token || '').localeCompare(b.nama_token || '');
+        });
+
+        this.fetchedCoinData[cex] = aggregatedResult;
       }
 
       this.isChecking = false;
@@ -339,6 +455,9 @@ const WalletTab = {
     // Ini memastikan pengguna tidak melihat data usang dari sesi sebelumnya.
     this.fetchedCoinData = {};
     this.walletStatusMessage = 'Siap cek dompet';
+    if (this.activeChain === 'multi' && this.selectedChains.length === 0) {
+      this.selectedChains = [...this.availableChainKeys];
+    }
   },
 
   template: `
@@ -378,11 +497,39 @@ const WalletTab = {
           <div class="col-12 col-lg-auto text-lg-end">
             <div class="d-grid d-sm-inline-flex justify-content-sm-end">
               <button class="btn btn-sm btn-success" @click="handleCheckWallets"
-                      :disabled="totalSelected === 0 || isChecking">
+                      :disabled="totalSelected === 0 || isChecking || (activeChain === 'multi' && selectedChains.length === 0)">
                 <i class="bi bi-arrow-repeat"></i>
                 Cek Data Koin ({{ totalSelected }})
               </button>
             </div>
+          </div>
+        </div>
+        <div v-if="activeChain === 'multi'" class="mt-2 pt-2 border-top">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small fw-semibold text-uppercase text-muted">
+              Pilih Chain:
+            </span>
+            <div class="d-flex flex-wrap gap-2">
+              <label
+                v-for="chain in chainOptions"
+                :key="'wallet-chain-option-' + chain.key"
+                class="form-check form-check-inline small mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  :value="chain.key"
+                  v-model="selectedChains"
+                  :disabled="isChecking">
+                <span class="form-check-label">{{ chain.label }}</span>
+              </label>
+            </div>
+            <div class="d-flex gap-1 ms-auto">
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="selectAllChains" :disabled="isChecking || !chainOptions.length">Semua</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="clearSelectedChains" :disabled="isChecking">Kosongkan</button>
+            </div>
+          </div>
+          <div v-if="selectedChains.length === 0" class="text-danger small mt-1">
+            Pilih minimal satu chain untuk mengecek data exchanger.
           </div>
         </div>
       </div>
@@ -455,17 +602,21 @@ const WalletTab = {
                            <thead class="table-dark sticky-top">
                               <!-- REVISI: Tambahkan kolom Ticker CEX -->
                              <tr>
-                               <th style="width: 25%;">Nama Koin</th>
+                               <th style="width: 20%;">Nama Koin</th>
+                               <th style="width: 12%;">Chain</th>
                                <th style="width: 15%;">Nama Token</th>
                                <th style="width: 15%;">Ticker CEX</th>
-                               <th style="width: 25%;">Smart Contract</th>
-                               <th class="text-center" style="width: 10%;">Deposit</th>
-                               <th class="text-center" style="width: 10%;">Withdraw</th>
+                               <th style="width: 23%;">Smart Contract</th>
+                               <th class="text-center" style="width: 7%;">Deposit</th>
+                               <th class="text-center" style="width: 8%;">Withdraw</th>
                              </tr>
                            </thead>
                            <tbody>
                              <tr v-for="coin in fetchedCoinData[card.key].coinsInDB" :key="coin.sc_token || coin.nama_token" :class="{ 'table-warning': coin.isProblematic }">
                                <td class="fw-semibold">{{ coin.nama_koin || coin.symbol }}</td>
+                               <td>
+                                 <span class="badge bg-light text-dark border">{{ coin.chainLabel || coin.chainKey?.toUpperCase() }}</span>
+                               </td>
                                <td class="text-primary">{{ coin.nama_token }}</td>
                                <td class="fw-bold">{{ coin.cex_ticker_token }}</td>
                                <td class="text-truncate font-monospace small" :title="coin.sc_token">
@@ -493,17 +644,21 @@ const WalletTab = {
                            <thead class="table-dark sticky-top">
                               <!-- REVISI: Tambahkan kolom Ticker CEX -->
                              <tr>
-                               <th style="width: 25%;">Nama Koin</th>
+                               <th style="width: 20%;">Nama Koin</th>
+                               <th style="width: 12%;">Chain</th>
                                <th style="width: 15%;">Nama Token</th>
                                <th style="width: 15%;">Ticker CEX</th>
-                               <th style="width: 25%;">Smart Contract</th>
-                               <th class="text-center" style="width: 10%;">Deposit</th>
-                               <th class="text-center" style="width: 10%;">Withdraw</th>
+                               <th style="width: 23%;">Smart Contract</th>
+                               <th class="text-center" style="width: 7%;">Deposit</th>
+                               <th class="text-center" style="width: 8%;">Withdraw</th>
                              </tr>
                            </thead>
                            <tbody>
                              <tr v-for="coin in fetchedCoinData[card.key].problematicCoins" :key="coin.sc_token || coin.nama_token" class="table-warning">
                                <td class="fw-semibold">{{ coin.nama_koin || coin.symbol }}</td>
+                               <td>
+                                 <span class="badge bg-light text-dark border">{{ coin.chainLabel || coin.chainKey?.toUpperCase() }}</span>
+                               </td>
                                <td class="text-primary">{{ coin.nama_token }}</td>
                                <td class="fw-bold">{{ coin.cex_ticker_token }}</td>
                                <td class="text-truncate font-monospace small" :title="coin.sc_token">
@@ -532,17 +687,18 @@ const WalletTab = {
           </div>
         </div>
       </div>
+      <div v-else-if="activeChain === 'multi' && selectedChains.length === 0" class="alert alert-warning text-center py-4">
+        <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+        <span class="fw-semibold">Pilih minimal satu chain untuk menampilkan dompet exchanger.</span>
+      </div>
 
       <div v-else class="text-center py-5 text-muted">
           <i class="bi bi-inbox fs-1"></i>
           <h6 v-if="activeCEXKeys.length === 0">Tidak ada CEX yang aktif</h6>
-          <h6 v-else>Tidak ada data dompet untuk chain ini</h6>
+          <h6 v-else>Tidak ada data Exchanger untuk chain ini</h6>
           <p class="mb-0" v-if="activeCEXKeys.length === 0">
             Aktifkan minimal 1 CEX di <strong>Setting Global</strong> untuk melihat daftar dompet exchanger.
-          </p>
-          <p class="mb-0" v-else>
-            Pilih chain lain atau pastikan wallet address sudah dikonfigurasi di <code>config_app.js</code>
-          </p>
+          </p> 
       </div>
     </div>
   `

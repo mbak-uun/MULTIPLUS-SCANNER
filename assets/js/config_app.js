@@ -3,8 +3,8 @@
 
 const KONFIG_APLIKASI = {
   "APP": {
-    "NAME": "MULTIPLUS SCANNER",  // Nama aplikasi  
-    "VERSION": "1.2",           // Versi aplikasi
+    "NAME": "MULTIPLUS-CHATGPT",  // Nama aplikasi  
+    "VERSION": "1.4",           // Versi aplikasi
   },
   "DEXS": {
     "flytrade": {
@@ -465,5 +465,49 @@ const KONFIG_APLIKASI = {
   "TELEGRAM": {
     "BOT_TOKEN": "7853809693:AAHl8e_hjRyLgbKQw3zoUSR_aqCbGDg6nHo",
     "CHAT_ID": "-1002079288809"
+  },
+
+  // Scanning Delays Configuration - DEFAULT VALUES ONLY
+  // CATATAN PENTING:
+  // - Nilai di sini hanya DEFAULT awal, bukan final value
+  // - User dapat mengubah via Global Settings Form
+  // - Settings user disimpan di IndexedDB dan diprioritaskan
+  // - Prioritas: globalSettings (IndexedDB) > config_app.js (default)
+  "SCANNING_DELAYS": {
+    // Level 1: Batch/Group - Jeda antar grup token
+    "jedaTimeGroup": 2000,           // DEFAULT: 2000ms (range: 1500-3000ms)
+
+    // Level 2: Token - Stagger antar token dalam batch untuk menghindari rate limit
+    "jedaKoin": 500,                 // DEFAULT: 500ms (range: 300-1000ms)
+
+    // Level 3: CEX - Jeda per CEX setelah fetch orderbook (per-CEX configuration)
+    // CATATAN: User dapat override via Global Settings Form (config_cex[].jeda)
+    "JedaCexs": {
+      "BINANCE": 300,                // DEFAULT: 300ms
+      "GATE": 200,                   // DEFAULT: 200ms
+      "MEXC": 250,                   // DEFAULT: 250ms
+      "KUCOIN": 300,                 // DEFAULT: 300ms
+      "BITGET": 250,                 // DEFAULT: 250ms
+      "BYBIT": 300,                  // DEFAULT: 300ms
+      "INDODAX": 400                 // DEFAULT: 400ms
+    },
+
+    // Level 4: DEX - Jeda per DEX setelah fetch quote (per-DEX configuration)
+    // CATATAN: User dapat override via Global Settings Form (config_dex[].jeda)
+    "JedaDexs": {
+      "odos": 800,                   // DEFAULT: 800ms
+      "1inch": 600,                  // DEFAULT: 600ms
+      "kyber": 400,                  // DEFAULT: 400ms
+      "0x": 500,                     // DEFAULT: 500ms
+      "okxdex": 700,                 // DEFAULT: 700ms
+      "para": 500,                   // DEFAULT: 500ms
+      "flytrade": 400                // DEFAULT: 400ms
+    },
+
+    // Default fallback - Jika tidak ada konfigurasi spesifik
+    "jedaPerAnggota": 200,           // DEFAULT: 200ms (range: 100-500ms)
+
+    // Watchdog timeout untuk DEX call (dalam ms)
+    "dexTimeout": 10000              // DEFAULT: 10000ms (range: 5000-15000ms)
   }
 };

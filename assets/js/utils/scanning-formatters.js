@@ -163,7 +163,10 @@ const ScanningFormatters = {
       isScanning = false,
       cexBuyLink = '#',
       cexSellLink = '#',
-      dexLink = '#'
+      dexLink = '#',
+      dexLabel = '',
+      dexKey = '',
+      dexStatus = null
     } = resolvedOptions || {};
 
     const formatUsd = (value) => {
@@ -175,6 +178,14 @@ const ScanningFormatters = {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       })}`;
+    };
+
+    const formatModalValue = (value) => {
+      if (value === undefined || value === null || Number.isNaN(value)) return '-';
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return '-';
+      const rounded = Math.round(numeric);
+      return `$${rounded.toLocaleString('en-US', { useGrouping: false })}`;
     };
 
     const escapeHtml = (text) => {
@@ -195,30 +206,70 @@ const ScanningFormatters = {
       }
       return `<a href="${escapeAttr(url)}" target="_blank" rel="noopener" class="text-decoration-none ${classNames}">${safeText}</a>`;
     };
-    // Loading state - data belum tersedia
-    if (pnlData === null || pnlData === undefined) {
-      // Tampilkan modal dari database saat loading
-      const initialModal = Number(modalUsd);
-      const modalDisplay = Number.isFinite(initialModal) && initialModal > 0
-        ? `<div class="text-muted small mb-1">${formatUsd(initialModal)}</div>`
-        : '';
 
-      return `<div class="scanning-dex-cell text-center">
-        ${modalDisplay}
-        <div class="text-muted small" title="${isScanning ? 'Menunggu hasil perhitungan DEX' : 'Tekan tombol START untuk memulai pemindaian'}">🔒</div>
+    const buildHeader = (modalValue) => {
+      const labelSource = dexLabel || dexKey || 'DEX';
+      const sanitizedLabel = escapeHtml(String(labelSource).toUpperCase());
+      const numericModal = Number(modalValue);
+      const hasModal = Number.isFinite(numericModal) && numericModal > 0;
+      const modalText = hasModal ? formatModalValue(numericModal) : '-';
+      return `<div class="scanning-dex-header">
+        <span class="scanning-dex-name">${sanitizedLabel}</span>
+        <span class="scanning-dex-modal">[${escapeHtml(modalText)}]</span>
+      </div>`;
+    };
+
+    const statusNormalized = typeof dexStatus === 'string' ? dexStatus.toLowerCase() : null;
+    const hasPnlData = !(pnlData === null || pnlData === undefined);
+    const isErrorState = statusNormalized === 'error' || (hasPnlData && pnlData.error);
+    const headerModalValue = hasPnlData && !isErrorState && pnlData?.modal != null
+      ? pnlData.modal
+      : modalUsd;
+
+    if (isErrorState) {
+      const errorTitle = hasPnlData
+        ? (typeof pnlData.error === 'string'
+            ? pnlData.error
+            : (pnlData.errorMessage || 'DEX Error'))
+        : 'Gagal memindai DEX';
+      const escapedTitle = escapeHtml(errorTitle);
+      return `<div   title="${escapedTitle}">
+        ${buildHeader(headerModalValue)}
+        <div class="scanning-dex-icon">
+          <i class="bi bi-exclamation-triangle-fill scanning-dex-error-icon"></i>
+        </div>
+        <div class="text-danger fw-semibold small mt-1">DEX Error</div>
       </div>`;
     }
 
-    // Error state
+    if (statusNormalized === 'loading' || (!hasPnlData && isScanning)) {
+      return `<div class="scanning-dex-cell scanning-dex-cell--loading small text-center" title="Memindai...">
+        ${buildHeader(headerModalValue)}
+        <div class="scanning-dex-icon">
+          <div class="spinner-border spinner-border-sm text-warning scanning-dex-spinner" role="status"></div>
+        </div>
+      </div>`;
+    }
+
+    if (!hasPnlData) {
+      return `<div class="scanning-dex-cell text-center">
+        ${buildHeader(headerModalValue)}
+        <div class="text-muted small" title="Tekan tombol START untuk memulai pemindaian">🔒</div>
+      </div>`;
+    }
+
+    // Error state sudah ditangani di atas, tetapi pastikan nilai error diabaikan
     if (pnlData.error) {
       const errorTitle = typeof pnlData.error === 'string'
         ? pnlData.error
         : (pnlData.errorMessage || 'DEX Error');
       const escapedTitle = escapeHtml(errorTitle);
-
-      return `<div class="scanning-dex-cell text-center">
-        <div class="text-danger fs-5" title="${escapedTitle}">⚠️</div>
-        <div class="text-danger small mt-1">${escapedTitle}</div>
+      return `<div class="scanning-dex-cell scanning-dex-cell--error small text-center" title="${escapedTitle}">
+        ${buildHeader(headerModalValue)}
+        <div class="scanning-dex-icon">
+          <i class="bi bi-exclamation-triangle-fill scanning-dex-error-icon"></i>
+        </div>
+        <div class="text-danger fw-semibold small mt-1">DEX Error</div>
       </div>`;
     }
 
@@ -244,34 +295,39 @@ const ScanningFormatters = {
     const pnlPrefix = pnl > 0 ? '+' : (pnl < 0 ? '-' : '');
     const pnlUsdAbs = Math.abs(pnl).toFixed(2);
 
-    const buyPriceBlock = renderTradeValue(cexBuyLink, buyPrice, 'scanning-dex-value d-block');
-    const outputBlock = renderTradeValue(dexLink, outputAmountFormatted, 'text-primary scanning-dex-value d-block');
-    const sellPriceBlock = renderTradeValue(cexSellLink, sellPrice, 'scanning-dex-value d-block');
+    const buyPriceBlock = renderTradeValue(cexBuyLink, buyPrice, 'scanning-dex-value text-success d-block fw-semibold');
+    const outputBlock = renderTradeValue(dexLink, outputAmountFormatted, 'text-primary scanning-dex-value d-block fw-semibold');
+    const sellPriceBlock = renderTradeValue(cexSellLink, sellPrice, 'scanning-dex-value text-danger d-block fw-semibold');
 
     // Tampilkan modal jika ada
     const modalRaw = (pnlData && pnlData.modal != null) ? pnlData.modal : modalUsd;
-    const modalValue = Number(modalRaw);
-    const modalDisplay = Number.isFinite(modalValue) && modalValue > 0
-      ? `<div class="text-muted small mb-1">${formatUsd(modalValue)}</div>`
-      : '';
 
     const pnlClass = pnl > 0
       ? 'scanning-dex-pnl scanning-dex-pnl--positive'
       : (pnl < 0 ? 'scanning-dex-pnl scanning-dex-pnl--negative' : 'scanning-dex-pnl scanning-dex-pnl--neutral');
 
-    const pnlLabel = pnlPrefix
-      ? `${pnlPrefix}${pnlUsdAbs}$ ${pnlPrefix}${pnlIdr}$`
-      : `${pnlUsdAbs}$ ${pnlIdr}$`;
+    const cellClass = pnl > 0
+      ? 'scanning-dex-cell scanning-dex-cell--positive small text-center'
+      : 'scanning-dex-cell small text-center';
+
+    const pnlUsdLabel = pnlPrefix ? `${pnlPrefix}${pnlUsdAbs}$` : `${pnlUsdAbs}$`;
+    const pnlIdrLabel = pnlPrefix ? `${pnlPrefix}${pnlIdr}$` : `${pnlIdr}$`;
 
     return `
-      <div class="scanning-dex-cell small text-center">
-        ${modalDisplay}
-        <div>${buyPriceBlock}</div>
-        <div>${outputBlock}</div>
-        <div>${sellPriceBlock}</div>
-        <div class="text-muted mt-1">FeeWD: ${feeWD}$</div>
-        <div class="text-muted">ALL: ${allFee}$ ${gasFee}$</div>
-        <div class="${pnlClass}">GT: ${pnlLabel}</div>
+      <div class="${cellClass}">
+        ${buildHeader(modalRaw)}
+        <div class="scanning-dex-line">${buyPriceBlock}</div>
+        <div class="scanning-dex-line">${outputBlock}</div>
+        <div class="scanning-dex-line">${sellPriceBlock}</div>
+        <div class="scanning-dex-line">
+          <span class="text-info fw-semibold">FeeWD:</span>
+          <span class="text-info fw-semibold ms-1">${feeWD}$</span>
+        </div>
+        <div class="scanning-dex-line">
+          <span class="text-danger fw-semibold">ALL: ${allFee}$</span>
+          <span class="text-primary fw-semibold ms-2">SW: ${gasFee}$</span>
+        </div>
+        <div class="${pnlClass}">GT: ${pnlUsdLabel} | PNL: ${pnlIdrLabel}</div>
       </div>
     `;
   },

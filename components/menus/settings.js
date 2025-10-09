@@ -23,18 +23,7 @@ const SettingsMenu = {
       </div>
 
       <form @submit.prevent="handleSaveSettings">
-        <!-- PERBAIKAN UX: Alert Petunjuk Wajib -->
-        <div class="alert alert-warning mb-3" role="alert">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-          <strong>Persyaratan Wajib:</strong>
-          <ul class="mb-0 mt-2">
-            <li>Isi <strong>Alamat Wallet</strong> (wajib untuk cek saldo)</li>
-            <li>Pilih minimal <strong>1 Chain</strong> (BSC/Polygon/Arbitrum/dll)</li>
-            <li>Pilih minimal <strong>1 CEX</strong> (Binance/Gate/MEXC/dll)</li>
-          </ul>
-          <small class="text-muted">💡 Tanpa ini, aplikasi tidak dapat berfungsi dengan baik.</small>
-        </div>
-
+        
         <div class="card card-soft">
           <div class="card-header">
             <i class="bi bi-gear-wide-connected text-dark me-2"></i>
@@ -65,17 +54,32 @@ const SettingsMenu = {
 
                     <hr class="my-3">
 
+                    <h6 class="fw-bold mb-3">
+                      <i class="bi bi-clock-history"></i> Konfigurasi Jeda Scanning
+                    </h6>
+
                     <div class="mb-3">
-                      <label class="form-label fw-bold">Jeda Time Group (ms) <span class="text-danger">[1500 s/d 3000]</span></label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaTimeGroup" min="0" required>
+                      <label class="form-label fw-bold">Jeda Antar Batch (ms) <span class="text-danger">[1500 s/d 3000]</span></label>
+                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaTimeGroup" min="1500" max="3000" required>
+                      <small class="form-text text-muted">Jeda antar grup/batch token. Rekomendasi: 2000ms</small>
                     </div>
+
                     <div class="mb-3">
-                      <label class="form-label fw-bold">Jeda Per Anggota (ms) <span class="text-danger">[500 s/d 1000]</span></label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaPerAnggota" min="0" required>
+                      <label class="form-label fw-bold">Jeda Stagger Token (ms) <span class="text-danger">[300 s/d 1000]</span></label>
+                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaKoin" min="300" max="1000" required>
+                      <small class="form-text text-muted">Stagger antar token dalam batch untuk avoid rate limit. Rekomendasi: 500ms</small>
                     </div>
+
+                    <div class="mb-3">
+                      <label class="form-label fw-bold">Jeda Default (ms) <span class="text-danger">[100 s/d 500]</span></label>
+                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaPerAnggota" min="100" max="500" required>
+                      <small class="form-text text-muted">Jeda default jika tidak ada config spesifik. Rekomendasi: 200ms</small>
+                    </div>
+
                     <div class="mb-2">
-                      <label class="form-label fw-bold">Waktu Tunggu (ms) <span class="text-danger">[3000 s/d 6000]</span></label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.WaktuTunggu" min="0" required>
+                      <label class="form-label fw-bold">Timeout DEX Call (ms) <span class="text-danger">[5000 s/d 15000]</span></label>
+                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.WaktuTunggu" min="5000" max="15000" required>
+                      <small class="form-text text-muted">Waktu tunggu maksimal untuk setiap DEX call. Rekomendasi: 10000ms</small>
                     </div>
                   </div>
                 </div>
@@ -87,7 +91,7 @@ const SettingsMenu = {
                 <div v-if="settingsForm.config_chain" class="card mb-3">
                     <div class="card-header py-2" :style="getColorStyles('chain', $parent.activeChain, 'solid')">
                       <h6 class="mb-0 fw-bold">
-                      <i class="bi bi-diagram-3"></i> Pilihan Chain
+                      <i class="bi bi-diagram-3"></i> Pilihan Chain <span class="text-danger">*</span>
                       <span class="badge bg-secondary ms-2">Min. 1</span>
                       </h6>
                     </div>
@@ -106,7 +110,7 @@ const SettingsMenu = {
                   <div class="col-lg-6">
                     <div v-if="settingsForm.config_cex" class="card h-100">
                       <div class="card-header py-2" :style="getColorStyles('chain', $parent.activeChain, 'solid')">
-                        <h6 class="mb-0 fw-bold"><i class="bi bi-currency-exchange"></i> Exchanger & Jeda <span class="badge bg-secondary ms-2">Min. 1</span></h6>
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-currency-exchange"></i> Exchanger & Jeda <span class="text-danger">*</span><span class="badge bg-secondary ms-2">Min. 1</span></h6>
                       </div>
                       <div class="card-body">
                         <div v-for="(config, key) in settingsForm.config_cex" :key="'cex-set-'+key" class="d-flex align-items-center gap-2 mb-2">
@@ -125,7 +129,7 @@ const SettingsMenu = {
                   <div class="col-lg-6">
                     <div v-if="settingsForm.config_dex" class="card h-100">
                       <div class="card-header py-2" :style="getColorStyles('chain', $parent.activeChain, 'solid')">
-                        <h6 class="mb-0 fw-bold"><i class="bi bi-x-diamond"></i> DEX & Jeda  <span class="badge bg-secondary ms-2">Min. 1</span></h6>
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-x-diamond"></i> DEX & Jeda  <span class="text-danger">*</span><span class="badge bg-secondary ms-2">Min. 1</span></h6>
                       </div>
                       <div class="card-body">
                         <div v-for="(config, key) in settingsForm.config_dex" :key="'dex-set-'+key" class="d-flex align-items-center gap-2 mb-2">

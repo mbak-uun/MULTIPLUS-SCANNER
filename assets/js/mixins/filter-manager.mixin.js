@@ -23,7 +23,9 @@ const filterManagerMixin = {
                 availableCEXs: [],
                 availableDEXs: [],
                 availablePairs: []
-            }
+            },
+            _pendingFilterInit: false,
+            _lastInitializedChain: null
         };
     },
 
@@ -68,8 +70,9 @@ const filterManagerMixin = {
         availableChainFilters() {
             if (!this.config || !this.config.CHAINS) return [];
             // Hanya tampilkan chain yang aktif di pengaturan global
+            // FIX: Case-insensitive comparison karena config_chain menggunakan lowercase key
             return Object.keys(this.config.CHAINS)
-                .filter(chainKey => this.globalSettings?.config_chain?.[chainKey]?.status === true);
+                .filter(chainKey => this.globalSettings?.config_chain?.[chainKey.toLowerCase()]?.status === true);
         },
 
         /**
@@ -93,8 +96,9 @@ const filterManagerMixin = {
         availableCEXFilters() {
             if (!this.config || !this.config.CEX) return [];
             // Hanya tampilkan CEX yang aktif di pengaturan global
+            // FIX: Case-insensitive comparison karena config_cex menggunakan lowercase key
             return Object.keys(this.config.CEX)
-                .filter(cexKey => this.globalSettings?.config_cex?.[cexKey]?.status === true);
+                .filter(cexKey => this.globalSettings?.config_cex?.[cexKey.toLowerCase()]?.status === true);
         },
 
         /**
@@ -118,8 +122,9 @@ const filterManagerMixin = {
         availableDEXFilters() {
             if (!this.config || !this.config.DEXS) return [];
             // Hanya tampilkan DEX yang aktif di pengaturan global
+            // FIX: Case-insensitive comparison karena config_dex menggunakan lowercase key
             return Object.keys(this.config.DEXS)
-                .filter(dexKey => this.globalSettings?.config_dex?.[dexKey]?.status === true);
+                .filter(dexKey => this.globalSettings?.config_dex?.[dexKey.toLowerCase()]?.status === true);
         },
 
         /**
@@ -195,40 +200,42 @@ const filterManagerMixin = {
             }
 
             try {
-                const storeName = DB.getStoreNameByChain('KOIN', this.activeChain);
-                const coins = await DB.getAllData(storeName);
+                const tokenSource = Array.isArray(this.$root?.allCoins) ? this.$root.allCoins : [];
 
-                // Get unique pairs that are used by coins
-                const usedPairs = new Set();
+                if (!tokenSource.length) {
+                    this._filterCache.availablePairs = [];
+                    return [];
+                }
 
-                coins.forEach(coin => {
-                    if (coin.id === 'DATA_KOIN') return; // Skip snapshot
+                const usedPairs = new Map();
+                const chainConfigs = this.config?.CHAINS || {};
 
-                    // Get pair symbol from coin
-                    const pairSymbol = coin.nama_pair || coin.sc_pair;
-                    if (pairSymbol) {
-                        usedPairs.add(pairSymbol);
-                    }
+                const resolveChainConfig = (chainKey) => {
+                    if (!chainKey) return null;
+                    const lower = chainKey.toLowerCase();
+                    return chainConfigs[lower] || chainConfigs[chainKey] || null;
+                };
+
+                tokenSource.forEach(token => {
+                    if (!token || token.id === 'DATA_KOIN') return;
+                    const rawPair = token.nama_pair || token.sc_pair;
+                    if (!rawPair) return;
+
+                    const normalizedPairKey = String(rawPair).toUpperCase();
+                    if (usedPairs.has(normalizedPairKey)) return;
+
+                    const chainConfig = resolveChainConfig(token.chainKey || token.chain);
+                    const pairConfig = chainConfig?.PAIR_DEXS?.[normalizedPairKey];
+                    usedPairs.set(normalizedPairKey, {
+                        key: normalizedPairKey,
+                        symbol: pairConfig?.SYMBOL_PAIR || normalizedPairKey,
+                        address: pairConfig?.SC_ADDRESS_PAIR || '',
+                        decimals: pairConfig?.DECIMALS_PAIR || ''
+                    });
                 });
 
-                // Convert to array and match with KONFIG_APLIKASI
-                const availablePairs = [];
-                const allPairs = this.allPairsForActiveChain;
-
-                allPairs.forEach(pairKey => {
-                    const pairConfig = this.config.CHAINS[this.activeChain].PAIR_DEXS[pairKey];
-                    const pairSymbol = pairConfig?.SYMBOL_PAIR;
-
-                    // Include pair if it's used by at least one coin
-                    if (usedPairs.has(pairSymbol) || usedPairs.has(pairKey)) {
-                        availablePairs.push({
-                            key: pairKey,
-                            symbol: pairSymbol,
-                            address: pairConfig?.SC_ADDRESS_PAIR,
-                            decimals: pairConfig?.DECIMALS_PAIR
-                        });
-                    }
-                });
+                const availablePairs = Array.from(usedPairs.values())
+                    .sort((a, b) => a.key.localeCompare(b.key));
 
                 this._filterCache.availablePairs = availablePairs;
                 console.log(`[FilterManager] Loaded ${availablePairs.length} available pairs for ${this.activeChain}`);
@@ -462,6 +469,19 @@ const filterManagerMixin = {
                 await DB.saveData(storeName, dataToSave, 'SETTING_FILTER');
 
                 console.log(`[FilterManager] Filter settings saved for ${this.activeChain}, field: ${field}`);
+
+                // FIX: Tampilkan toast notification untuk user feedback
+                // Skip toast untuk operasi internal (initialize, global-sync)
+                if (this.$root && this.$root.showToast && !['unknown', 'initialize', 'global-sync'].includes(field)) {
+                    const filterTypeLabel = {
+                        'chains': 'Chain',
+                        'cex': 'CEX',
+                        'dex': 'DEX',
+                        'pairs': 'Pair DEX'
+                    };
+                    const label = filterTypeLabel[field] || 'Filter';
+                    this.$root.showToast(`✓ Pengaturan ${label} berhasil disimpan`, 'success', 2000);
+                }
             } catch (error) {
                 console.error('[FilterManager] Error saving filter settings:', error);
                 if (this.$root && this.$root.showToast) {
@@ -604,12 +624,28 @@ const filterManagerMixin = {
             // Guard: Pastikan aplikasi dan DB sudah siap
             if (!this.$root || !this.$root.isAppInitialized) {
                 console.log('[FilterManager] Initialize filters ditunda, aplikasi belum terinisialisasi.');
+                this._pendingFilterInit = true;
                 return;
             }
 
             if (!this.activeChain) return;
 
             const filters = this.currentFilterSettings;
+            const currentChain = this.activeChain;
+
+            if (!filters || filters.chainKey !== currentChain || Object.keys(filters).length <= 2) {
+                console.log('[FilterManager] Filter settings belum siap, menunggu load dari DB.', {
+                    chain: currentChain,
+                    hasChainKey: !!filters?.chainKey
+                });
+                this._pendingFilterInit = true;
+                return;
+            }
+
+            if (!this._pendingFilterInit && this._lastInitializedChain === currentChain) {
+                return;
+            }
+
             let needsSave = false;
 
             // Initialize chains filter
@@ -640,14 +676,18 @@ const filterManagerMixin = {
             }
 
             // Initialize pairs filter
-            if (!filters.pairs) {
-                filters.pairs = {};
-                await this.loadAvailablePairs();
-                this.availablePairFilters.forEach(pair => {
+            // REVISI: Cek juga pair baru yang belum ada di setting
+            await this.loadAvailablePairs();
+            if (!filters.pairs) filters.pairs = {};
+
+            this.availablePairFilters.forEach(pair => {
+                // Jika pair ini belum ada di setting filter,
+                // maka default-kan menjadi tercentang (true).
+                if (filters.pairs[pair.key] === undefined) {
                     filters.pairs[pair.key] = true;
-                });
-                needsSave = true;
-            }
+                    needsSave = true;
+                }
+            });
 
             const constraintsSynced = this.applyFilterConstraints();
             if (constraintsSynced) {
@@ -658,6 +698,9 @@ const filterManagerMixin = {
                 await this.saveFilterSettings('initialize');
                 console.log('[FilterManager] Filters initialized with defaults');
             }
+
+            this._pendingFilterInit = false;
+            this._lastInitializedChain = currentChain;
         }
     },
 
@@ -668,6 +711,8 @@ const filterManagerMixin = {
             handler(newChain, oldChain) {
                 if (newChain && newChain !== oldChain) {
                     console.log(`[FilterManager] Chain changed to ${newChain}, reloading pairs`);
+                    this._pendingFilterInit = true;
+                    this._lastInitializedChain = null;
                     this.loadAvailablePairs();
                 }
             }
@@ -679,6 +724,28 @@ const filterManagerMixin = {
                 if (isInitialized) {
                     console.log('[FilterManager] Aplikasi terinisialisasi, memuat filter data.');
                     this.loadAvailablePairs();
+                    this.initializeFilters();
+                }
+            }
+        },
+
+        '$root.filterSettings': {
+            deep: true,
+            handler(newSettings) {
+                if (!this.$root || !this.$root.isAppInitialized) return;
+                if (!newSettings) return;
+
+                const currentChain = this.activeChain;
+                if (!currentChain) return;
+
+                if (newSettings.chainKey !== currentChain) {
+                    // Chain lain sedang dimuat, mark agar chain aktif diinisialisasi ulang nanti.
+                    this._pendingFilterInit = true;
+                    return;
+                }
+
+                if (this._pendingFilterInit || this._lastInitializedChain !== currentChain) {
+                    console.log('[FilterManager] Filter settings diperbarui, mencoba inisialisasi ulang.');
                     this.initializeFilters();
                 }
             }

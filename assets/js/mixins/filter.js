@@ -12,144 +12,45 @@ const filterMixin = {
      * - `this.searchQuery` (opsional): String untuk pencarian teks.
      */
     filteredTokens() {
-      if (!this.tokens || !this.filters) {
+      if (!this.tokens || !this.$root.filters) {
         console.log('[FilterMixin] No tokens or filters:', { tokens: !!this.tokens, filters: !!this.filters });
         return [];
       }
 
       let filtered = [...this.tokens];
       console.log(`[FilterMixin] Starting with ${filtered.length} tokens`);
-
-      // 1. Filter berdasarkan pencarian (jika ada di komponen)
-      if (this.searchQuery) {
-        const beforeCount = filtered.length;
-        const lowerCaseQuery = this.searchQuery.toLowerCase();
-        filtered = filtered.filter(token =>
-          (token.nama_koin && token.nama_koin.toLowerCase().includes(lowerCaseQuery)) ||
-          (token.nama_token && token.nama_token.toLowerCase().includes(lowerCaseQuery)) ||
-          (token.nama_pair && token.nama_pair.toLowerCase().includes(lowerCaseQuery)) ||
-          (token.sc_token && token.sc_token.toLowerCase().includes(lowerCaseQuery))
-        );
-        console.log(`[FilterMixin] After searchQuery filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
-      }
-
-      // 2. Filter berdasarkan favorit
-      if (this.filters.favoritOnly) {
-        const beforeCount = filtered.length;
-        filtered = filtered.filter(token => token.isFavorite || token.isFavorit);
-        console.log(`[FilterMixin] After favoritOnly filter: ${filtered.length} (removed ${beforeCount - filtered.length})`);
-      }
-
-      // 3. Filter berdasarkan CHAIN (hanya di mode multi-chain)
-      const isMultiChainMode = this.$root.activeChain === 'multi';
-      if (isMultiChainMode && this.filters.chains) {
-        const activeChainFilters = Object.keys(this.filters.chains).filter(key => this.filters.chains[key]);
-        if (activeChainFilters.length > 0) {
-          const beforeCount = filtered.length;
-          filtered = filtered.filter(token => {
-            const tokenChain = (token.chain || '').toLowerCase();
-            return activeChainFilters.some(chain => chain.toLowerCase() === tokenChain);
-          });
-          console.log(`[FilterMixin] After chain filter: ${filtered.length} (removed ${beforeCount - filtered.length})`, { activeChains: activeChainFilters });
-        }
-      }
-
-      // 4. Filter berdasarkan CEX (logika OR) - SKIP di mode multi
-      if (this.filters.cex && !isMultiChainMode) {
-        const activeCexFilters = Object.keys(this.filters.cex).filter(key => this.filters.cex[key]);
-        if (activeCexFilters.length > 0) {
-          const beforeCount = filtered.length;
-
-          // Debug: Log sebelum filter
-          console.log(`[FilterMixin] CEX Filter DEBUG - Before:`, {
-            tokenCount: filtered.length,
-            activeCexFilters,
-            sampleTokenCex: filtered[0]?.cex_name
-          });
-
-          filtered = filtered.filter(token => {
-            // REVISI: Sesuaikan dengan skema flat baru.
-            // Cukup periksa apakah token.cex_name ada di dalam filter CEX yang aktif.
-            const tokenCex = (token.cex_name || '').toLowerCase();
-            const tokenCexList = tokenCex ? [tokenCex] : [];
-            const matches = activeCexFilters.some(cex => tokenCexList.includes(cex.toLowerCase()));
-
-            // Debug individual token
-            if (!matches && beforeCount <= 10) {
-              console.log(`[FilterMixin] CEX Filter REJECTED:`, {
-                tokenCex: token.cex_name,
-                normalized: tokenCex,
-                activeCexFilters,
-                tokenCexList
-              });
-            }
-
-            return matches;
-          });
-          console.log(`[FilterMixin] After CEX filter: ${filtered.length} (removed ${beforeCount - filtered.length})`, { activeCex: activeCexFilters });
-        }
-      }
-
-      // 5. Filter berdasarkan DEX (logika OR) - SKIP di mode multi
-      if (this.filters.dex && !isMultiChainMode) {
-        const activeDexFilters = Object.keys(this.filters.dex).filter(key => this.filters.dex[key]);
-        if (activeDexFilters.length > 0) {
-          const beforeCount = filtered.length;
-
-          // Debug: Log sebelum filter
-          console.log(`[FilterMixin] DEX Filter DEBUG - Before:`, {
-            tokenCount: filtered.length,
-            activeDexFilters,
-            sampleTokenDex: filtered[0]?.dex
-          });
-
-          filtered = filtered.filter(token => {
-            const tokenDexList = Object.keys(token.dex || {}).filter(d => token.dex[d]?.status).map(d => d.toLowerCase());
-            const matches = activeDexFilters.some(dex => tokenDexList.includes(dex.toLowerCase()));
-
-            // Debug individual token
-            if (!matches && beforeCount <= 10) {
-              console.log(`[FilterMixin] DEX Filter REJECTED:`, {
-                tokenDex: token.dex,
-                tokenDexList,
-                activeDexFilters
-              });
-            }
-
-            return matches;
-          });
-          console.log(`[FilterMixin] After DEX filter: ${filtered.length} (removed ${beforeCount - filtered.length})`, { activeDex: activeDexFilters });
-        }
-      }
-
-      // 6. Filter berdasarkan PAIR (logika OR, tanpa prefix chain) - SKIP di mode multi
-      if (this.filters.pairs && !isMultiChainMode) {
-        const activePairFilters = Object.keys(this.filters.pairs).filter(key => this.filters.pairs[key]);
-        
-        // Hanya filter jika ada setidaknya satu filter pair yang aktif.
-        if (activePairFilters.length > 0) {
-          const beforeCount = filtered.length;
-          const lowerCaseActivePairs = activePairFilters.map(p => p.toLowerCase());
-          
-          filtered = filtered.filter(token => {
-            // Ambil nama pair dari token, default ke 'NON' jika tidak ada.
-            const tokenPair = (token.nama_pair || 'NON').toLowerCase();
-            return lowerCaseActivePairs.includes(tokenPair);
-          });
-          console.log(`[FilterMixin] After PAIR filter: ${filtered.length} (removed ${beforeCount - filtered.length})`, { activePairs: activePairFilters });
-        }
-      }
+      
+      // Panggil metode filtering yang terpusat
+      filtered = this.applyFiltersToTokens(filtered, {
+        filters: this.$root.filters,
+        searchQuery: this.$root.searchQuery
+      });
 
       // 7. Pengurutan
-      const sortDirection = this.$root.filterSettings?.sortDirection || 'asc';
-      const sortKey = sortDirection === 'asc' ? 1 : -1;
-      filtered.sort((a, b) => {
-        const nameA = (a.nama_koin || '').toLowerCase();
-        const nameB = (b.nama_koin || '').toLowerCase();
-        if (nameA < nameB) return -1 * sortKey;
-        if (nameA > nameB) return 1 * sortKey;
-        return 0;
-      });
+      // REVISI: Gunakan sortKey dan sortDirection dari data komponen, bukan dari root.
+      if (this.sortKey) {
+        const direction = this.sortDirection === 'asc' ? 1 : -1;
+        filtered.sort((a, b) => {
+          let valA = a[this.sortKey];
+          let valB = b[this.sortKey];
+
+          // Penanganan khusus untuk tipe data yang berbeda
+          if (typeof valA === 'string') {
+            return valA.localeCompare(valB) * direction;
+          }
+          if (typeof valA === 'number' || typeof valA === 'boolean') {
+            if (valA < valB) return -1 * direction;
+            if (valA > valB) return 1 * direction;
+            return 0;
+          }
+          // Fallback untuk null/undefined
+          if (valA == null) return 1 * direction;
+          if (valB == null) return -1 * direction;
+
+          // Fallback perbandingan string
+          return String(valA).localeCompare(String(valB)) * direction;
+        });
+      }
 
       console.log(`[FilterMixin] ✅ FINAL filteredTokens count: ${filtered.length}`);
       return filtered;
@@ -161,6 +62,114 @@ const filterMixin = {
       // Kembalikan array berisi satu CEX jika ada.
       if (!token || !token.cex_name) return [];
       return [token.cex_name];
+    },
+
+    /**
+     * Terapkan seluruh aturan filter terhadap daftar token.
+     * Digunakan oleh berbagai komponen (scanning, management, root stats).
+     *
+     * @param {Array<Object>} sourceTokens - Koleksi token mentah.
+     * @param {Object} options
+     * @param {Object} options.filters - Status filter aktif.
+     * @param {string} options.searchQuery - Kata kunci pencarian bebas.
+     * @returns {Array<Object>} Token yang lolos filter.
+     */
+    applyFiltersToTokens(sourceTokens, { filters = {}, searchQuery = '' } = {}) {
+      if (!Array.isArray(sourceTokens) || sourceTokens.length === 0) {
+        return [];
+      }
+
+      const normalizedSearch = String(searchQuery || '').trim().toLowerCase();
+      const chainFilters = filters.chains || {};
+      const cexFilters = filters.cex || {};
+      const pairFilters = filters.pairs || {};
+
+      const activeChainSet = new Set(
+        Object.keys(chainFilters)
+          .filter(chainKey => chainFilters[chainKey])
+          .map(chainKey => chainKey.toLowerCase())
+      );
+      const activeCexSet = new Set(
+        Object.keys(cexFilters)
+          .filter(cexKey => cexFilters[cexKey])
+          .map(cexKey => cexKey.toLowerCase())
+      );
+      const activePairSet = new Set(
+        Object.keys(pairFilters)
+          .filter(pairKey => pairFilters[pairKey])
+          .map(pairKey => pairKey.toUpperCase())
+      );
+
+      const shouldFilterByChain = Object.keys(chainFilters).length > 0;
+      const shouldFilterByCex = Object.keys(cexFilters).length > 0;
+      const shouldFilterByPair = Object.keys(pairFilters).length > 0;
+      const favoritesOnly = Boolean(filters.favoritOnly);
+
+      return sourceTokens.filter(rawToken => {
+        if (!rawToken || typeof rawToken !== 'object') return false;
+
+        // 1. Filter favorit
+        if (favoritesOnly) {
+          const isFavorite = rawToken.isFavorite ?? rawToken.isFavorit ?? false;
+          if (!isFavorite) return false;
+        }
+
+        // 2. Filter chain
+        if (shouldFilterByChain) {
+          const tokenChain = String(rawToken.chainKey || rawToken.chain || '')
+            .trim()
+            .toLowerCase();
+          if (!activeChainSet.size) return false;
+          if (!activeChainSet.has(tokenChain)) return false;
+        }
+
+        // 3. Filter CEX
+        if (shouldFilterByCex) {
+          const tokenCex = String(
+            rawToken.cex_name || rawToken.cex || rawToken.primaryCex || ''
+          )
+            .trim()
+            .toLowerCase();
+          if (!activeCexSet.size) return false;
+          if (!activeCexSet.has(tokenCex)) return false;
+        }
+
+        // 4. Filter Pair (jika ada)
+        if (shouldFilterByPair) {
+          const tokenPair = String(rawToken.nama_pair || rawToken.pair || '')
+            .trim()
+            .toUpperCase();
+          if (!activePairSet.size) return false;
+          if (!activePairSet.has(tokenPair)) return false;
+        }
+
+        // 5. Filter pencarian bebas
+        if (normalizedSearch) {
+          const haystackSegments = [
+            rawToken.id,
+            rawToken.nama_token,
+            rawToken.nama_koin,
+            rawToken.nama_pair,
+            rawToken.cex_ticker_token,
+            rawToken.cex_ticker_pair,
+            rawToken.cex_name,
+            rawToken.chain,
+            rawToken.chainKey,
+            rawToken.sc_token,
+            rawToken.sc_pair
+          ]
+            .filter(Boolean)
+            .map(value => String(value).toLowerCase());
+
+          const matchesSearch = haystackSegments.some(segment =>
+            segment.includes(normalizedSearch)
+          );
+
+          if (!matchesSearch) return false;
+        }
+
+        return true;
+      });
     }
   }
 };

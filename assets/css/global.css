@@ -28,31 +28,46 @@ body::before,
 body::after {
   content: '';
   position: fixed;
-  width: min(65vw, 580px);
-  height: min(65vw, 580px);
+  width: min(70vw, 650px);
+  height: min(70vw, 650px);
   border-radius: 999px;
-  background: radial-gradient(circle at center, var(--surface-glass-accent) 0%, transparent 65%);
-  filter: blur(100px);
-  opacity: 0.6;
+  background: radial-gradient(circle at center, var(--surface-glass-accent) 0%, transparent 70%);
+  filter: blur(120px);
+  opacity: 0.7;
   z-index: -2;
   pointer-events: none;
-  transition: opacity var(--transition-base), transform var(--transition-slow);
+  animation: liquidFloat 25s ease-in-out infinite;
+  transition: opacity var(--transition-base);
 }
 
 body::before {
-  top: -20vh;
-  left: -10vw;
+  top: -25vh;
+  left: -15vw;
+  animation-delay: -12s;
 }
 
 body::after {
-  bottom: -25vh;
-  right: -15vw;
+  bottom: -30vh;
+  right: -20vw;
+  animation-delay: 0s;
+}
+
+@keyframes liquidFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -30px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
 }
 
 html[data-bs-theme="dark"] body::before,
 html[data-bs-theme="dark"] body::after {
-  filter: blur(140px);
-  opacity: 0.4;
+  filter: blur(150px);
+  opacity: 0.5;
 }
 
 /* ====== TYPOGRAPHY SCALE ====== */

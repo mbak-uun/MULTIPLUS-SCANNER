@@ -45,7 +45,7 @@ class SettingsRepository extends BaseRepository {
      * @returns {Promise<object|null>}
      */
     async getFilterSettings(chainKey) {
-        const storeName = `SETTING_FILTER_${chainKey.toUpperCase()}`;
+        const storeName = DB.getStoreNameByChain('SETTING_FILTER', chainKey);
         try {
             return await this.db.getData(storeName, 'SETTING_FILTER');
         } catch (error) {

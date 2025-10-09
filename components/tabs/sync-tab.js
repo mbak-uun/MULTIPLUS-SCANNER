@@ -404,13 +404,6 @@ const SyncTab = {
     // =================================================================
 
     async initialize() {
-      // GUARD: Block akses di mode multi
-      if (this.activeChain === 'multi') {
-        console.warn('[SyncTab] Mode multi tidak mendukung sinkronisasi koin. Tab ini hanya untuk single-chain.');
-        this.syncData = [];
-        return;
-      }
-
       if (!this.activeChain || this.$root.isLoading) return;
       this.$root.isLoading = true;
       this.$root.loadingText = 'Inisialisasi data sinkronisasi...';
@@ -438,7 +431,7 @@ const SyncTab = {
       try {
         records = await DB.getAllData(storeName);
       } catch (error) {
-        console.warn('Gagal membaca cache sinkronisasi:', error);
+        // console.warn('Gagal membaca cache sinkronisasi:', error);
       }
 
       const grouped = {};
@@ -554,7 +547,7 @@ const SyncTab = {
         syncData = await DB.getAllData(syncStoreName);
         koinData = await DB.getAllData(koinStoreName);
       } catch (error) {
-        console.warn('Gagal membaca data dari database:', error);
+        // console.warn('Gagal membaca data dari database:', error);
       }
 
       // Buat Map untuk pencarian cepat
@@ -585,7 +578,7 @@ const SyncTab = {
         getPrice = await fetcher.fetchPrices([upperCex]);
         hasTrade = await fetcher.fetchTradeStatus([upperCex]);
       } catch (error) {
-        console.error(`Gagal mengambil data remote untuk ${upperCex}:`, error);
+        // console.error(`Gagal mengambil data remote untuk ${upperCex}:`, error);
         this.$emit('show-toast', `Gagal mengambil data ${upperCex}: ${error.message || error}`, 'danger');
         return;
       }
@@ -609,7 +602,7 @@ const SyncTab = {
             String(item.nama_token || '').toLowerCase() === String(record.nama_token || '').toLowerCase()
           );
           if (existingByTokenName && existingByTokenName.sc_token) {
-            console.log(`[${upperCex}] SC untuk ${record.nama_token} tidak ditemukan di API. Menggunakan SC dari cache CEX [${existingByTokenName.cex}]: ${existingByTokenName.sc_token}`);
+            // console.log(`[${upperCex}] SC untuk ${record.nama_token} tidak ditemukan di API. Menggunakan SC dari cache CEX [${existingByTokenName.cex}]: ${existingByTokenName.sc_token}`);
             record.sc_token = existingByTokenName.sc_token;
             // Bawa juga desimalnya jika ada
             if (existingByTokenName.des_token) {
@@ -646,7 +639,7 @@ const SyncTab = {
               this.$root.loadingText = `[${upperCex}] Mencari desimal untuk ${record.nama_token}...`;
               record.des_token = await this.$root.web3Service.getDecimals(this.activeChain, record.sc_token);
             } catch (decError) {
-              console.warn(`Gagal fetch desimal untuk ${record.nama_token} (${record.sc_token}):`, decError.message);
+              // console.warn(`Gagal fetch desimal untuk ${record.nama_token} (${record.sc_token}):`, decError.message);
               record.des_token = 18; // Fallback
             }
           } else {
@@ -681,7 +674,7 @@ const SyncTab = {
           await DB.saveData(syncStoreName, record);
           savedCount++;
         } catch (error) {
-          console.warn(`Gagal menyimpan token ${record.nama_token} ke SYNC_KOIN:`, error);
+          // console.warn(`Gagal menyimpan token ${record.nama_token} ke SYNC_KOIN:`, error);
         }
       }
 
@@ -741,22 +734,26 @@ const SyncTab = {
       };
 
       // PERBAIKAN: Validasi data minimal
-      if (!normalized.nama_token || !normalized.sc_token) {
-        console.warn('[_normalizeJsonToken] ⚠️ Token tidak lengkap:', {
-          ticker: normalized.nama_token,
-          sc_token: normalized.sc_token,
-          nama_lengkap: normalized.nama_koin,
-          original: item
-        });
-      } else {
-        console.log('[_normalizeJsonToken] ✅ Token berhasil dinormalisasi:', {
-          cex: normalized.cex,
-          nama_koin: normalized.nama_koin,
-          ticker: normalized.nama_token,
-          cex_ticker: normalized.cex_ticker,
-          sc_token: normalized.sc_token.substring(0, 10) + '...'
-        });
-      }
+	      if (!normalized.nama_token || !normalized.sc_token) {
+	        /*
+	        console.warn('[_normalizeJsonToken] ⚠️ Token tidak lengkap:', {
+	          ticker: normalized.nama_token,
+	          sc_token: normalized.sc_token,
+	          nama_lengkap: normalized.nama_koin,
+	          original: item
+	        });
+	        */
+	      } else {
+	        /*
+	        console.log('[_normalizeJsonToken] ✅ Token berhasil dinormalisasi:', {
+	          cex: normalized.cex,
+	          nama_koin: normalized.nama_koin,
+	          ticker: normalized.nama_token,
+	          cex_ticker: normalized.cex_ticker,
+	          sc_token: normalized.sc_token.substring(0, 10) + '...'
+	        });
+	        */
+	      }
 
       return normalized;
     },
@@ -768,7 +765,7 @@ const SyncTab = {
         throw new Error(`URL DATAJSON tidak ditemukan untuk chain ${this.activeChain}`);
       }
 
-      console.log('[fetchRemoteJsonData] Mengambil data dari:', url);
+      // console.log('[fetchRemoteJsonData] Mengambil data dari:', url);
       this.$root.loadingText = `Mengambil data dari server...`;
 
       try {
@@ -776,19 +773,19 @@ const SyncTab = {
 
         // PERBAIKAN: Pastikan return array, bukan object
         if (!data) {
-          console.warn('[fetchRemoteJsonData] Data null dari server, return empty array');
+          // console.warn('[fetchRemoteJsonData] Data null dari server, return empty array');
           return [];
         }
 
         if (!Array.isArray(data)) {
-          console.error('[fetchRemoteJsonData] Data bukan array:', typeof data, data);
+          // console.error('[fetchRemoteJsonData] Data bukan array:', typeof data, data);
           throw new Error('Format JSON tidak valid (bukan array)');
         }
 
-        console.log('[fetchRemoteJsonData] ✅ Berhasil fetch', data.length, 'records');
+        // console.log('[fetchRemoteJsonData] ✅ Berhasil fetch', data.length, 'records');
         return data;
       } catch (error) {
-        console.error('[fetchRemoteJsonData] ❌ Error:', error);
+        // console.error('[fetchRemoteJsonData] ❌ Error:', error);
         this.$emit('show-toast', `Gagal mengambil data JSON: ${error.message}`, 'danger');
         throw error;
       }
@@ -843,12 +840,12 @@ const SyncTab = {
     async updateSyncDataView() {
       const aggregated = [];
 
-      console.log('[updateSyncDataView] selectedCexFilters:', this.selectedCexFilters);
-      console.log('[updateSyncDataView] syncCache keys:', Object.keys(this.syncCache));
+      // console.log('[updateSyncDataView] selectedCexFilters:', this.selectedCexFilters);
+      // console.log('[updateSyncDataView] syncCache keys:', Object.keys(this.syncCache));
 
       // PERBAIKAN: Pastikan tidak ada data untuk ditampilkan jika tidak ada CEX yang dipilih
       if (this.selectedCexFilters.length === 0) {
-        console.log('[updateSyncDataView] Tidak ada CEX yang dipilih, tabel akan kosong.');
+        // console.log('[updateSyncDataView] Tidak ada CEX yang dipilih, tabel akan kosong.');
         this.syncData = [];
         return;
       }
@@ -866,9 +863,9 @@ const SyncTab = {
           // bahkan yang tidak lengkap (tanpa SC).
           const filteredFromCache = this.syncCache[normalizedCex];
           aggregated.push(...filteredFromCache);
-          console.log(`[updateSyncDataView] ✅ Menambahkan ${filteredFromCache.length} koin dari cache ${normalizedCex}.`);
+          // console.log(`[updateSyncDataView] ✅ Menambahkan ${filteredFromCache.length} koin dari cache ${normalizedCex}.`);
         } else {
-          console.warn(`[updateSyncDataView] ⚠️ ${normalizedCex} tidak ada di cache atau bukan array. Cache keys yang tersedia:`, Object.keys(this.syncCache));
+          // console.warn(`[updateSyncDataView] ⚠️ ${normalizedCex} tidak ada di cache atau bukan array. Cache keys yang tersedia:`, Object.keys(this.syncCache));
         }
       }
 
@@ -879,7 +876,7 @@ const SyncTab = {
 
       // PERBAIKAN UX: Notifikasi jika tidak ada data
       if (aggregated.length === 0 && this.selectedCexFilters.length > 0) {
-        console.warn('[updateSyncDataView] ⚠️ Cache kosong untuk CEX yang dipilih. User perlu klik "Sync CEX" terlebih dahulu.');
+        // console.warn('[updateSyncDataView] ⚠️ Cache kosong untuk CEX yang dipilih. User perlu klik "Sync CEX" terlebih dahulu.');
       }
     },
 
@@ -911,13 +908,13 @@ const SyncTab = {
       if (!wasSelected) {
         const cexStatus = this.cexDataStatus[upper];
         if (!cexStatus || !cexStatus.hasData) {
-          console.log(`[toggleCexSelection] Cache ${upper} kosong, mencoba auto-fetch dari JSON...`);
+          // console.log(`[toggleCexSelection] Cache ${upper} kosong, mencoba auto-fetch dari JSON...`);
           try {
             await this.ensureCacheAvailability();
             // Reload cache setelah auto-fetch
             await this.loadCacheFromDB({ resetFilters: false });
           } catch (error) {
-            console.error(`[toggleCexSelection] Auto-fetch gagal untuk ${upper}:`, error);
+            // console.error(`[toggleCexSelection] Auto-fetch gagal untuk ${upper}:`, error);
           }
         }
       }
@@ -932,7 +929,7 @@ const SyncTab = {
           await this.updateSyncDataView();
           this.$emit('show-toast', `Harga untuk ${upper} telah diperbarui.`, 'info');
         } catch (error) {
-          console.error(`Gagal fetch harga untuk ${upper}:`, error);
+          // console.error(`Gagal fetch harga untuk ${upper}:`, error);
           this.$emit('show-toast', `Gagal memperbarui harga untuk ${upper}.`, 'warning');
         }
       }
@@ -944,7 +941,7 @@ const SyncTab = {
       const coinsInCache = this.syncCache[upperCex];
 
       if (!coinsInCache || coinsInCache.length === 0) {
-        console.log(`[PriceFetch] Tidak ada koin di cache untuk ${upperCex}, fetch harga dilewati.`);
+        // console.log(`[PriceFetch] Tidak ada koin di cache untuk ${upperCex}, fetch harga dilewati.`);
         return;
       }
 
@@ -1070,7 +1067,7 @@ const SyncTab = {
             deletedCount++;
           }
         } catch (error) {
-          console.warn(`Gagal memproses token ${token.nama_token}:`, error);
+          // console.warn(`Gagal memproses token ${token.nama_token}:`, error);
         }
       }
 
@@ -1097,7 +1094,7 @@ const SyncTab = {
         try {
           await DB.deleteData(storeName, token.id);
         } catch (error) {
-          console.warn('Gagal menghapus token:', error);
+          // console.warn('Gagal menghapus token:', error);
         }
       }
 
@@ -1364,7 +1361,7 @@ const SyncTab = {
           try {
             await DB.saveData(storeName, record);
           } catch (error) {
-            console.warn('Gagal import token ke manajemen:', error);
+            // console.warn('Gagal import token ke manajemen:', error);
           }
         }
 
@@ -1404,7 +1401,7 @@ const SyncTab = {
               ...details
           });
       } catch (error) {
-          console.error('Gagal mencatat riwayat aksi:', error);
+          // console.error('Gagal mencatat riwayat aksi:', error);
       }
     }
   },
@@ -1717,8 +1714,4 @@ const SyncTab = {
     </div>
   `,
 
-  async activated() {
-    await this.initialize();
-    //this.$emit('show-toast', 'Tab Sinkronisasi dimuat.', 'info');
-  }
 };

@@ -37,10 +37,8 @@ const DB = (() => {
     ];
 
     // Tambahkan store untuk mode 'MULTI' secara eksplisit
-    stores.push({ name: `KOIN_MULTI`, options: { keyPath: 'id' } });
-    stores.push({ name: `SYNC_KOIN_MULTI`, options: { keyPath: 'id' }, indexes: [{ name: 'by_cex', keyPath: 'cex' }] });
+    // KOIN_MULTI dan SYNC_KOIN_MULTI tidak lagi digunakan. Data diambil dari agregasi KOIN_<CHAIN>.
     stores.push({ name: `SETTING_FILTER_MULTI` });
-    // stores.push({ name: `SCAN_RESULTS_MULTI`, options: { keyPath: 'id' } }); // DIKEMBALIKAN: Hapus store hasil scan
 
     // Generate store untuk setiap chain
     if (typeof KONFIG_APLIKASI !== 'undefined' && KONFIG_APLIKASI.CHAINS) {
@@ -81,25 +79,25 @@ const DB = (() => {
    */
   function initDB() {
     return new Promise((resolve, reject) => {
-      console.log('Membuka koneksi IndexedDB...');
+      // console.log('Membuka koneksi IndexedDB...');
 
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
       // Event ini hanya berjalan jika database belum ada atau versi baru terdeteksi.
       request.onupgradeneeded = (event) => {
-        console.log('Upgrade IndexedDB diperlukan. Membuat object stores...');
+        // console.log('Upgrade IndexedDB diperlukan. Membuat object stores...');
         const dbInstance = event.target.result;
 
         STORES.forEach(storeConfig => {
           if (!dbInstance.objectStoreNames.contains(storeConfig.name)) {
             const store = dbInstance.createObjectStore(storeConfig.name, storeConfig.options);
-            console.log(`✅ Object store "${storeConfig.name}" berhasil dibuat.`);
+            // console.log(`✅ Object store "${storeConfig.name}" berhasil dibuat.`);
 
             // Membuat index jika didefinisikan
             if (storeConfig.indexes) {
               storeConfig.indexes.forEach(index => {
                 store.createIndex(index.name, index.keyPath, { unique: index.unique || false });
-                console.log(`   ➡️ Index "${index.name}" pada "${index.keyPath}" berhasil dibuat.`);
+                // console.log(`   ➡️ Index "${index.name}" pada "${index.keyPath}" berhasil dibuat.`);
               });
             }
           }
@@ -108,12 +106,12 @@ const DB = (() => {
 
       request.onsuccess = (event) => {
         db = event.target.result;
-        console.log('Koneksi IndexedDB berhasil dibuka.');
+        // console.log('Koneksi IndexedDB berhasil dibuka.');
         resolve(db);
       };
 
       request.onerror = (event) => {
-        console.error('Error saat membuka IndexedDB:', event.target.error);
+        // console.error('Error saat membuka IndexedDB:', event.target.error);
         reject(event.target.error);
       };
     });
@@ -299,7 +297,7 @@ const DB = (() => {
         const data = await getAllData(storeName);
         backup.stores[storeName] = data;
       } catch (error) {
-        console.warn(`Gagal backup store ${storeName}:`, error);
+        // console.warn(`Gagal backup store ${storeName}:`, error);
         backup.stores[storeName] = [];
       }
     }
@@ -330,9 +328,9 @@ const DB = (() => {
             await saveData(storeName, record);
           }
         }
-        console.log(`✅ Restored ${records.length} records ke ${storeName}`);
+        // console.log(`✅ Restored ${records.length} records ke ${storeName}`);
       } catch (error) {
-        console.warn(`⚠️ Gagal restore store ${storeName}:`, error);
+        // console.warn(`⚠️ Gagal restore store ${storeName}:`, error);
       }
     }
   }
@@ -351,17 +349,17 @@ const DB = (() => {
       const request = indexedDB.deleteDatabase(DB_NAME);
 
       request.onsuccess = () => {
-        console.log('Database berhasil dihapus');
+        // console.log('Database berhasil dihapus');
         resolve();
       };
 
       request.onerror = (event) => {
-        console.error('Gagal menghapus database:', event.target.error);
+        // console.error('Gagal menghapus database:', event.target.error);
         reject(event.target.error);
       };
 
       request.onblocked = () => {
-        console.warn('Penghapusan database diblokir. Tutup semua tab yang menggunakan database ini.');
+        // console.warn('Penghapusan database diblokir. Tutup semua tab yang menggunakan database ini.');
       };
     });
   }
@@ -395,5 +393,5 @@ const DB = (() => {
 // Expose DB ke global scope
 if (typeof window !== 'undefined') {
   window.DB = DB;
-  console.log('✅ DB Service exposed to window.DB');
+  // console.log('✅ DB Service exposed to window.DB');
 }

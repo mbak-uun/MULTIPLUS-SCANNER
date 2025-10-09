@@ -110,6 +110,10 @@ const filterAutoSaveMixin = {
                 return;
             }
 
+            if (this.$root && typeof this.$root.scheduleFilterStatsRefresh === 'function') {
+                this.$root.scheduleFilterStatsRefresh();
+            }
+
             const debounceTime = immediate ? 0 : 500;
 
             // Clear existing timer untuk field ini
@@ -161,6 +165,10 @@ const filterAutoSaveMixin = {
             const immediateFields = ['favoritOnly', 'autorun', 'autoscroll', 'darkMode', 'run'];
             const immediate = immediateFields.includes(field);
 
+            if (this.$root && typeof this.$root.scheduleFilterStatsRefresh === 'function') {
+                this.$root.scheduleFilterStatsRefresh();
+            }
+
             this.saveFilterSettings(field, immediate);
         },
 
@@ -181,6 +189,10 @@ const filterAutoSaveMixin = {
 
             if (this.$root.showToast) {
                 this.$root.showToast('Filter settings telah direset', 'success');
+            }
+
+            if (this.$root && typeof this.$root.scheduleFilterStatsRefresh === 'function') {
+                this.$root.scheduleFilterStatsRefresh();
             }
         }
     },
@@ -211,6 +223,17 @@ const filterAutoSaveMixin = {
 
     mounted() {
         console.log(`[FilterAutoSave] Mixin mounted on component: ${this.$options.name}`);
+
+        // FIX: Skip load jika sudah diload oleh settings.js (untuk menghindari double load)
+        // Cek apakah filterSettings sudah ada dan populated (lebih dari 2 keys: key + chainKey)
+        const isAlreadyLoaded = this.$root.filterSettings &&
+                               Object.keys(this.$root.filterSettings).length > 2;
+
+        if (isAlreadyLoaded) {
+            console.log('[FilterAutoSave] Filter sudah diload oleh settings.js, skip double load');
+            return;
+        }
+
         // Load filter settings saat component pertama kali dimuat
         this.loadFilterSettings();
     },

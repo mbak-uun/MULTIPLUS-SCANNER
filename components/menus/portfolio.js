@@ -1021,12 +1021,21 @@ const PortfolioMenu = {
       this.$root.loadingText = 'Mengecek exchange...';
 
       try {
-        const rateSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'MATICUSDT', 'AVAXUSDT', 'SOLUSDT'];
-        const ratesData = await this.$root.realtimeDataFetcher.fetchRates(rateSymbols);
-        const idrRate = await this.$root.realtimeDataFetcher.getUSDTtoIDRRate();
+        // REFACTOR: Gunakan CheckWalletExchanger untuk mengambil semua harga dari CEX yang aktif.
+        // Ini lebih efisien dan konsisten dengan modul lain.
+        if (!this.checkWalletExchanger) {
+          this.checkWalletExchanger = new CheckWalletExchanger(this.buildSecretsFromConfig(), this.config, window.Http);
+        }
+        const getPrice = await this.checkWalletExchanger.fetchPrices(enabledExchanges.map(e => e.id));
 
-        Object.assign(this.rates, { BTC: ratesData.BTCUSDT, ETH: ratesData.ETHUSDT, BNB: ratesData.BNBUSDT, MATIC: ratesData.MATICUSDT, AVAX: ratesData.AVAXUSDT, SOL: ratesData.SOLUSDT });
+        // Ambil rate IDR secara terpisah
+        const idrRate = await this.$root.realtimeDataFetcher.getUSDTtoIDRRate();
         this.rates.idr = idrRate;
+
+        // Update rate utama dari hasil fetchPrices
+        this.rates.BTC = getPrice('binance', 'BTC') || 0;
+        this.rates.ETH = getPrice('binance', 'ETH') || 0;
+        this.rates.BNB = getPrice('binance', 'BNB') || 0;
 
         this.activeExchangeSummaries = [];
         let totalCex = 0;
@@ -1039,10 +1048,15 @@ const PortfolioMenu = {
             // REFACTOR: Panggil satu handler universal
             const result = await this.handleExchange(exchange);
 
+            // REFACTOR: Gunakan getPrice yang sudah di-fetch untuk melengkapi data rate.
+            // Ini menggantikan `ensureRatesForSymbols` yang kurang efisien.
             const symbolsToEnsure = this.collectSymbolsFromExchangeResult(result);
-            if (symbolsToEnsure.length > 0) {
-              await this.ensureRatesForSymbols(symbolsToEnsure);
-            }
+            symbolsToEnsure.forEach(symbol => {
+              if (!this.rates[symbol]) {
+                const price = getPrice(exchange.id, symbol);
+                if (price) this.rates[symbol] = price;
+              }
+            });
 
             exchange.status = 'success';
             exchange.lastResult = result;
@@ -1500,13 +1514,13 @@ const PortfolioMenu = {
       console.log('  - globalSettings.config_cex:', this.globalSettings?.config_cex);
 
       // Filter berdasarkan status di globalSettings (jika ada)
+      // PERBAIKAN: Gunakan .toLowerCase() pada 'key' untuk mencocokkan dengan struktur globalSettings
       const enabledCexKeys = this.globalSettings?.config_cex
         ? allCexKeys.filter(key => {
-            const isEnabled = this.globalSettings.config_cex[key]?.status === true;
-            console.log(`    - ${key}: ${isEnabled ? '✅' : '❌'}`);
+            const isEnabled = this.globalSettings.config_cex[key.toLowerCase()]?.status === true;
             return isEnabled;
           })
-        : allCexKeys; // Fallback: tampilkan semua jika globalSettings belum ada
+        : []; // Fallback: jangan tampilkan apa-apa jika globalSettings tidak ada
 
       console.log('  - CEX yang akan ditampilkan:', enabledCexKeys);
 
@@ -1514,12 +1528,11 @@ const PortfolioMenu = {
         const cex = allCexConfig[cexKey];
         const fields = [];
         if (cexKey === 'KUCOIN') {
-          fields.push(
-            { key: 'apiKey', placeholder: 'API Key', value: '', type: 'text' },
-            { key: 'secretKey', placeholder: 'Secret Key', value: '', type: 'password' },
-            { key: 'passphrase', placeholder: 'Passphrase', value: '', type: 'password' }
-          );
-        } else {
+          fields.push({ key: 'passphrase', placeholder: 'Passphrase', value: '', type: 'password' });
+        }
+        
+        // REFACTOR: Semua CEX sekarang punya API Key & Secret Key
+        if (cexKey !== 'INDODAX') { // Indodax tidak butuh passphrase
           fields.push(
             { key: 'apiKey', placeholder: 'API Key', value: '', type: 'text' },
             { key: 'secretKey', placeholder: 'Secret Key', value: '', type: 'password' }

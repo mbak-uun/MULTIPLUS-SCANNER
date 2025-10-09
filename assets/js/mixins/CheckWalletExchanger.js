@@ -490,7 +490,7 @@ class CheckWalletExchanger {
    */
   async fetchTradeStatus(selectedCex = []) {
     const tradeSources = { // REVISI: Mengaktifkan proxy untuk Binance untuk menghindari blokir geografis (HTTP 451).
-      BINANCE: { url: 'https://api.binance.com/api/v3/exchangeInfo', useProxy: true, parse: r => new Set((r?.symbols || []).filter(it => it.status === 'TRADING' && it.quoteAsset === 'USDT').map(it => String(it.baseAsset || '').toUpperCase())) },
+      BINANCE: { url: 'https://data-api.binance.vision/api/v3/exchangeInfo', useProxy: true, parse: r => new Set((r?.symbols || []).filter(it => it.status === 'TRADING' && it.quoteAsset === 'USDT').map(it => String(it.baseAsset || '').toUpperCase())) },
       MEXC: { url: 'https://api.mexc.com/api/v3/exchangeInfo', useProxy: true, parse: r => new Set((r?.symbols || []).filter(it => String(it.status || '').toUpperCase().includes('EN')).filter(it => (it.quoteAsset === 'USDT' || it.quoteAsset === 'USD')).map(it => String(it.baseAsset || '').toUpperCase())) },
       GATE: { url: 'https://api.gateio.ws/api/v4/spot/currency_pairs', useProxy: true, parse: r => new Set((r || []).filter(it => (String(it.quote || '').toUpperCase() === 'USDT') && ((it.trade_status || '').toLowerCase() !== 'disabled')).map(it => String(it.base || '').toUpperCase())) },
       KUCOIN: { url: 'https://api.kucoin.com/api/v2/symbols', useProxy: true, parse: r => new Set((r?.data || []).filter(it => it.enableTrading === true && String(it.quoteCurrency || '').toUpperCase() === 'USDT').map(it => String(it.baseCurrency || '').toUpperCase())) },
@@ -541,7 +541,7 @@ class CheckWalletExchanger {
 
     const priceSources = {
       // REVISI: Mengaktifkan proxy untuk Binance untuk menghindari blokir geografis (HTTP 451).
-      BINANCE: { url: 'https://api.binance.com/api/v3/ticker/price', useProxy: true, parse: r => buildPriceMap(r, 'symbol', 'price', /USDT$/) },
+      BINANCE: { url: 'https://data-api.binance.vision/api/v3/ticker/price', useProxy: false, parse: r => buildPriceMap(r, 'symbol', 'price', /USDT$/) },
       MEXC: { url: 'https://api.mexc.com/api/v3/ticker/price', useProxy: true, parse: r => buildPriceMap(r, 'symbol', 'price', /USDT$/) },
       GATE: { url: 'https://api.gateio.ws/api/v4/spot/tickers', useProxy: true, parse: r => buildPriceMap(r, 'currency_pair', 'last', /_USDT$/) },
       KUCOIN: { url: 'https://api.kucoin.com/api/v1/market/allTickers', useProxy: true, parse: r => buildPriceMap(r?.data?.ticker || [], 'symbol', 'last', /-USDT$/) },
@@ -595,7 +595,7 @@ class CheckWalletExchanger {
         const queryString = `timestamp=${timestamp}`;
         const signature = CryptoJS.HmacSHA256(queryString, secret.ApiSecret).toString(CryptoJS.enc.Hex);
         const url = this._prox(`https://api-gcp.binance.com/sapi/v1/capital/config/getall?${queryString}&signature=${signature}`);
-
+       
         const res = await this.Http.request({
           url,
           method: 'GET',

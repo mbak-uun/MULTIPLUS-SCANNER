@@ -64,9 +64,20 @@
       <div class="container-fluid px-0">
         <!-- Judul Aplikasi -->
         <a class="navbar-brand" href="#">
-          <span class="header-subtitle me-2 fs-4">{{ appDisplayName }}</span>
-          <span class="fw-bolder fs-4" :style="getColorStyles('chain', activeChain, 'text')">[ {{ activeChainInfo.key.toUpperCase() }} ]</span>
+          <span class="header-subtitle me-2 fs-5">{{ appDisplayName }}</span>
+          <span class="fw-bolder fs-5" :style="getColorStyles('chain', activeChain, 'text')">[ {{ activeChainInfo.key.toUpperCase() }} ]</span>
         </a>
+
+        <!-- REVISI: Chain Switcher dipindahkan ke Header -->
+        <div class="header-chain-switcher">
+          <a href="#" v-for="chain in chainList" :key="chain.key"
+             @click.prevent="setActiveChain(chain.key)"
+             class="chain-switcher-icon"
+             :class="{ active: activeChain === chain.key }"
+             :title="chain.NAMA_CHAIN">
+            <img :src="chain.ICON" :alt="chain.NAMA_CHAIN">
+          </a>
+        </div>
 
         <!-- Tombol Toggle untuk Mobile -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -100,10 +111,10 @@
       <!-- Main Content Layout: Sidebar + Tabs -->
       <div class="row g-3">
         <!-- Left Sidebar: Filter Panel (Component) -->
-        <filter-settings></filter-settings>
+        <filter-settings :is-scanning="isScanning"></filter-settings>
 
         <!-- Right Content: Sub-Menu Tabs + Tab Content -->
-        <div :class="shouldShowFilterPanel ? 'col-lg-10' : 'col-lg-12'">
+        <div :class="sidebarColumnClass">
           <!-- Sub-Menu Pills (Component) -->
           <tab-navigation></tab-navigation>
 
@@ -111,8 +122,9 @@
           <div class="tab-content">
             <keep-alive>
               <component :is="activeTabComponent"
+                         @set-scanning-status="setScanningStatus"
                          @show-toast="showToast"
-                         @copy-to-clipboard="copyToClipboard">
+>
               </component>
             </keep-alive>
           </div>
@@ -129,10 +141,10 @@
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-success">
           <div class="modal-header bg-success text-dark">
-            <h5 class="modal-title">
+            <h3 class="modal-title text-light">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
-              Setting Global Diperlukan
-            </h5>
+              PERINGATAN: Setting Global Diperlukan!!
+            </h3>
           </div>
           <div class="modal-body">
             <p class="mb-3">
@@ -144,7 +156,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-warning" @click="handleStartSettings">
+            <button type="button" class="btn btn-success" @click="handleStartSettings">
               <i class="bi bi-pencil-square me-1"></i> Mulai Isi Setting Sekarang
             </button>
           </div>
@@ -238,6 +250,7 @@
   <!-- Common Components -->
   <script src="components/common/filter-settings.js"></script>
   <script src="components/common/tab-navigation.js"></script>
+  <script src="components/common/filter-toolbar.js"></script>
 
   <!-- Tab Components -->
   <script src="components/tabs/scanning-tab.js"></script>
@@ -258,8 +271,8 @@
 
 </body>
 <style>
-  * {
+  /* * {
     font-size: 0.9rem !important;
-  }
+  } */
 </style>
 </html>

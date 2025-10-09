@@ -48,8 +48,13 @@ class RealtimeDataFetcher {
     async fetchRates(symbols = []) {
         if (!symbols || symbols.length === 0) return {};
 
-        const endpoint = this.config.priceSources?.binanceDataApi || 'https://api-gcp.binance.com/api/v3/ticker/price';
-        const url = `${endpoint}?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
+        // PERBAIKAN: Gunakan endpoint 'data-api.binance.vision' sebagai fallback yang benar.
+        const endpoint = this.config.priceSources?.binanceDataApi || 'https://data-api.binance.vision/api/v3/ticker/price';
+        
+        // PERBAIKAN: Kirim parameter 'symbols' sebagai array JSON yang valid, bukan string.
+        // API Binance mengharapkan format: ?symbols=["BTCUSDT","ETHUSDT"]
+        const symbolsParam = `symbols=${JSON.stringify(symbols)}`;
+        const url = `${endpoint}?${symbolsParam}`;
 
         try {
             const data = await this.Http.get(url, { responseType: 'json' });
@@ -182,9 +187,10 @@ class RealtimeDataFetcher {
      */
     async fetchTokenPrice(symbol) {
         try {
-            const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
+            // PERBAIKAN: Standarisasi endpoint agar konsisten dengan fetchRates.
+            const endpoint = this.config.priceSources?.binanceDataApi || 'https://data-api.binance.vision/api/v3/ticker/price';
+            const url = `${endpoint}?symbol=${symbol}`;
             const response = await this.Http.get(url, {
-                url,
                 method: 'GET',
                 responseType: 'json',
                 timeout: 5000

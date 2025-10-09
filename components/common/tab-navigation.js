@@ -8,18 +8,21 @@ const TabNavigation = {
     <div class="card card-soft mb-3">
       <div class="card-body py-2">
         <div class="row g-2 align-items-center">
-          <div class="col-12 col-md-auto" v-if="['scan', 'manajemen'].includes(activeTab)">
-            <div class="d-grid">
-              <button
-                @click="toggleFilterSidebar"
-                class="btn btn-sm btn-outline-secondary filter-toggle-btn"
-                :title="showFilterSidebar ? 'Sembunyikan Filter' : 'Tampilkan Filter'">
-                <i class="bi bi-arrow-left-right"></i>
-              </button>
-            </div>
+          <!-- Toggle Button Sidebar - Tampil di semua tab -->
+          <div class="col-auto">
+            <button
+              @click="toggleFilterSidebar"
+              class="btn btn-sm sidebar-toggle-btn"
+              :class="showFilterSidebar ? 'btn-light' : 'btn-dark'"
+              :title="showFilterSidebar ? 'Sembunyikan Sidebar' : 'Tampilkan Sidebar'">
+              <i class="bi" :class="showFilterSidebar ? 'bi-box-arrow-left' : 'bi-box-arrow-right'"></i>
+            </button>
           </div>
-          <div class="col-12 col-md">
+
+          <!-- Tab Navigation -->
+          <div class="col">
             <ul class="nav nav-pills subtab justify-content-center justify-content-md-start flex-wrap gap-1">
+              <!-- Tab Scan - Selalu tampil -->
               <li class="nav-item">
                 <a href="?mode=scan" class="nav-link"
                         :class="{active: activeTab === 'scan'}"
@@ -27,20 +30,26 @@ const TabNavigation = {
                   <i class="bi bi-search"></i> Scanning Harga
                 </a>
               </li>
-              <li class="nav-item" v-if="activeChain !== 'multi'">
+
+              <!-- Tab Manajemen - disembunyikan saat mode multichain -->
+              <li class="nav-item" v-if="!isMultiChainMode">
                 <a href="?mode=manajemen" class="nav-link"
                         :class="{active: activeTab === 'manajemen'}"
                         @click.prevent="setActiveTab('manajemen')">
                   <i class="bi bi-coin"></i> Manajemen Koin
                 </a>
               </li>
-              <li class="nav-item" v-if="activeChain !== 'multi'">
+
+              <!-- Tab Sinkronisasi - disembunyikan saat mode multichain -->
+              <li class="nav-item" v-if="!isMultiChainMode">
                 <a href="?mode=sync" class="nav-link"
                         :class="{active: activeTab === 'sync'}"
                         @click.prevent="setActiveTab('sync')">
                   <i class="bi bi-arrow-repeat"></i> Sinkronisasi Koin
                 </a>
               </li>
+
+              <!-- Tab Dompet - Selalu tampil -->
               <li class="nav-item">
                 <a href="?mode=wallet" class="nav-link"
                         :class="{active: activeTab === 'wallet'}"
@@ -65,12 +74,8 @@ const TabNavigation = {
     activeChain() {
       return this.$parent.activeChain;
     },
-    // REVISI: Menambahkan computed property untuk warna latar belakang indikator
-    activeChainColor() {
-      if (this.activeChain === 'multi') {
-        return { 'background-color': 'var(--bs-gray-600)' };
-      }
-      return this.$parent.getColorStyles('chain', this.activeChain, 'solid');
+    isMultiChainMode() {
+      return this.activeChain === 'multi';
     }
   },
 

@@ -30,8 +30,9 @@ const app = createApp({
     'sync-tab': SyncTab,
     'wallet-tab': WalletTab,
     // Common components
-    'filter-settings': FilterSettings,
-    'tab-navigation': TabNavigation
+    'filter-settings': FilterSettings, // Sidebar
+    'tab-navigation': TabNavigation,   // Navigasi tab (Scan, Manajemen, dll)
+    'filter-toolbar': FilterToolbar    // Toolbar di atas tabel (Search, Min PNL, dll)
     // Komponen anak scanning sudah digabung ke dalam scanning-tab
   },
 
@@ -42,12 +43,25 @@ const app = createApp({
       // Menu & Navigation
       activeMenu: 'mode',
       activeTab: 'scan',
-      activeChain: 'multi', // Default ke multi-chain
+      // REVISI: Inisialisasi activeChain langsung dari parameter URL.
+      // Ini adalah perbaikan kunci untuk mencegah infinite reload.
+      // Watcher tidak akan terpicu karena nilai ini ditetapkan sebelum mounted.
+      activeChain: (() => {
+        const params = new URLSearchParams(window.location.search);
+        const chainParam = params.get('chain') || 'multi';
+        // Validasi chainParam terhadap KONFIG_APLIKASI
+        if (KONFIG_APLIKASI.CHAINS[chainParam] || chainParam === 'multi') {
+          return chainParam;
+        }
+        // Jika tidak valid, default ke 'multi'
+        return 'multi';
+      })(),
       showFilterSidebar: true, // Untuk toggle filter sidebar
 
       // Loading States
       searchQuery: '', // REVISI: Dipindahkan ke root untuk bisa diakses global
       isLoading: true, // Start with true untuk boot overlay
+      isScanning: false, // REVISI: Tambahkan state untuk status scanning global
       isBooting: true, // Flag untuk boot state
       loadingText: 'Menyiapkan aplikasi...',
 
@@ -74,8 +88,17 @@ const app = createApp({
         run: 'stop'
       },
 
-      // Coin data untuk filtering count
-      allCoins: [] // Loaded dari tabel KOIN_<chain>
+      // Coin data untuk filtering count dan stats
+      allCoins: [], // Loaded dari tabel KOIN_<chain> sesuai mode aktif
+      filteredCoins: [],
+      filterStats: {
+        chains: {},
+        cex: {},
+        dex: {},
+        pairs: {}
+      },
+      isFilterLocked: false,
+      _filterStatsTimer: null
     };
   },
 
@@ -99,13 +122,18 @@ const app = createApp({
 
       // Muat semua pengaturan setelah DB siap
       console.log('⚙️ [2/5] Memuat semua pengaturan...');
-      await this.loadAllSettings();
+      // REVISI: Panggil loadAllSettings dan TUNGGU hingga selesai.
+      // Ini memastikan globalSettings dan filterSettings sudah terisi penuh
+      // sebelum melanjutkan ke langkah berikutnya.
+      // REVISI: Panggil loadAllSettings dengan chain yang sudah diinisialisasi dari URL.
+      const initialChain = this.activeChain;
+      console.log(`⚙️ [2.1/5] Memuat pengaturan untuk chain awal: "${initialChain}"`);
+      await this.loadAllSettings(initialChain);
 
       // ⚠️ GUARD: Jika global settings tidak valid, tampilkan modal
       if (!this.isGlobalSettingsValid) {
         console.warn('🔴 [CHECK FAILED] Pengaturan global tidak lengkap atau tidak valid. Menampilkan modal.');
         this.isGlobalSettingsRequired = true;
-
         // PERBAIKAN UX: Tampilkan notifikasi yang jelas
         setTimeout(() => {
           this.showToast('⚠️ Pengaturan Global belum lengkap! Silakan isi Wallet Address, Chain, dan CEX terlebih dahulu.', 'warning', 8000);
@@ -134,11 +162,11 @@ const app = createApp({
     // Proses parameter URL untuk mengatur state awal (hanya jika settings valid)
     console.log('⚙️ [3/5] Memproses parameter URL...');
     if (this.isGlobalSettingsValid) {
+      // REVISI: processURLParams sekarang hanya membaca, tidak mengubah state secara langsung.
       this.processURLParams();
-      // SOLUSI 1: Panggil updateThemeColor() secara eksplisit setelah URL diproses.
-      // Ini memastikan tema diterapkan dengan benar saat halaman pertama kali dimuat dengan parameter chain.
       this.updateThemeColor();
       // Load coins untuk filter count
+      // REVISI: Pindahkan pemuatan koin ke sini, setelah semua setting (termasuk filter) dijamin sudah dimuat.
       console.log('⚙️ [4/5] Memuat data koin untuk filter...');
       await this.loadCoinsForFilter();
     } else {
@@ -157,51 +185,31 @@ const app = createApp({
   },
 
   watch: {
-    async activeChain(newValue, oldValue) {
-      // Jangan jalankan watcher ini selama proses inisialisasi awal
-      if (!this.isAppInitialized) {
-        console.log('🔄 [WATCHER-CHAIN] Ditunda, aplikasi belum terinisialisasi.');
-        return;
+    activeChain: {
+      // REVISI: Jadikan watcher ini lebih sederhana. Logika reload halaman
+      // akan menangani pemuatan ulang data secara konsisten.
+      async handler(newChain, oldChain) {
+        if (!this.isAppInitialized || !oldChain || newChain === oldChain) {
+          return;
+        }
+
+        console.log(`🔄 [WATCHER-CHAIN] Chain berubah dari '${oldChain}' ke '${newChain}'. Memuat ulang...`);
+
+        // Guard: Jika global settings tidak valid, block navigasi
+        if (!this.isGlobalSettingsValid) {
+          console.warn('⚠️ Global settings belum valid, navigasi diblokir.');
+          // Kembalikan ke chain sebelumnya secara visual jika memungkinkan
+          this.activeChain = oldChain;
+          return;
+        }
+
+        // REVISI: Gunakan metode terpusat untuk reload halaman.
+        // Metode ini akan menangani overlay, update URL, dan reload.
+        await this.performPageReload({
+          chain: newChain,
+          loadingText: `Memuat data untuk ${newChain.toUpperCase()}...`
+        });
       }
-      console.log(`🔄 [WATCHER-CHAIN] Chain berubah dari '${oldValue}' ke '${newValue}'.`);
-
-      // Guard: Jika global settings tidak valid, block
-      if (!this.isGlobalSettingsValid) {
-        console.warn('⚠️ Global settings belum valid, block navigation');
-        return;
-      }
-
-      // Skip reload jika:
-      // 1. Inisialisasi pertama (oldValue undefined)
-      // 2. Perubahan dari processURLParams (cek apakah sudah sesuai URL)
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlChain = urlParams.get('chain') || 'multi';
-
-      // Hanya reload jika user AKTIF ganti chain (bukan dari URL params)
-      if (oldValue !== undefined && oldValue !== newValue && urlChain === oldValue) {
-        // Reload halaman saat ganti chain untuk refresh data
-        this.isLoading = true;
-        this.loadingText = `Memuat data untuk ${newValue.toUpperCase()}...`;
-
-        // SOLUSI 2: Panggil updateThemeColor() SEBELUM me-reload halaman.
-        // Ini memberikan feedback visual instan kepada pengguna bahwa chain telah berganti.
-        this.updateThemeColor();
-
-        this.updateURL('chain', newValue);
-
-        // Delay untuk smooth transition
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        // Reload halaman dengan parameter chain baru
-        window.location.reload();
-        return;
-      }
-
-      this.updateURL('chain', newValue);
-      this.updateThemeColor();
-      this.initializeFilters(); // Re-initialize filters for the new chain
-      await this.loadFilterSettings(newValue);
-      await this.loadCoinsForFilter(); // Load coins untuk filter count
     },
 
     // REVISI: Watcher ini sekarang mengawasi seluruh objek filterSettings.
@@ -212,7 +220,13 @@ const app = createApp({
         handler(newSettings) {
             const theme = newSettings.darkMode ? 'dark' : 'light';
             document.documentElement.setAttribute('data-bs-theme', theme);
+            this.scheduleFilterStatsRefresh();
         }
+    },
+    searchQuery(newValue, oldValue) {
+      if (newValue !== oldValue) {
+        this.scheduleFilterStatsRefresh();
+      }
     },
 
     activeMenu(newValue) {
@@ -231,6 +245,13 @@ const app = createApp({
       }
     }
 
+  },
+
+  beforeUnmount() {
+    if (this._filterStatsTimer) {
+      clearTimeout(this._filterStatsTimer);
+      this._filterStatsTimer = null;
+    }
   },
 
   computed: {
@@ -272,36 +293,111 @@ const app = createApp({
       return Object.keys(this.config.DEXS);
     },
     pairList() {
-      // REFAKTOR: Menghilangkan prefix 'chain.pair' dan menyajikan daftar pair yang unik.
-      const uniquePairs = new Set();
+      const chainConfigs = this.config?.CHAINS || {};
+      const availableChains = Object.keys(chainConfigs);
+      if (!availableChains.length) return [];
 
-      if (this.activeChain !== 'multi') {
-        // Mode single-chain: hanya tampilkan pair untuk chain yang aktif
-        const chainConf = this.config.CHAINS[this.activeChain];
-        if (chainConf && chainConf.PAIR_DEXS) {
-          Object.keys(chainConf.PAIR_DEXS).forEach(pairKey => uniquePairs.add(pairKey));
+      const chainResolver = availableChains.reduce((acc, key) => {
+        acc[key.toLowerCase()] = key;
+        return acc;
+      }, {});
+
+      const resolveChainKey = (chainKey) => {
+        if (!chainKey) return null;
+        return chainResolver[String(chainKey).toLowerCase()] || null;
+      };
+
+      const tokenSource = this.filteredCoins.length ? this.filteredCoins : this.allCoins;
+      if (!tokenSource.length) return [];
+
+      const activeChainSet = new Set();
+      tokenSource.forEach(token => {
+        const resolvedChainKey = resolveChainKey(token.chainKey || token.chain);
+        if (resolvedChainKey) {
+          activeChainSet.add(resolvedChainKey);
         }
-      } else {
-        // Mode multi-chain: kumpulkan semua pair dari chain yang dipilih di filter
-        for (const chainKey in this.filters.chains) {
-          const isChainSelectedInFilter = this.filters.chains[chainKey];
-          if (isChainSelectedInFilter) {
-            const chainConf = this.config.CHAINS[chainKey];
-            if (chainConf && chainConf.PAIR_DEXS) {
-              Object.keys(chainConf.PAIR_DEXS).forEach(pairKey => uniquePairs.add(pairKey));
-            }
+      });
+
+      if (!activeChainSet.size) return [];
+
+      const pairMap = new Map();
+
+      const ensurePairEntry = (pairKey) => {
+        const normalizedPair = String(pairKey || 'NON').toUpperCase();
+        if (!pairMap.has(normalizedPair)) {
+          pairMap.set(normalizedPair, {
+            key: normalizedPair,
+            chains: {}
+          });
+        }
+        return pairMap.get(normalizedPair);
+      };
+
+      // Pre-populate entries berdasarkan konfigurasi chain aktif
+      activeChainSet.forEach(chainKey => {
+        const chainConfig = chainConfigs[chainKey];
+        if (!chainConfig) return;
+
+        const chainLabel = chainConfig.NAMA_CHAIN || chainKey.toUpperCase();
+        const chainIcon = chainConfig.ICON || null;
+
+        Object.keys(chainConfig.PAIR_DEXS || {}).forEach(pairKey => {
+          const entry = ensurePairEntry(pairKey);
+          if (!entry.chains[chainKey]) {
+            entry.chains[chainKey] = {
+              key: chainKey,
+              label: chainLabel,
+              icon: chainIcon,
+              count: 0
+            };
           }
+        });
+      });
+
+      // Hitung jumlah berdasarkan token yang lolos filter
+      tokenSource.forEach(rawCoin => {
+        if (!rawCoin) return;
+
+        const resolvedChainKey = resolveChainKey(rawCoin.chainKey || rawCoin.chain);
+        if (!resolvedChainKey || !activeChainSet.has(resolvedChainKey)) return;
+
+        const chainConfig = chainConfigs[resolvedChainKey];
+        const chainLabel = chainConfig?.NAMA_CHAIN || resolvedChainKey.toUpperCase();
+        const chainIcon = chainConfig?.ICON || null;
+        const pairKey = String(rawCoin.nama_pair || rawCoin.sc_pair || 'NON').toUpperCase();
+
+        const entry = ensurePairEntry(pairKey);
+        if (!entry.chains[resolvedChainKey]) {
+          entry.chains[resolvedChainKey] = {
+            key: resolvedChainKey,
+            label: chainLabel,
+            icon: chainIcon,
+            count: 0
+          };
         }
-      }
-      // Mengembalikan array dari pair unik, contoh: ['BNB', 'USDT', 'ETH', 'NON', 'USDC']
-      return Array.from(uniquePairs);
+        entry.chains[resolvedChainKey].count += 1;
+      });
+
+      const pairList = Array.from(pairMap.values())
+        .map(entry => {
+          const chains = Object.values(entry.chains)
+            .sort((a, b) => a.label.localeCompare(b.label));
+          const totalCount = chains.reduce((sum, chain) => sum + (Number(chain.count) || 0), 0);
+          return {
+            key: entry.key,
+            chains,
+            totalCount
+          };
+        })
+        .sort((a, b) => a.key.localeCompare(b.key));
+
+      return pairList;
     },
 
-    // Computed property untuk menentukan apakah filter panel harus ditampilkan
-    shouldShowFilterPanel() {
-      const filterIsAvailableForTab = ['scan', 'manajemen'].includes(this.activeTab);
-      // Tampilkan jika toggle aktif DAN tab saat ini adalah 'scan' atau 'manajemen'
-      return this.showFilterSidebar && filterIsAvailableForTab;
+    // REVISI: Logika visibility sidebar yang baru
+    sidebarColumnClass() {
+      // Sidebar selalu ada (MODE CHAIN selalu tampil), hanya bisa di-toggle
+      return this.showFilterSidebar ? 'col-lg-10' : 'col-lg-12';
     },
 
     // Computed property untuk dynamic component
@@ -320,73 +416,31 @@ const app = createApp({
       }
     },
 
-    // Computed: Count koin per Chain
+    // Filter statistics (sudah dihitung di refreshFilterStats)
     coinCountByChain() {
-      const counts = {};
-      this.allCoins.forEach(coin => {
-        if (coin.id === 'DATA_KOIN') return;
-        const chain = String(coin.chain || '').toLowerCase();
-        if (chain) counts[chain] = (counts[chain] || 0) + 1;
-      });
-      return counts;
+      return this.filterStats.chains || {};
     },
-
-    // Computed: Count koin per CEX
     coinCountByCex() {
-        const counts = {};
-        this.allCoins.forEach(coin => {
-            if (coin.id === 'DATA_KOIN' || !coin.cex_name) return;
-            // REFACTOR: Langsung baca dari field cex_name
-            const lowerCexKey = coin.cex_name.toLowerCase();
-            counts[lowerCexKey] = (counts[lowerCexKey] || 0) + 1;
-        });
-        return counts;
+      return this.filterStats.cex || {};
     },
-
-    // Computed: Count koin per DEX
     coinCountByDex() {
-        const counts = {};
-        this.allCoins.forEach(coin => {
-            if (coin.id === 'DATA_KOIN' || !coin.dex || typeof coin.dex !== 'object') return;
-            // Iterasi melalui semua DEX yang ada di dalam objek coin.dex
-            // dan hanya hitung jika statusnya true
-            Object.keys(coin.dex).forEach(dexKey => {
-                // Cek apakah status DEX adalah true
-                if (coin.dex[dexKey] && coin.dex[dexKey].status) {
-                    const dex = dexKey.toLowerCase();
-                    counts[dex] = (counts[dex] || 0) + 1;
-                }
-            });
-        });
-        return counts;
+      return this.filterStats.dex || {};
     },
-
-    // Computed: Count koin per Pair (format: chain.pair)
     coinCountByPair() {
-      // REFAKTOR: Inisialisasi semua pair yang valid dari `pairList` dengan hitungan 0.
-      // Ini memastikan semua opsi pair dari config_app.js muncul di filter, bahkan jika hitungannya 0.
-      const counts = this.pairList.reduce((acc, pairKey) => {
-        acc[pairKey.toUpperCase()] = 0;
-        return acc;
-      }, {});
-
-      // Sekarang, hitung jumlah koin dari data yang ada.
-      this.allCoins.forEach(coin => {
-        if (coin.id === 'DATA_KOIN') return;
-        
-        // Ambil nama pair dari data koin.
-        // Jika tidak ada atau kosong, anggap sebagai 'NON'.
-        let pairKey = String(coin.nama_pair || 'NON').toUpperCase();
-        
-        // Hanya hitung jika pairKey ada di dalam daftar counts (yang berasal dari pairList).
-        if (counts.hasOwnProperty(pairKey)) {
-          counts[pairKey] = (counts[pairKey] || 0) + 1;
-        }
-      });
-      return counts;
+      return this.filterStats.pairs || {};
     }
   },
   methods: {
+    // REVISI: Method baru untuk menangani klik pada ikon chain di header
+    setActiveChain(chainKey) {
+      if (this.activeChain !== chainKey) {
+        this.activeChain = chainKey;
+      }
+    },
+    // REVISI: Method untuk update status scanning dari komponen anak
+    setScanningStatus(status) {
+      this.isScanning = status;
+    },
     // Handler untuk tombol "Mulai Isi Setting" di modal
     handleStartSettings() {
       console.log('🔘 Tombol "Mulai Isi Setting" diklik.');
@@ -423,78 +477,149 @@ const app = createApp({
       }, 1000);
     },
 
-    // Load all coins untuk keperluan filter count
+    // Load token dataset untuk mode aktif dan perbarui statistik filter
     async loadCoinsForFilter() {
-      if (!this.activeChain) return;
-
-      console.log(`📊 Memuat koin untuk filter count (Chain: ${this.activeChain})...`);
-
-      const isMultiChainMode = this.activeChain === 'multi';
-
-      // MULTICHAIN MODE: Load hanya favorit dari semua chain aktif
-      if (isMultiChainMode) {
-        console.log('🌟 [MULTICHAIN MODE] Memuat hanya koin favorit dari semua chain aktif...');
-        let allFavorites = [];
-
-        // Load dari chain yang aktif saja (yang dicentang di global settings)
-        const chainsToLoad = this.activeChains || [];
-
-        for (const chainKey of chainsToLoad) {
-          const storeName = DB.getStoreNameByChain('KOIN', chainKey);
-          try {
-            const chainCoins = await DB.getAllData(storeName);
-            // Filter hanya favorit
-            const favoriteCoins = chainCoins
-              .filter(coin => coin.id !== 'DATA_KOIN')
-              .filter(coin => coin.isFavorite || coin.isFavorit)
-              .map(coin => {
-                const namaTokenFromTicker = (coin.cex_ticker_token || '').replace(/USDT|IDR|BUSD/g, '');
-                return {
-                  ...coin,
-                  chain: coin.chain || chainKey.toUpperCase(),
-                  nama_token: coin.nama_token || namaTokenFromTicker
-                };
-              });
-
-            allFavorites.push(...favoriteCoins);
-            console.log(`✅ ${favoriteCoins.length} favorit dari ${chainKey.toUpperCase()}`);
-          } catch (error) {
-            console.warn(`⚠️ Gagal memuat favorit dari ${chainKey}:`, error);
-          }
-        }
-
-        this.allCoins = allFavorites;
-        console.log(`🌟 [MULTICHAIN] Total ${this.allCoins.length} koin favorit dimuat dari ${chainsToLoad.length} chain.`);
+      if (!this.activeChain || !this.config?.CHAINS) {
+        this.allCoins = [];
+        this.filteredCoins = [];
+        this.scheduleFilterStatsRefresh();
         return;
       }
 
-      // SINGLE CHAIN MODE: Load semua koin dari semua chain untuk filter count
-      // REVISI: Selalu muat data dari SEMUA chain yang ada di config.
-      // Ini memastikan `coinCountByChain` selalu memiliki data lengkap untuk ditampilkan di filter.
-      const chainsToLoad = Object.keys(this.config.CHAINS || {});
+      const isMultiChainMode = this.activeChain === 'multi';
+      console.log(`📊 Memuat dataset token untuk mode "${this.activeChain}"...`);
 
-      let allCoins = [];
-      for (const chainKey of chainsToLoad) {
-        const storeName = DB.getStoreNameByChain('KOIN', chainKey);
+      const allChainKeys = Object.keys(this.config.CHAINS || {});
+      const chainsToLoad = isMultiChainMode
+        ? allChainKeys
+        : allChainKeys.filter(key => key.toLowerCase() === this.activeChain.toLowerCase());
+
+      const aggregatedTokens = [];
+
+      const parseFavoriteFlag = (value) => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value === 1;
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          if (['1', 'true', 'yes', 'y', 'favorit', 'fav'].includes(normalized)) return true;
+          if (['0', 'false', 'no', 'n', ''].includes(normalized)) return false;
+        }
+        return false;
+      };
+
+      for (const rawChainKey of chainsToLoad) {
+        const chainKeyLower = rawChainKey.toLowerCase();
+        const storeName = DB.getStoreNameByChain('KOIN', chainKeyLower);
         try {
           const chainCoins = await DB.getAllData(storeName);
-          // REVISI: Tambahkan properti 'chain' ke setiap koin.
-          const coinsWithChain = chainCoins.map(coin => {
-            const namaTokenFromTicker = (coin.cex_ticker_token || '').replace(/USDT|IDR|BUSD/g, '');
-            return { ...coin,
-              chain: coin.chain || chainKey,
-              nama_token: coin.nama_token || namaTokenFromTicker
-            };
-          });
-          allCoins.push(...coinsWithChain);
 
+          for (const coin of chainCoins) {
+            if (!coin || coin.id === 'DATA_KOIN') continue;
+
+            const normalizedChainLower = String(coin.chain || chainKeyLower).toLowerCase();
+            const normalizedChainUpper = normalizedChainLower.toUpperCase();
+            const namaTokenFallback = coin.nama_token || coin.nama_koin || (coin.cex_ticker_token || '').replace(/(USDT|IDR|BUSD)/gi, '');
+
+            const isFavorite = parseFavoriteFlag(
+              coin.isFavorite !== undefined ? coin.isFavorite : coin.isFavorit
+            );
+
+            // Mode multichain hanya menampilkan token favorit
+            if (isMultiChainMode && !isFavorite) continue;
+
+            aggregatedTokens.push({
+              ...coin,
+              chain: normalizedChainUpper,
+              chainKey: normalizedChainLower,
+              nama_token: namaTokenFallback,
+              isFavorite,
+              isFavorit: isFavorite
+            });
+          }
         } catch (error) {
           console.warn(`⚠️ Gagal memuat data dari ${storeName}:`, error);
         }
       }
 
-      this.allCoins = allCoins;
-      console.log(`✅ Total ${this.allCoins.length} koin dimuat untuk filter count.`);
+      this.allCoins = aggregatedTokens;
+      console.log(`✅ Dataset token dimuat (${aggregatedTokens.length} entri) untuk mode "${this.activeChain}".`);
+
+      // Perbarui statistik dan cache token terfilter
+      this.refreshFilterStats();
+    },
+
+    refreshFilterStats() {
+      if (this._filterStatsTimer) {
+        clearTimeout(this._filterStatsTimer);
+        this._filterStatsTimer = null;
+      }
+
+      const sourceTokens = Array.isArray(this.allCoins) ? this.allCoins : [];
+      // REFAKTOR: Panggil applyFiltersToTokens dari filterMixin
+      const filtered = filterMixin.methods.applyFiltersToTokens(sourceTokens, {
+        filters: this.filters,
+        searchQuery: this.searchQuery
+      });
+
+      this.filteredCoins = filtered;
+
+      const stats = {
+        chains: {},
+        cex: {},
+        dex: {},
+        pairs: {}
+      };
+
+      filtered.forEach(token => {
+        const chainKey = String(token.chainKey || token.chain || '').toLowerCase();
+        if (chainKey) {
+          stats.chains[chainKey] = (stats.chains[chainKey] || 0) + 1;
+        }
+
+        const cexKey = String(token.cex_name || '').toLowerCase();
+        if (cexKey) {
+          stats.cex[cexKey] = (stats.cex[cexKey] || 0) + 1;
+        }
+
+        if (token.dex && typeof token.dex === 'object') {
+          Object.keys(token.dex).forEach(dexKey => {
+            if (token.dex[dexKey]?.status) {
+              const normalizedDex = dexKey.toLowerCase();
+              stats.dex[normalizedDex] = (stats.dex[normalizedDex] || 0) + 1;
+            }
+          });
+        }
+
+        const pairKey = String(token.nama_pair || 'NON').toLowerCase();
+        stats.pairs[pairKey] = (stats.pairs[pairKey] || 0) + 1;
+      });
+
+      this.filterStats = stats;
+
+      const chainKey = this.filterSettings?.chainKey || this.activeChain || 'unknown';
+      console.log(`[FilterStats] Updated for "${chainKey}". Filtered tokens: ${filtered.length}`);
+      // if (filtered.length) {
+      //   console.table(filtered.map(token => ({
+      //     id: token.id,
+      //     chain: token.chain,
+      //     token: token.nama_token || token.nama_koin,
+      //     pair: token.nama_pair,
+      //     cex: token.cex_name,
+      //     favorite: Boolean(token.isFavorite || token.isFavorit)
+      //   })));
+      // } else {
+      //   console.log('[FilterStats] Tidak ada token setelah filter diterapkan.');
+      // }
+    },
+
+    scheduleFilterStatsRefresh() {
+      if (this._filterStatsTimer) {
+        clearTimeout(this._filterStatsTimer);
+      }
+      this._filterStatsTimer = setTimeout(() => {
+        this._filterStatsTimer = null;
+        this.refreshFilterStats();
+      }, 150);
     },
 
     // REFACTOR: Method ini digantikan oleh filterAutoSaveMixin
@@ -506,7 +631,7 @@ const app = createApp({
       }
 
       const chainKey = this.filterSettings.chainKey;
-      console.log(`[App] Saving filter change "${filterType}" for chain: ${chainKey}`);
+      console.log(`[App] Menyimpan perubahan filter "${filterType}" untuk chain: ${chainKey}`);
 
       try {
         // PERBAIKAN: Clone data menggunakan JSON untuk menghilangkan Vue reactivity
@@ -542,6 +667,24 @@ const app = createApp({
         this.showToast(message, 'success', 2000);
 
         console.log(`✅ Filter ${filterType} disimpan untuk ${chainKey}`);
+        const filterTableName = `SETTING_FILTER_${String(chainKey).toUpperCase()}`;
+        console.groupCollapsed(`[Setting Filter] Menyimpan data ke tabel "${filterTableName}" melalui aksi "${filterType}"`);
+        console.table([{
+          chainKey,
+          minPnl: this.filterSettings.minPnl,
+          favoritOnly: this.filterSettings.favoritOnly,
+          autorun: this.filterSettings.autorun,
+          autoscroll: this.filterSettings.autoscroll,
+          run: this.filterSettings.run,
+          sortDirection: this.filterSettings.sortDirection,
+          darkMode: this.filterSettings.darkMode
+        }]);
+        console.table(Object.entries(this.filterSettings.cex || {}).map(([key, value]) => ({ kategori: 'CEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        console.table(Object.entries(this.filterSettings.dex || {}).map(([key, value]) => ({ kategori: 'DEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        console.table(Object.entries(this.filterSettings.chains || {}).map(([key, value]) => ({ kategori: 'CHAIN', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        console.table(Object.entries(this.filterSettings.pairs || {}).map(([key, value]) => ({ kategori: 'PAIR', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        console.log(`[Setting Filter] Data JSON lengkap (${filterTableName}):\n`, JSON.stringify(this.filterSettings, null, 2));
+        console.groupEnd();
 
         // Log aksi perubahan filter
         if (['cex', 'dex', 'chains', 'pairs'].includes(filterType)) {
@@ -550,6 +693,8 @@ const app = createApp({
             chain: chainKey
           });
         }
+
+        this.scheduleFilterStatsRefresh();
       } catch (error) {
         console.error('❌ Error saving filter:', error);
         this.showToast('Gagal menyimpan filter!', 'danger');
@@ -567,43 +712,55 @@ const app = createApp({
       const index = this.allCoins.findIndex(c => c.id === updatedToken.id);
       if (index !== -1) {
         this.allCoins.splice(index, 1, updatedToken);
+        this.scheduleFilterStatsRefresh();
       }
     },
 
-  // REVISI: Method baru untuk reload halaman dan ganti tema
-  async reloadAndToggleTheme() {
-    // 1. Toggle status darkMode di filterSettings
-    const newDarkModeStatus = !this.filterSettings.darkMode;
-    this.filterSettings.darkMode = newDarkModeStatus;
-    if (typeof this.filters === 'object' && this.filters !== null) {
-      this.filters.darkMode = newDarkModeStatus;
-    }
+    // REVISI: Metode terpusat untuk menangani semua aksi yang memerlukan reload halaman.
+    // Ini mencegah duplikasi logika dan race condition pada overlay.
+    async performPageReload({ chain = null, toggleTheme = false, loadingText = 'Memuat ulang...' }) {
+      // 1. Terapkan perubahan state SEBELUM menampilkan overlay
+      let newTheme = null;
 
-    const theme = newDarkModeStatus ? 'dark' : 'light';
+      if (toggleTheme) {
+        const newDarkModeStatus = !this.filterSettings.darkMode;
+        this.filterSettings.darkMode = newDarkModeStatus;
+        if (this.filters) this.filters.darkMode = newDarkModeStatus;
+        newTheme = newDarkModeStatus ? 'dark' : 'light';
 
-    // Apply theme immediately for visual feedback sebelum reload
-    document.documentElement.setAttribute('data-bs-theme', theme);
+        // Simpan perubahan darkMode ke DB agar permanen setelah reload
+        await this.saveFilterChange('darkMode');
+      }
 
-    // PERBAIKAN: Sync tema ke localStorage untuk prevent flash saat refresh
-    localStorage.setItem('darkMode_' + this.activeChain, theme);
-    localStorage.setItem('darkMode', theme); // Fallback global
-    console.log(`[Theme Reload] Saved theme to localStorage: ${theme} for chain: ${this.activeChain}`);
+      if (chain) {
+        // Sinkronkan parameter URL dengan chain yang dipilih agar state bertahan setelah reload.
+        const currentChainParam = new URL(window.location).searchParams.get('chain');
+        if (currentChainParam !== chain) {
+          this.updateURL('chain', chain);
+        }
+      }
 
-    // 2. Simpan perubahan filter (termasuk darkMode) ke DB
-    // Ini memastikan tema yang baru akan dimuat setelah reload
-    await this.saveFilterChange('darkMode');
+      // 2. Terapkan tema ke DOM secara langsung untuk mencegah "flash"
+      // Jika tema tidak di-toggle, gunakan tema saat ini.
+      const finalTheme = newTheme || (this.filterSettings.darkMode ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-bs-theme', finalTheme);
+      this.updateThemeColor(); // Update meta tag warna
 
-      // 3. Tampilkan loading overlay
+      // 3. Sekarang, tampilkan overlay. Warnanya akan konsisten dengan tema akhir.
       this.isLoading = true;
-      this.loadingText = 'Memuat ulang & mengganti tema...';
+      this.loadingText = loadingText;
 
-      // 4. Beri jeda singkat agar user melihat feedback
+      // 4. Beri jeda singkat agar UI (overlay) sempat ditampilkan sebelum reload
       await new Promise(resolve => setTimeout(resolve, 300));
 
       // 5. Reload halaman
       window.location.reload();
     },
 
+    // REVISI: Method lama diubah untuk memanggil metode terpusat.
+    async reloadAndToggleTheme() {
+      await this.performPageReload({ toggleTheme: true, loadingText: 'Mengganti tema...' });
+    },
 
     // Method global untuk mencatat riwayat aksi
     async logAction(actionType, details) {

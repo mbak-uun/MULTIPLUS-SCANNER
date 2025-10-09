@@ -46,10 +46,13 @@ const settingsMixin = {
     }
   },
   methods: {
-    async loadAllSettings() {
+    async loadAllSettings(chainKey) {
       await this.loadGlobalSettings();
-      this.initializeFilters(); // Inisialisasi struktur filter
-      await this.loadFilterSettings(this.activeChain); // Muat data filter dari DB
+      // REVISI: Panggil `initializeFilters` dari sini untuk memastikan struktur filter
+      // di-reset sebelum memuat data baru.
+      this.initializeFilters(); 
+      // REVISI: Muat filter untuk chain yang ditentukan, bukan this.activeChain yang mungkin belum ter-update.
+      await this.loadFilterSettings(chainKey);
     },
 
     async loadGlobalSettings() {
@@ -59,13 +62,16 @@ const settingsMixin = {
         const settings = await settingsRepo.getGlobal();
 
         if (settings && Object.keys(settings).length > 1) {
+          // Pengaturan ditemukan di DB, validasi isinya
           this.globalSettings = settings;
           this.isGlobalSettingsValid = this.validateGlobalSettings(settings);
           this.isGlobalSettingsRequired = !this.isGlobalSettingsValid;
           console.log('⚙️ Global settings loaded:', { settings, isValid: this.isGlobalSettingsValid });
         } else {
-          console.warn('⚠️ Global settings not found or empty. Applying defaults from config.');
-          const defaultSettings = this.createDefaultGlobalSettings();
+          // Pengaturan tidak ditemukan (first run), langsung paksa user untuk mengisi
+          console.warn('⚠️ Global settings not found. Forcing user to settings page.');
+          const defaultSettings = this.createDefaultGlobalSettings(true); // true = create empty settings
+          // Jangan simpan dulu, biarkan user yang save
           await settingsRepo.saveGlobal(defaultSettings);
           this.globalSettings = defaultSettings;
           this.isGlobalSettingsValid = this.validateGlobalSettings(defaultSettings);
@@ -88,6 +94,12 @@ const settingsMixin = {
     },
 
     async loadFilterSettings(chainKey) {
+      // REVISI: Tambahkan guard untuk memastikan chainKey valid.
+      if (!chainKey) {
+        console.warn('[loadFilterSettings] Pemuatan filter dilewati, chainKey tidak valid.');
+        return;
+      }
+
       const settingsRepo = window.AppContainer.get('settingsRepository');
       let loadedSettings = await settingsRepo.getFilterSettings(chainKey);
 
@@ -96,7 +108,7 @@ const settingsMixin = {
         console.log(`No saved filter for "${chainKey}". Creating default.`);
         loadedSettings = this.createDefaultFilterSettings(chainKey);
       }
-
+      
       // **PERBAIKAN UTAMA**: Pastikan filter 'chains' diisi untuk mode multi-chain
       if (chainKey === 'multi' && (!loadedSettings.chains || Object.keys(loadedSettings.chains).length === 0)) {
         console.log("Multi-chain filter is empty. Initializing with all active chains.");
@@ -106,19 +118,21 @@ const settingsMixin = {
         }, {});
       }
 
-      // Gabungkan default dengan yang dimuat untuk memastikan semua properti ada
+      // REVISI: Logika penggabungan disederhanakan.
+      // Prioritas: Data yang dimuat dari DB > Data default.
       const defaultFilters = this.createDefaultFilterSettings(chainKey);
       const mergedSettings = {
         ...defaultFilters,
         ...loadedSettings,
-        // Pastikan objek filter tidak undefined
+        // Pastikan objek filter di dalam (chains, cex, dll) tidak undefined
         chains: { ...defaultFilters.chains, ...(loadedSettings.chains || {}) },
         cex: { ...defaultFilters.cex, ...(loadedSettings.cex || {}) },
         dex: { ...defaultFilters.dex, ...(loadedSettings.dex || {}) },
         pairs: { ...defaultFilters.pairs, ...(loadedSettings.pairs || {}) },
       };
 
-      // Update state aplikasi
+      // REVISI: Update kedua state filter (`filterSettings` dan `filters`) secara bersamaan
+      // untuk menjaga konsistensi di seluruh aplikasi.
       this.filterSettings = mergedSettings;
       this.filters = {
         ...this.filters,
@@ -126,6 +140,34 @@ const settingsMixin = {
       };
 
       console.log(`✅ Filter settings for "${chainKey}" loaded and merged.`, this.filters);
+
+      // REVISI: Panggil refresh statistik filter dari sini setelah filter dipastikan dimuat.
+      // Ini memastikan sidebar menampilkan count yang benar.
+      if (typeof this.scheduleFilterStatsRefresh === 'function') {
+        this.scheduleFilterStatsRefresh();
+      } else if (typeof this.refreshFilterStats === 'function') {
+        this.refreshFilterStats();
+      }
+
+      const snapshot = JSON.parse(JSON.stringify(this.filterSettings));
+      const filterTableName = `SETTING_FILTER_${String(chainKey).toUpperCase()}`;
+      console.groupCollapsed(`[Setting Filter] Memuat data dari tabel "${filterTableName}"`);
+      console.table([{
+        chainKey: snapshot.chainKey,
+        minPnl: snapshot.minPnl,
+        favoritOnly: snapshot.favoritOnly,
+        autorun: snapshot.autorun,
+        autoscroll: snapshot.autoscroll,
+        run: snapshot.run,
+        sortDirection: snapshot.sortDirection,
+        darkMode: snapshot.darkMode
+      }]);
+      console.table(Object.entries(snapshot.cex || {}).map(([key, value]) => ({ kategori: 'CEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      console.table(Object.entries(snapshot.dex || {}).map(([key, value]) => ({ kategori: 'DEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      console.table(Object.entries(snapshot.chains || {}).map(([key, value]) => ({ kategori: 'CHAIN', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      console.table(Object.entries(snapshot.pairs || {}).map(([key, value]) => ({ kategori: 'PAIR', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      console.log(`[Setting Filter] Data JSON lengkap (${filterTableName}):\n`, JSON.stringify(snapshot, null, 2));
+      console.groupEnd();
     },
 
     createDefaultFilterSettings(chainKey) {
@@ -141,7 +183,7 @@ const settingsMixin = {
         chainKey: chainKey,
         minPnl: 0,
         sortDirection: 'desc',
-        favoritOnly: false,
+        favoritOnly: chainKey === 'multi', // REVISI: favoritOnly=true HANYA untuk mode multi-chain
         autorun: false,
         autoscroll: false,
         darkMode: false,
@@ -200,12 +242,13 @@ const settingsMixin = {
       const config = this.config;
 
       // Fungsi untuk membuat objek konfigurasi dengan status dari data yang disimpan
-      const mapConfig = (sourceConfig, savedConfig) => {
+      const mapConfig = (sourceConfig, savedConfig, fallbackDelay) => {
         return Object.keys(sourceConfig).reduce((acc, key) => {
           const lowerKey = key.toLowerCase();
+          const defaultJeda = sourceConfig[key].JEDA_DEFAULT || fallbackDelay;
           acc[lowerKey] = {
             status: savedConfig?.[lowerKey]?.status || false,
-            jeda: savedConfig?.[lowerKey]?.jeda || (sourceConfig[key].JEDA_DEFAULT || 30)
+            jeda: savedConfig?.[lowerKey]?.jeda ?? defaultJeda // Gunakan ?? agar nilai 0 tetap valid
           };
           return acc;
         }, {});
@@ -216,14 +259,12 @@ const settingsMixin = {
         nickname: settings.nickname || '',
         walletMeta: settings.walletMeta || '',
         AnggotaGrup: settings.AnggotaGrup || 3,
-        jedaTimeGroup: settings.jedaTimeGroup || 1000,
+        jedaTimeGroup: settings.jedaTimeGroup || 1500,
         jedaPerAnggota: settings.jedaPerAnggota || 200,
         WaktuTunggu: settings.WaktuTunggu || 5000,
-        modalUsd: settings.modalUsd || 100,
-        usdtRate: settings.usdtRate || 16000,
-        config_chain: mapConfig(config.CHAINS, settings.config_chain),
-        config_cex: mapConfig(config.CEX, settings.config_cex),
-        config_dex: mapConfig(config.DEXS, settings.config_dex),
+        config_chain: mapConfig(config.CHAINS, settings.config_chain, 30), // Fallback delay untuk chain
+        config_cex: mapConfig(config.CEX, settings.config_cex, 35), // Fallback delay untuk CEX
+        config_dex: mapConfig(config.DEXS, settings.config_dex, 100), // REVISI: Jeda default DEX diubah menjadi 100ms
         telegram: {
           botToken: settings.telegram?.botToken || '',
           chatId: settings.telegram?.chatId || ''
@@ -232,16 +273,16 @@ const settingsMixin = {
       console.log('Settings form loaded with data:', this.settingsForm);
     },
 
-    createDefaultGlobalSettings() {
-      const mapConfig = (sourceConfig, fallbackDelay = 30) => {
+    createDefaultGlobalSettings(isEmpty = false) {
+      const mapConfig = (sourceConfig, fallbackDelay = 35) => {
         if (!sourceConfig) return {};
         return Object.keys(sourceConfig).reduce((acc, key) => {
           const lowerKey = key.toLowerCase();
           const item = sourceConfig[key] || {};
           const delay =
-            item.JEDA_DEFAULT ??
-            item.JEDA ??
-            item.jeda ??
+            item.JEDA_DEFAULT ?? // Mengambil dari KONFIG_APLIKASI
+            item.JEDA ?? // Mengambil dari KONFIG_APLIKASI
+            item.jeda ?? // Mengambil dari data yang sudah ada
             fallbackDelay;
           acc[lowerKey] = {
             status: true,
@@ -251,19 +292,25 @@ const settingsMixin = {
         }, {});
       };
 
+      // Jika isEmpty, buat form kosong untuk diisi user pertama kali
+      if (isEmpty) {
+        return {
+          key: 'SETTING_GLOBAL', walletMeta: '', nickname: '',
+          // ... properti lain bisa diset null atau default minimal
+        };
+      }
+
       return {
         key: 'SETTING_GLOBAL',
-        nickname: 'DEFAULT_USER',
-        walletMeta: 'DEFAULT_WALLET',
+        nickname: '',
+        walletMeta: '',
         AnggotaGrup: 3,
         jedaTimeGroup: 1000,
         jedaPerAnggota: 200,
         WaktuTunggu: 5000,
-        modalUsd: 100,
-        usdtRate: 16000,
         config_chain: mapConfig(this.config?.CHAINS),
-        config_cex: mapConfig(this.config?.CEX),
-        config_dex: mapConfig(this.config?.DEXS),
+        config_cex: mapConfig(this.config?.CEX, 35), 
+        config_dex: mapConfig(this.config?.DEXS, 100), // REVISI: Jeda default DEX diubah menjadi 100ms
         telegram: {
           botToken: '',
           chatId: ''

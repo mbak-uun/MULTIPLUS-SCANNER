@@ -15,6 +15,7 @@ const scannerMixin = {
             currentBatch: 0,
             totalBatches: 0,
             scanResults: {},  // Menyimpan hasil scan per token { tokenId: { cex, dex, pnl } }
+            dexScanStatus: {}, // Status per token per DEX: loading | done | error
             lastScanTime: null,
             lastPnlResult: null, // REVISI: Tambahkan state untuk hasil PNL terakhir
             currentProgressMessage: '' // Pesan progress detail untuk ditampilkan
@@ -60,7 +61,7 @@ const scannerMixin = {
             // Buat scanner instance
             this.scanner = new PriceScanner(this.$root.config, services, callbacks);
 
-            console.log('[ScannerMixin] Scanner initialized');
+            // console.log('[ScannerMixin] Scanner initialized');
         },
 
         /**
@@ -68,7 +69,7 @@ const scannerMixin = {
          */
         async startScanning() {
             if (this.scanningInProgress) {
-                console.warn('[ScannerMixin] Scan already in progress');
+                // console.warn('[ScannerMixin] Scan already in progress');
                 return;
             }
 
@@ -80,19 +81,27 @@ const scannerMixin = {
 
             if (tokensToScan.length === 0) {
                 this.$emit('show-toast', 'Tidak ada token untuk di-scan', 'warning');
+                this.$root.isFilterLocked = false;
                 return;
             }
 
             // Ambil filter aktif
             const filters = this.$root.filters;
 
-            // Ambil settings dari filterSettings
+            // ADOPSI APLIKASI LAMA: Ambil settings lengkap termasuk delay configuration
             const scanSettings = {
                 modalUsd: this.$root.globalSettings?.modalUsd || 100,
                 minPnlPercent: this.$root.filters?.minPnl || 0.5,
-                tokensPerBatch: 3,
-                delayBetweenBatches: 2000,
-                delayBetweenDex: 300,
+                tokensPerBatch: this.$root.globalSettings?.tokensPerBatch || 3,
+
+                // ADOPSI APLIKASI LAMA: Delay settings dari config
+                jedaTimeGroup: this.$root.config?.SCANNING_DELAYS?.jedaTimeGroup || 2000,
+                jedaKoin: this.$root.config?.SCANNING_DELAYS?.jedaKoin || 500,
+                JedaCexs: this.$root.config?.SCANNING_DELAYS?.JedaCexs || {},
+                JedaDexs: this.$root.config?.SCANNING_DELAYS?.JedaDexs || {},
+                jedaPerAnggota: this.$root.config?.SCANNING_DELAYS?.jedaPerAnggota || 200,
+                dexTimeout: this.$root.config?.SCANNING_DELAYS?.dexTimeout || 10000,
+
                 autoSendTelegram: true,
                 globalSettings: this.$root.globalSettings // WAJIB: Teruskan globalSettings yang berisi nickname
             };
@@ -102,8 +111,9 @@ const scannerMixin = {
 
             // Mulai scan
             this.clearScanResults();
-            console.log(`[ScannerMixin] Starting scan for ${tokensToScan.length} tokens...`);
+            // console.log(`[ScannerMixin] Starting scan for ${tokensToScan.length} tokens...`);
             this.scanningInProgress = true;
+            this.$root.isFilterLocked = true;
 
             await this.scanner.startScan(tokensToScan, filters, scanSettings);
         },
@@ -116,6 +126,8 @@ const scannerMixin = {
 
             this.scanner.stopScan();
             this.scanningInProgress = false;
+            this.$root.isFilterLocked = false;
+            this.dexScanStatus = {};
             this.$emit('show-toast', 'Scanning dihentikan', 'info');
         },
 
@@ -123,11 +135,12 @@ const scannerMixin = {
          * Handler: Scan start
          */
         handleScanStart(data) {
-            console.log('[ScannerMixin] Scan started:', data);
+            // console.log('[ScannerMixin] Scan started:', data);
             this.scanProgress = 0;
             this.currentBatch = 0;
             this.totalBatches = Math.ceil(data.totalTokens / data.settings.tokensPerBatch);
             this.scanResults = {}; // Reset results
+            this.dexScanStatus = {};
 
             this.$emit('show-toast', `Memulai scan untuk ${data.totalTokens} token...`, 'info');
         },
@@ -157,6 +170,23 @@ const scannerMixin = {
 
             this.currentProgressMessage = stageMap[stage] || message || 'Processing...';
 
+            const tokenId = data?.data?.tokenId;
+            const dexKey = data?.data?.dexKey;
+
+            if (tokenId && dexKey) {
+                if (stage === 'DEX_FETCH') {
+                    this._setDexScanStatus(tokenId, dexKey, 'loading');
+                } else if (stage === 'DEX_FETCH_SELESAI' || stage === 'PNL_SELESAI') {
+                    this._setDexScanStatus(tokenId, dexKey, 'done');
+                } else if (stage === 'DEX_FETCH_GAGAL') {
+                    this._setDexScanStatus(tokenId, dexKey, 'error');
+                }
+            }
+
+            if (stage === 'TOKEN_MULAI' && tokenId) {
+                this._resetDexStatusForToken(tokenId);
+            }
+
             // Force Vue reactivity
             this.$forceUpdate();
         },
@@ -179,7 +209,7 @@ const scannerMixin = {
             // Force Vue reactivity untuk update UI
             this.$forceUpdate();
 
-            console.log(`[ScannerMixin] CEX data received for ${token.nama_token}/${token.nama_pair}`);
+            // console.log(`[ScannerMixin] CEX data received for ${token.nama_token}/${token.nama_pair}`);
         },
 
         /**
@@ -213,10 +243,17 @@ const scannerMixin = {
             // REVISI: Simpan hasil PNL terakhir agar bisa di-watch oleh komponen
             this.lastPnlResult = { ...data, timestamp: Date.now() };
 
+            const hasError = Boolean(
+                pnl?.cexToDex?.error ||
+                pnl?.dexToCex?.error ||
+                pnl?.error
+            );
+            this._setDexScanStatus(token.id, dexKey, hasError ? 'error' : 'done');
+
             // Force Vue reactivity untuk update UI
             this.$forceUpdate();
 
-            console.log(`[ScannerMixin] PNL result received for ${token.nama_token}/${token.nama_pair} via ${dexKey} - UI updated immediately`);
+            // console.log(`[ScannerMixin] PNL result received for ${token.nama_token}/${token.nama_pair} via ${dexKey} - UI updated immediately`);
         },
 
         /**
@@ -239,8 +276,9 @@ const scannerMixin = {
 
             // Update progress
             this.scanProgress = progress;
+            this._markTokenDexDone(token.id);
 
-            console.log(`[ScannerMixin] Token ${token.nama_token} completed (${progress.toFixed(1)}%)`);
+            // console.log(`[ScannerMixin] Token ${token.nama_token} completed (${progress.toFixed(1)}%)`);
         },
 
         /**
@@ -248,16 +286,21 @@ const scannerMixin = {
          */
         handleBatchComplete(data) {
             this.currentBatch = data.batchNumber;
-            console.log(`[ScannerMixin] Batch ${data.batchNumber}/${data.totalBatches} completed`);
+            const shouldAutoScroll = Boolean(this.$root?.filters?.autoscroll);
+            if (shouldAutoScroll) {
+                this.scrollToFirstTokenRow();
+            }
+            // console.log(`[ScannerMixin] Batch ${data.batchNumber}/${data.totalBatches} completed`);
         },
 
         /**
          * Handler: Scan complete
          */
         handleScanComplete(data) {
-            console.log('[ScannerMixin] Scan completed:', data);
+            // console.log('[ScannerMixin] Scan completed:', data);
 
             this.scanningInProgress = false;
+            this.$root.isFilterLocked = false;
             this.scanProgress = 100;
             this.lastScanTime = Date.now();
             this.currentProgressMessage = '✓ Scan selesai!';
@@ -279,8 +322,10 @@ const scannerMixin = {
          * Handler: Scan error
          */
         handleScanError(error) {
-            console.error('[ScannerMixin] Scan error:', error);
+            // console.error('[ScannerMixin] Scan error:', error);
             this.scanningInProgress = false;
+            this.$root.isFilterLocked = false;
+            this.dexScanStatus = {};
             this.$emit('show-toast', `Error saat scanning: ${error.message}`, 'danger', 5000);
         },
 
@@ -326,7 +371,58 @@ const scannerMixin = {
             this.currentBatch = 0;
             this.totalBatches = 0;
             this.currentProgressMessage = '';
+            this.dexScanStatus = {};
         },
+
+        scrollToFirstTokenRow() {
+            this.$nextTick(() => {
+                const hostElement = this.$el || document.querySelector('.scanning-tab');
+                if (!hostElement) return;
+
+                const targetCell = hostElement.querySelector('.token-row .token-detail') ||
+                    hostElement.querySelector('.token-row');
+
+                if (targetCell) {
+                    targetCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        },
+
+        _setDexScanStatus(tokenId, dexKey, status) {
+            if (!tokenId || !dexKey || !status) return;
+            const existingTokenStatus = this.dexScanStatus[tokenId] || {};
+            if (existingTokenStatus[dexKey] === status) return;
+            this.dexScanStatus = {
+                ...this.dexScanStatus,
+                [tokenId]: {
+                    ...existingTokenStatus,
+                    [dexKey]: status
+                }
+            };
+        },
+
+        _resetDexStatusForToken(tokenId) {
+            if (!tokenId) return;
+            if (this.dexScanStatus[tokenId]) {
+                this.dexScanStatus = {
+                    ...this.dexScanStatus,
+                    [tokenId]: {}
+                };
+            }
+        },
+
+        _markTokenDexDone(tokenId) {
+            if (!tokenId || !this.dexScanStatus[tokenId]) return;
+            const updatedEntries = Object.fromEntries(
+                Object.entries(this.dexScanStatus[tokenId]).map(([dexKey, status]) => {
+                    return [dexKey, status === 'error' ? status : 'done'];
+                })
+            );
+            this.dexScanStatus = {
+                ...this.dexScanStatus,
+                [tokenId]: updatedEntries
+            };
+        }
     },
 
     computed: {
