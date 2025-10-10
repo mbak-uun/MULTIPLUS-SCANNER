@@ -98,6 +98,7 @@ const app = createApp({
         pairs: {}
       },
       isFilterLocked: false,
+      _suppressChainWatcher: false,
       _filterStatsTimer: null
     };
   },
@@ -175,29 +176,44 @@ const app = createApp({
 
   watch: {
     activeChain: {
-      // REVISI: Jadikan watcher ini lebih sederhana. Logika reload halaman
-      // akan menangani pemuatan ulang data secara konsisten.
       async handler(newChain, oldChain) {
-        if (!this.isAppInitialized || !oldChain || newChain === oldChain) {
+        if (this._suppressChainWatcher) {
+          this._suppressChainWatcher = false;
           return;
         }
 
-        /* // console.log(`🔄 [WATCHER-CHAIN] Chain berubah dari '${oldChain}' ke '${newChain}'. Memuat ulang...`); */
+        if (!this.isAppInitialized || !newChain || newChain === oldChain) {
+          return;
+        }
 
         // Guard: Jika global settings tidak valid, block navigasi
         if (!this.isGlobalSettingsValid) {
-          // console.warn('⚠️ Global settings belum valid, navigasi diblokir.');
-          // Kembalikan ke chain sebelumnya secara visual jika memungkinkan
-          this.activeChain = oldChain;
+          this.showToast('Pengaturan global belum lengkap. Lengkapi pengaturan sebelum mengganti chain.', 'warning', 5000);
+          if (oldChain && oldChain !== newChain) {
+            this._suppressChainWatcher = true;
+            this.activeChain = oldChain;
+          }
           return;
         }
 
-        // REVISI: Gunakan metode terpusat untuk reload halaman.
-        // Metode ini akan menangani overlay, update URL, dan reload.
-        await this.performPageReload({
-          chain: newChain,
-          loadingText: `Memuat data untuk ${newChain.toUpperCase()}...`
-        });
+        this.isLoading = true;
+        this.loadingText = `Memuat DATA ${newChain.toUpperCase()} CHAIN`;
+
+        try {
+          await this.loadAllSettings(newChain);
+          await this.loadCoinsForFilter();
+          this.updateURL('chain', newChain);
+          this.updateThemeColor(); // FIX: Panggil update tema setelah ganti chain
+          this.scheduleFilterStatsRefresh();
+        } catch (error) {
+          this.showToast('Gagal memuat data untuk chain baru.', 'danger', 5000);
+          if (oldChain) {
+            this._suppressChainWatcher = true;
+            this.activeChain = oldChain;
+          }
+        } finally {
+          this.isLoading = false;
+        }
       }
     },
 
@@ -211,6 +227,12 @@ const app = createApp({
             document.documentElement.setAttribute('data-bs-theme', theme);
             this.scheduleFilterStatsRefresh();
         }
+    },
+    activeTab(newValue, oldValue) {
+      if (!oldValue || newValue === oldValue) {
+        return;
+      }
+      this.reloadActiveTab();
     },
     searchQuery(newValue, oldValue) {
       if (newValue !== oldValue) {
@@ -422,9 +444,24 @@ const app = createApp({
   methods: {
     // REVISI: Method baru untuk menangani klik pada ikon chain di header
     setActiveChain(chainKey) {
-      if (this.activeChain !== chainKey) {
-        this.activeChain = chainKey;
+      if (!chainKey) return;
+
+      const normalizedKey = chainKey.toString().toLowerCase();
+      if (!this.isGlobalSettingsValid) {
+        this.showToast('Lengkapi Pengaturan Global sebelum mengganti chain.', 'warning', 5000);
+        return;
       }
+      if (this.activeChain === normalizedKey) {
+        return;
+      }
+
+      this.activeChain = normalizedKey;
+    },
+    handleTabChange(tab) {
+      this.setActiveTab(tab);
+    },
+    toggleFilterSidebar() {
+      this.showFilterSidebar = !this.showFilterSidebar;
     },
     // REVISI: Method untuk update status scanning dari komponen anak
     setScanningStatus(status) {

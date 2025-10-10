@@ -1665,15 +1665,15 @@ const SyncTab = {
                           <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control"
-                                  :value="getDexModal(dex.key).modalKiri"
-                                  @input="updateDexModal(dex.key, 'modalKiri', parseInt($event.target.value) || 100)"
+                                  :value="getDexModal(dex.key).modalKiri || ''"
+                                  @input="updateDexModal(dex.key, 'modalKiri', $event.target.value === '' ? null : parseInt($event.target.value))"
                                   placeholder="100" min="1" title="Modal Kiri">
                           </div>
                           <div class="input-group input-group-sm">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control"
-                                  :value="getDexModal(dex.key).modalKanan"
-                                  @input="updateDexModal(dex.key, 'modalKanan', parseInt($event.target.value) || 100)"
+                                  :value="getDexModal(dex.key).modalKanan || ''"
+                                  @input="updateDexModal(dex.key, 'modalKanan', $event.target.value === '' ? null : parseInt($event.target.value))"
                                   placeholder="100" min="1">
                            </div>
                           </div>

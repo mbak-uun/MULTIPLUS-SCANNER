@@ -4,6 +4,23 @@
 const TabNavigation = {
   name: 'TabNavigation',
 
+  props: {
+    activeTab: {
+      type: String,
+      required: true
+    },
+    activeChain: {
+      type: String,
+      required: true
+    },
+    showFilterSidebar: {
+      type: Boolean,
+      default: true
+    }
+  },
+
+  emits: ['update:activeTab', 'toggle-filter-sidebar'],
+
   template: `
     <div class="card card-soft mb-3">
       <div class="card-body py-2">
@@ -11,7 +28,7 @@ const TabNavigation = {
           <!-- Toggle Button Sidebar - Tampil di semua tab -->
           <div class="col-auto">
             <button
-              @click="toggleFilterSidebar"
+              @click="handleSidebarToggle"
               class="btn btn-sm sidebar-toggle-btn"
               :class="showFilterSidebar ? 'btn-light' : 'btn-dark'"
               :title="showFilterSidebar ? 'Sembunyikan Sidebar' : 'Tampilkan Sidebar'">
@@ -26,7 +43,7 @@ const TabNavigation = {
               <li class="nav-item">
                 <a href="?mode=scan" class="nav-link"
                         :class="{active: activeTab === 'scan'}"
-                        @click.prevent="setActiveTab('scan')">
+                        @click.prevent="handleTabClick('scan')">
                   <i class="bi bi-search"></i> Scanning Harga
                 </a>
               </li>
@@ -35,7 +52,7 @@ const TabNavigation = {
               <li class="nav-item" v-if="!isMultiChainMode">
                 <a href="?mode=manajemen" class="nav-link"
                         :class="{active: activeTab === 'manajemen'}"
-                        @click.prevent="setActiveTab('manajemen')">
+                        @click.prevent="handleTabClick('manajemen')">
                   <i class="bi bi-coin"></i> Manajemen Koin
                 </a>
               </li>
@@ -44,7 +61,7 @@ const TabNavigation = {
               <li class="nav-item" v-if="!isMultiChainMode">
                 <a href="?mode=sync" class="nav-link"
                         :class="{active: activeTab === 'sync'}"
-                        @click.prevent="setActiveTab('sync')">
+                        @click.prevent="handleTabClick('sync')">
                   <i class="bi bi-arrow-repeat"></i> Sinkronisasi Koin
                 </a>
               </li>
@@ -53,7 +70,7 @@ const TabNavigation = {
               <li class="nav-item">
                 <a href="?mode=wallet" class="nav-link"
                         :class="{active: activeTab === 'wallet'}"
-                        @click.prevent="setActiveTab('wallet')">
+                        @click.prevent="handleTabClick('wallet')">
                   <i class="bi bi-wallet2"></i> Dompet Exchanger
                 </a>
               </li>
@@ -65,31 +82,17 @@ const TabNavigation = {
   `,
 
   computed: {
-    activeTab() {
-      return this.$parent.activeTab;
-    },
-    showFilterSidebar() {
-      return this.$parent.showFilterSidebar;
-    },
-    activeChain() {
-      return this.$parent.activeChain;
-    },
     isMultiChainMode() {
       return this.activeChain === 'multi';
     }
   },
 
   methods: {
-    setActiveTab(tab) {
-      // Jika tab yang diklik sama dengan tab yang sedang aktif, reload halaman
-      if (this.activeTab === tab) {
-        window.location.reload();
-      } else {
-        this.$parent.setActiveTab(tab);
-      }
+    handleTabClick(tab) {
+      this.$emit('update:activeTab', tab);
     },
-    toggleFilterSidebar() {
-      this.$parent.showFilterSidebar = !this.$parent.showFilterSidebar;
+    handleSidebarToggle() {
+      this.$emit('toggle-filter-sidebar');
     }
   }
 };

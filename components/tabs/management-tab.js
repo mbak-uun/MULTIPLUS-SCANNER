@@ -891,14 +891,17 @@ const ManagementTab = {
                   </div>
                 </div>
               </td>
-              <td class="text-center">
-                <div v-if="getDexEntries(token).length" class="row g-1 justify-content-center">
-                  <div v-for="dex in getDexEntries(token)" :key="dex.key" class="col-6">
-                    <span class="badge w-100" :style="$root.getColorStyles('dex', dex.key, 'soft')">
-                      {{ dex.name }}
-                      <span class="text-muted small">[{{ formatDexValue(dex.left) }}|{{ formatDexValue(dex.right) }}]</span>
-                    </span>
-                  </div>
+              <td class="text-center management-dex-column">
+                <div v-if="getDexEntries(token).length" class="dex-badge-container">
+                  <span
+                    v-for="dex in getDexEntries(token)"
+                    :key="dex.key"
+                    class="badge dex-badge"
+                    :style="$root.getColorStyles('dex', dex.key, 'soft')"
+                    :title="dex.name + ' [' + formatDexValue(dex.left) + '|' + formatDexValue(dex.right) + ']'">
+                    <span class="dex-badge__label text-uppercase">{{ dex.name }}</span>
+                    <span class="dex-badge__values">[{{ formatDexValue(dex.left) }}|{{ formatDexValue(dex.right) }}]</span>
+                  </span>
                 </div>
                 <span v-else class="text-muted small">-</span>
               </td> 

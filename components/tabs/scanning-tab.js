@@ -209,7 +209,14 @@ const TokenRow = {
         dexStatus,
         cexBuyLink: direction === 'CEXtoDEX' ? tokenTradeLink : pairTradeLink,
         cexSellLink: direction === 'CEXtoDEX' ? pairTradeLink : tokenTradeLink,
-        dexLink: dexTradeLink
+        dexLink: dexTradeLink,
+        actionLink: direction === 'CEXtoDEX' ? this.tokenWithdrawLink : this.pairDepositLink,
+        actionLabel: direction === 'CEXtoDEX'
+          ? (this.tokenStatus.withdraw ? 'WD' : 'WX')
+          : (this.pairStatus.deposit ? 'DP' : 'DX'),
+        actionTitle: direction === 'CEXtoDEX'
+          ? `Buka halaman withdraw ${this.token.nama_token || 'token'} di ${this.primaryCex}`
+          : `Buka halaman deposit ${this.token.nama_pair || 'pair'} di ${this.primaryCex}`
       };
 
       // Jika tidak ada hasil DEX, return null untuk loading state
@@ -235,7 +242,7 @@ const TokenRow = {
         case 'UNX':
           return `https://app.unidex.exchange/?chain=${token.chain}&from=${scTokenIn}&to=${scTokenOut}`;
         case 'OKX':
-          return `https://www.okx.com/web3/dex-swap?inputChain=${chainId}&inputCurrency=${scTokenIn}&outputChain=${chainId}&outputCurrency=${scTokenOut}`;
+          return `https://web3.okx.com/dex-swap?chain=${token.chain},${token.chain}&token=${scTokenIn},${scTokenOut}`;
         case 'DFL':
           return `https://swap.defillama.com/?chain=${token.chain}&from=${scTokenIn}&to=${scTokenOut}`;
         case 'JMX':
@@ -412,6 +419,8 @@ const ScanningTab = {
       // REVISI: Data sampel untuk sinyal dan statistik dihapus.
       // Data ini akan diisi oleh logika pemindaian di masa mendatang.
       signals: [],
+      notificationAudio: null,
+      audioPrimed: false,
 
       // REVISI: State dari management-tab untuk modal edit
       showFormModal: false,
@@ -646,6 +655,7 @@ const ScanningTab = {
         this.saveFilter('run'); // REFACTOR: Gunakan method dari mixin
 
         try {
+          this.primeNotificationAudio();
           await this.startScanning();
         } catch (error) {
           // console.error('❌ Terjadi kesalahan pada tahap inisiasi:', error);
@@ -753,6 +763,7 @@ const ScanningTab = {
 
         // Tambahkan sinyal terbaru ke awal array
         this.signals.unshift(signal);
+        this.triggerSignalAlert(signal);
       };
 
       processDirection(pnl.cexToDex, 'CEXtoDEX');
@@ -809,6 +820,60 @@ const ScanningTab = {
       if (this.isFilterLocked) return;
       this.saveFilter('minPnl');
       this.$emit('show-toast', `Min PnL diatur ke ${this.filters.minPnl}`, 'info');
+    },
+    triggerSignalAlert(signal) {
+      this.playNotificationSound();
+    },
+    ensureNotificationAudio() {
+      if (!this.notificationAudio) {
+        const audio = new Audio('audio.mp3');
+        audio.preload = 'auto';
+        audio.volume = 1;
+        audio.loop = false;
+        this.notificationAudio = audio;
+      }
+      return this.notificationAudio;
+    },
+    playNotificationSound() {
+      try {
+        const audio = this.ensureNotificationAudio();
+        if (!audio) return;
+        audio.pause();
+        audio.currentTime = 0;
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {
+            // Playback can fail if the browser blocks autoplay; ignore silently.
+          });
+        }
+      } catch (error) {
+        // console.warn('Gagal memutar audio notifikasi:', error);
+      }
+    },
+    primeNotificationAudio() {
+      if (this.audioPrimed) return;
+
+      const audio = this.ensureNotificationAudio();
+      if (!audio) return;
+
+      const originalVolume = audio.volume;
+      audio.volume = 0;
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.volume = originalVolume;
+          this.audioPrimed = true;
+        }).catch(() => {
+          audio.volume = originalVolume;
+        });
+      } else {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = originalVolume;
+        this.audioPrimed = true;
+      }
     },
     openTradeLink(result) {
       this.$emit('show-toast', `Membuka tautan perdagangan untuk ${result.token}/${result.pair}`, 'info');

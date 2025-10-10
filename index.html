@@ -116,7 +116,13 @@
         <!-- Right Content: Sub-Menu Tabs + Tab Content -->
         <div :class="sidebarColumnClass">
           <!-- Sub-Menu Pills (Component) -->
-          <tab-navigation></tab-navigation>
+          <tab-navigation
+            :active-tab="activeTab"
+            :active-chain="activeChain"
+            :show-filter-sidebar="showFilterSidebar"
+            @update:active-tab="handleTabChange"
+            @toggle-filter-sidebar="toggleFilterSidebar">
+          </tab-navigation>
 
           <!-- Tab Content Area -->
           <div class="tab-content">

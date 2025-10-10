@@ -44,40 +44,37 @@ const routerMixin = {
       window.history.pushState({}, '', url);
     },
     setActiveMenu(menu, defaultTab = null) {
-      // Jika menu yang diklik berbeda dengan menu aktif, reload untuk konsistensi data
-      if (this.activeMenu !== menu) {
-        const newMode = menu === 'mode' ? (defaultTab || this.activeTab) : menu;
-        this.updateURL('mode', newMode);
-
-        // Tampilkan overlay loading
-        this.isLoading = true;
-        this.loadingText = 'Memuat halaman...';
-
-        // Reload halaman untuk refresh data
-        setTimeout(() => {
-          window.location.reload();
-        }, 200);
-      } else {
-        // Jika menu sama, hanya update tab jika ada defaultTab
-        if (menu === 'mode' && defaultTab) {
-          this.activeTab = defaultTab;
-        }
-        const newMode = menu === 'mode' ? this.activeTab : menu;
-        this.updateURL('mode', newMode);
+      if (menu === 'mode') {
+        const targetTab = defaultTab || this.activeTab;
+        this.setActiveTab(targetTab);
+        return;
       }
+
+      if (this.activeMenu !== menu) {
+        this.activeMenu = menu;
+      }
+
+      this.updateURL('mode', menu);
     },
     setActiveTab(tab) {
       const isMultiChainMode = this.activeChain === 'multi';
       const allowedMultiTabs = ['scan', 'wallet'];
       const effectiveTab = isMultiChainMode && !allowedMultiTabs.includes(tab) ? 'scan' : tab;
 
-      // Jika tab yang diklik berbeda dengan tab aktif, reload halaman.
-      if (this.activeTab !== effectiveTab) {
+      const isDifferentTab = this.activeTab !== effectiveTab;
+
+      if (this.activeMenu !== 'mode') {
+        this.activeMenu = 'mode';
+      }
+
+      if (isDifferentTab) {
+        this.activeTab = effectiveTab;
         this.updateURL('mode', effectiveTab);
-        window.location.reload();
       } else {
-        // Jika tab yang diklik sama, tetap lakukan reload (perilaku lama).
-        window.location.reload();
+        this.updateURL('mode', effectiveTab);
+        if (typeof this.reloadActiveTab === 'function') {
+          this.reloadActiveTab();
+        }
       }
     }
   }

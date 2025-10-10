@@ -1703,19 +1703,62 @@ body.theme-single-chain .table-striped tbody tr:nth-of-type(odd) {
   justify-content: center;
   gap: 0.35rem;
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   margin-bottom: 0.25rem;
+  color: var(--bs-body-color);
 }
 
 .scanning-tab .scanning-dex-header .scanning-dex-modal {
-  font-weight: 500;
-  color: var(--bs-secondary-color, #6c757d);
+  font-weight: 700;
+  color: inherit;
 }
 
 .scanning-tab .scanning-dex-error-icon {
   font-size: 1.35rem;
   color: #dc3545;
+}
+
+.scanning-tab .scanning-dex-line {
+  font-size: 0.78rem;
+}
+
+.scanning-tab .scanning-dex-price {
+  display: inline-block;
+  font-size: 0.78rem;
+}
+
+.scanning-tab .scanning-dex-divider {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .scanning-tab .scanning-dex-divider {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+.scanning-tab .scanning-dex-meta {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+}
+
+.scanning-tab .scanning-dex-action-link {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+.scanning-tab .scanning-dex-action-link:hover {
+  text-decoration: underline;
+}
+
+.scanning-tab .scanning-dex-pnl-simple {
+  font-size: 0.82rem;
+  margin-top: 0.2rem;
 }
 
 .scanning-tab .token-detail {
@@ -3215,4 +3258,75 @@ body.theme-single-chain .chain-radio-option.checked {
 .scanning-tab .scanning-dex-spinner {
   width: 1.35rem;
   height: 1.35rem;
+}
+
+/* Sync Tab - kompresi input DEX */
+.sync-dex-option {
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.sync-dex-option .form-check-input {
+  margin-top: 0;
+}
+
+.dex-input-group {
+  display: flex;
+  gap: 0.35rem;
+  width: 200px;
+  max-width: 200px;
+}
+
+.dex-input-group .input-group-text {
+  padding: 0.15rem 0.4rem;
+}
+
+.dex-input-group .form-control {
+  padding: 0.2rem 0.4rem;
+}
+
+@media (max-width: 576px) {
+  .dex-input-group {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Management Tab - kolom DEX lebih ramping */
+.management-dex-column {
+  max-width: 220px;
+  width: 220px;
+  vertical-align: middle;
+}
+
+.dex-badge-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+}
+
+.dex-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.dex-badge__label {
+  font-weight: 600;
+}
+
+.dex-badge__values {
+  color: rgba(33, 37, 41, 0.65);
+}
+
+[data-bs-theme="dark"] .dex-badge__values {
+  color: rgba(248, 249, 250, 0.65);
 }

@@ -114,8 +114,31 @@ const ScanningFormatters = {
       return html;
     };
 
-    const ensureEntries = (dataEntries, fallbackPrice) => {
-      if (dataEntries && dataEntries.length > 0) return dataEntries;
+    const ensureEntries = (dataEntries, fallbackPrice, forceUsdtDefaults = false) => {
+      const cloneEntries = (entries) => entries.map(entry => ({
+        ...entry
+      }));
+
+      if (Array.isArray(dataEntries) && dataEntries.length > 0) {
+        const normalized = cloneEntries(dataEntries);
+        if (forceUsdtDefaults && normalized.length < 3) {
+          const defaultPrice = (fallbackPrice && fallbackPrice > 0) ? fallbackPrice : 1;
+          while (normalized.length < 3) {
+            normalized.push({ price: defaultPrice, quantity: 10000 });
+          }
+        }
+        return normalized;
+      }
+
+      if (forceUsdtDefaults) {
+        const defaultPrice = (fallbackPrice && fallbackPrice > 0) ? fallbackPrice : 1;
+        return [
+          { price: defaultPrice, quantity: 10000 },
+          { price: defaultPrice, quantity: 10000 },
+          { price: defaultPrice, quantity: 10000 }
+        ];
+      }
+
       if (!fallbackPrice || fallbackPrice <= 0) return [];
       return [{ price: fallbackPrice, quantity: 1 }];
     };
@@ -123,10 +146,12 @@ const ScanningFormatters = {
     const tokenData = cexPrices.token || {};
     const pairData = cexPrices.pair || {};
 
+    const isPairUsdt = pairLabel === 'USDT';
+
     const tokenAsks = ensureEntries(tokenData.asks, tokenData.bestAsk);
     const tokenBids = ensureEntries(tokenData.bids, tokenData.bestBid);
-    const pairAsks = ensureEntries(pairData.asks, pairData.bestAsk);
-    const pairBids = ensureEntries(pairData.bids, pairData.bestBid);
+    const pairAsks = ensureEntries(pairData.asks, pairData.bestAsk, isPairUsdt);
+    const pairBids = ensureEntries(pairData.bids, pairData.bestBid, isPairUsdt);
 
     let topHtml = '';
     let bottomHtml = '';
@@ -166,7 +191,10 @@ const ScanningFormatters = {
       dexLink = '#',
       dexLabel = '',
       dexKey = '',
-      dexStatus = null
+      dexStatus = null,
+      actionLink = '#',
+      actionLabel = '',
+      actionTitle = ''
     } = resolvedOptions || {};
 
     const formatUsd = (value) => {
@@ -214,8 +242,8 @@ const ScanningFormatters = {
       const hasModal = Number.isFinite(numericModal) && numericModal > 0;
       const modalText = hasModal ? formatModalValue(numericModal) : '-';
       return `<div class="scanning-dex-header">
-        <span class="scanning-dex-name">${sanitizedLabel}</span>
-        <span class="scanning-dex-modal">[${escapeHtml(modalText)}]</span>
+        <span class="scanning-dex-name text-dark fw-bold">${sanitizedLabel}</span>
+        <span class="scanning-dex-modal text-dark fw-bold">[${escapeHtml(modalText)}]</span>
       </div>`;
     };
 
@@ -278,43 +306,47 @@ const ScanningFormatters = {
       </div>`;
     }
 
-    const { details, costs, pnl } = pnlData;
+    const details = pnlData?.details || {};
+    const costs = pnlData?.costs || {};
+    const pnlValue = Number(pnlData?.pnl || 0);
 
     // Buy price & sell price
-    const buyPrice = this.formatPriceWithZeros(details.buyPrice || details.buyPriceForPair);
-    const sellPrice = this.formatPriceWithZeros(details.sellPrice);
+    const buyPriceValue = details.buyPrice ?? details.buyPriceForPair ?? 0;
+    const sellPriceValue = details.sellPrice ?? 0;
+    const buyPrice = this.formatPriceWithZeros(buyPriceValue);
+    const sellPrice = this.formatPriceWithZeros(sellPriceValue);
 
-    // DEX Rate dalam USDT (harga per 1 token di DEX) - DISAMAKAN DENGAN PERHITUNGAN PNL
-    const dexRateUsdt = details.dexRateUsdt || 0;
+    // DEX Rate dalam USDT (harga per 1 token di DEX)
+    const dexRateUsdt = Number(details.dexRateUsdt || 0);
     const dexRateFormatted = dexRateUsdt > 0 ? this.formatPriceWithZeros(dexRateUsdt) : '-';
 
     // Fees
-    const feeWD = costs.withdrawal.toFixed(2);
-    const allFee = costs.total.toFixed(2);
-    const gasFee = costs.gasDex.toFixed(2);
+    const feeWithdrawal = Number(costs.withdrawal || 0).toFixed(2);
+    const feeSwapTotal = Number(costs.total || 0).toFixed(2);
 
     // PNL
-    const pnlIdr = (Math.abs(pnl) * usdtRate / 1000).toFixed(2); // Dalam ribuan
-    const pnlPrefix = pnl > 0 ? '+' : (pnl < 0 ? '-' : '');
-    const pnlUsdAbs = Math.abs(pnl).toFixed(2);
+    const pnlPrefix = pnlValue > 0 ? '+' : (pnlValue < 0 ? '-' : '');
+    const pnlUsdLabel = `${pnlPrefix}${Math.abs(pnlValue).toFixed(2)}$`;
+    const pnlColorClass = pnlValue > 0 ? 'text-success' : (pnlValue < 0 ? 'text-danger' : 'text-secondary');
 
-    const buyPriceBlock = renderTradeValue(cexBuyLink, buyPrice, 'scanning-dex-value text-success d-block fw-semibold');
-    const dexRateBlock = renderTradeValue(dexLink, dexRateFormatted, 'text-primary scanning-dex-value d-block fw-semibold');
-    const sellPriceBlock = renderTradeValue(cexSellLink, sellPrice, 'scanning-dex-value text-danger d-block fw-semibold');
+    const buyPriceBlock = renderTradeValue(cexBuyLink, buyPrice, 'scanning-dex-price text-success fw-semibold');
+    const dexRateBlock = renderTradeValue(dexLink, dexRateFormatted, 'scanning-dex-price text-primary fw-semibold');
+    const sellPriceBlock = renderTradeValue(cexSellLink, sellPrice, 'scanning-dex-price text-danger fw-semibold');
 
-    // Tampilkan modal jika ada
     const modalRaw = (pnlData && pnlData.modal != null) ? pnlData.modal : modalUsd;
 
-    const pnlClass = pnl > 0
-      ? 'scanning-dex-pnl scanning-dex-pnl--positive'
-      : (pnl < 0 ? 'scanning-dex-pnl scanning-dex-pnl--negative' : 'scanning-dex-pnl scanning-dex-pnl--neutral');
-
-    const cellClass = pnl > 0
+    const cellClass = pnlValue > 0
       ? 'scanning-dex-cell scanning-dex-cell--positive small text-center'
       : 'scanning-dex-cell small text-center';
 
-    const pnlUsdLabel = pnlPrefix ? `${pnlPrefix}${pnlUsdAbs}$` : `${pnlUsdAbs}$`;
-    const pnlIdrLabel = pnlPrefix ? `${pnlPrefix}${pnlIdr}$` : `${pnlIdr}$`;
+    const actionLabelUpper = (actionLabel || '').toString().toUpperCase() || '--';
+    const bracketedLabel = `[${actionLabelUpper}]`;
+    const hasActionLink = actionLink && actionLink !== '#';
+    const safeActionTitle = actionTitle ? escapeAttr(actionTitle) : '';
+    const actionTitleAttr = safeActionTitle ? ` title="${safeActionTitle}"` : '';
+    const actionControl = hasActionLink
+      ? `<a href="${escapeAttr(actionLink)}" target="_blank" rel="noopener" class="scanning-dex-action-link"${actionTitleAttr}>${escapeHtml(bracketedLabel)}</a>`
+      : `<span class="scanning-dex-action-link text-muted">${escapeHtml(bracketedLabel)}</span>`;
 
     return `
       <div class="${cellClass}">
@@ -322,15 +354,15 @@ const ScanningFormatters = {
         <div class="scanning-dex-line">${buyPriceBlock}</div>
         <div class="scanning-dex-line">${dexRateBlock}</div>
         <div class="scanning-dex-line">${sellPriceBlock}</div>
-        <div class="scanning-dex-line">
-          <span class="text-info fw-semibold">FeeWD:</span>
-          <span class="text-info fw-semibold ms-1">${feeWD}$</span>
+        <hr class="scanning-dex-divider my-1">
+        <div class="scanning-dex-meta text-danger fw-semibold small">
+          <span>FeeWD: ${feeWithdrawal}$</span>
+          ${actionControl}
         </div>
-        <div class="scanning-dex-line">
-          <span class="text-danger fw-semibold">ALL: ${allFee}$</span>
-          <span class="text-primary fw-semibold ms-2">SW: ${gasFee}$</span>
+        <div class="scanning-dex-meta text-danger fw-semibold small">
+          <span>FeeSwap: ${feeSwapTotal}$</span>
         </div>
-        <div class="${pnlClass}">GT: ${pnlUsdLabel} | PNL: ${pnlIdrLabel}</div>
+        <div class="scanning-dex-pnl-simple ${pnlColorClass} fw-semibold">PNL: ${pnlUsdLabel}</div>
       </div>
     `;
   },

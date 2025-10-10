@@ -3,8 +3,8 @@
 
 const KONFIG_APLIKASI = {
   "APP": {
-    "NAME": "MULTIPLUS-BETA",  // Nama aplikasi  
-    "VERSION": "1.2",           // Versi aplikasi
+    "NAME": "MULTIPLUS-BETA[TEST]",  // Nama aplikasi  
+    "VERSION": "1.1",           // Versi aplikasi
   },
   "DEXS": {
     "flytrade": {
@@ -64,7 +64,7 @@ const KONFIG_APLIKASI = {
     "okxdex": {
       "WARNA": "#14151AFF",
       // "PROXY": "https://server1.ciwayeh967.workers.dev/?", // Proxy dinonaktifkan untuk OKX DEX
-      "URL_DEX": "https://www.okx.com/web3/dex-swap?inputChain={chainCode}&inputCurrency={tokenAddress}&outputChain={chainCode}&outputCurrency={pairAddress}",
+      "URL_DEX": "https://web3.okx.com/dex-swap?chain={chainName},{chainName}&token={tokenAddress},{pairAddress}",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "okxdex", "DEXtoCEX": "okxdex" },
         "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
