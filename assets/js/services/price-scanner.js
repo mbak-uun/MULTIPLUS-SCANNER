@@ -61,7 +61,7 @@ class PriceScanner {
             modalUsd: 100,              // Modal default dalam USD
             minPnl: 0.5,                // REVISI: Minimum PNL (absolut) untuk notifikasi
             autoSendTelegram: true,     // Auto send ke Telegram
-            jedaKoin: 500               // Default stagger antar token
+            jedaKoin: 50               // Default stagger antar token
         };
     }
 
@@ -725,3 +725,4 @@ class PriceScanner {
 if (typeof window !== 'undefined') {
     window.PriceScanner = PriceScanner;
 }
+
