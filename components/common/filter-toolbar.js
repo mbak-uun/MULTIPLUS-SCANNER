@@ -31,6 +31,18 @@ const FilterToolbar = {
     showFavoriteButton: {
       type: Boolean,
       default: true
+    },
+    showMinPnlInput: {
+      type: Boolean,
+      default: true
+    },
+    showAutoscrollButton: {
+      type: Boolean,
+      default: true
+    },
+    showAutorunButton: {
+      type: Boolean,
+      default: false
     }
   },
   // Emits untuk mengirim event ke parent saat ada interaksi
@@ -39,7 +51,8 @@ const FilterToolbar = {
     'update:filters',
     'toggle-favorite',
     'toggle-autoscroll',
-    'handle-min-pnl-change'
+    'handle-min-pnl-change',
+    'toggle-autorun'
   ],
   computed: {
     // Computed property untuk v-model pada searchQuery
@@ -87,7 +100,7 @@ const FilterToolbar = {
               </div>
             </div>
 
-            <div class="col-6 col-sm-auto">
+            <div v-if="showMinPnlInput" class="col-6 col-sm-auto">
               <div class="input-group input-group-sm w-100" style="min-width: 140px;">
                 <span class="input-group-text">
                   <i class="bi bi-graph-up-arrow"></i>
@@ -108,7 +121,7 @@ const FilterToolbar = {
               <button
                 type="button"
                 class="btn btn-sm d-flex align-items-center gap-1"
-                :class="filters.favoritOnly ? 'btn-warning text-dark' : 'btn-outline-secondary'"
+                :class="filters.favoritOnly ? 'btn-dark ' : 'btn-outline-dark'"
                 :disabled="disabled"
                 @click="$emit('toggle-favorite')"
                 title="Tampilkan hanya token favorit">
@@ -117,16 +130,29 @@ const FilterToolbar = {
               </button>
             </div>
 
-            <div class="col-6 col-sm-auto">
+            <div v-if="showAutoscrollButton" class="col-6 col-sm-auto">
               <button
                 type="button"
                 class="btn btn-sm d-flex align-items-center gap-1"
-                :class="filters.autoscroll ? 'btn-primary' : 'btn-outline-secondary'"
+                :class="filters.autoscroll ? 'btn-dark' : 'btn-outline-dark'"
                 :disabled="disabled"
                 @click="$emit('toggle-autoscroll')"
                 title="Scroll otomatis mengikuti sinyal terbaru">
                 <i class="bi" :class="filters.autoscroll ? 'bi-arrow-down-circle-fill' : 'bi-arrow-down-circle'"></i>
                 <span class="small fw-semibold">Autoscroll</span>
+              </button>
+            </div>
+
+            <div v-if="showAutorunButton" class="col-6 col-sm-auto">
+              <button
+                type="button"
+                class="btn btn-sm d-flex align-items-center gap-1"
+                :class="filters.autorun ? 'btn-dark' : 'btn-outline-dark'"
+                :disabled="disabled"
+                @click="$emit('toggle-autorun')"
+                title="Mulai scan otomatis (mode Scan)">
+                <i class="bi" :class="filters.autorun ? 'bi-lightning-charge-fill' : 'bi-lightning-charge'"></i>
+                <span class="small fw-semibold">Autorun</span>
               </button>
             </div>
 

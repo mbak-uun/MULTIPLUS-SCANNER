@@ -772,24 +772,14 @@ const ManagementTab = {
         v-model:searchQuery="$root.searchQuery"
         :filtered-tokens-count="filteredTokens.length"
         :show-favorite-button="$root.activeChain !== 'multi'"
+        :show-min-pnl-input="false"
+        :show-autoscroll-button="false"
         @update:filters="newFilters => $root.filters = newFilters"
         @toggle-favorite="toggleFavoritFilter"
         @toggle-autoscroll="toggleAutoscroll"
         @handle-min-pnl-change="handleMinPnlChange"
       >
         <template #actions>
-          <!-- Tombol Autorun hanya muncul di mode multi-chain -->
-          <button
-            v-if="isMultiChainMode"
-            type="button"
-            class="btn btn-sm d-flex align-items-center gap-1"
-            :class="filters.autorun ? 'btn-primary' : 'btn-outline-secondary'"
-            @click="toggleAutorun"
-            title="Mulai scan otomatis (mode Scan)">
-            <i class="bi" :class="filters.autorun ? 'bi-lightning-charge-fill' : 'bi-lightning-charge'"></i>
-            <span class="small fw-semibold">Autorun</span>
-          </button>
-          
           <!-- Tombol aksi spesifik untuk Manajemen -->
           <button class="btn btn-sm btn-success" @click="openAddModal">
                 <i class="bi bi-plus-circle-fill"></i> Add Token

@@ -226,6 +226,7 @@ const ScanningFormatters = {
       ? pnlData.modal
       : modalUsd;
 
+    // ERROR STATE: Tampilkan error icon
     if (isErrorState) {
       const errorTitle = hasPnlData
         ? (typeof pnlData.error === 'string'
@@ -233,7 +234,7 @@ const ScanningFormatters = {
             : (pnlData.errorMessage || 'DEX Error'))
         : 'Gagal memindai DEX';
       const escapedTitle = escapeHtml(errorTitle);
-      return `<div   title="${escapedTitle}">
+      return `<div title="${escapedTitle}">
         ${buildHeader(headerModalValue)}
         <div class="scanning-dex-icon">
           <i class="bi bi-exclamation-triangle-fill scanning-dex-error-icon"></i>
@@ -242,7 +243,10 @@ const ScanningFormatters = {
       </div>`;
     }
 
-    if (statusNormalized === 'loading' || (!hasPnlData && isScanning)) {
+    // LOADING STATE: Hanya tampilkan loading jika status = 'loading'
+    // PERBAIKAN: Tidak lagi menggunakan isScanning global
+    // Status 'loading' di-set per token per DEX saat DEX sedang di-fetch
+    if (statusNormalized === 'loading') {
       return `<div class="scanning-dex-cell scanning-dex-cell--loading small text-center" title="Memindai...">
         ${buildHeader(headerModalValue)}
         <div class="scanning-dex-icon">
@@ -251,6 +255,7 @@ const ScanningFormatters = {
       </div>`;
     }
 
+    // NO DATA STATE: Belum ada data dan belum scanning
     if (!hasPnlData) {
       return `<div class="scanning-dex-cell text-center">
         ${buildHeader(headerModalValue)}

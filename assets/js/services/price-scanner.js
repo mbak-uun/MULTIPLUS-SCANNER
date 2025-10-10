@@ -1,24 +1,36 @@
 /**
  * ===================================================================================
- * Price Scanner Orchestrator
+ * Price Scanner Orchestrator - REFACTORED
  * ===================================================================================
  *
  * Tanggung Jawab:
  * - Mengorkestrasi seluruh proses scanning (CEX → DEX → PNL)
- * - Mengelola batching token untuk menghindari rate limit
+ * - Mengelola batching token (grup) untuk menghindari rate limit
+ * - Menerapkan sistem jeda terstruktur (koin, grup, CEX, DEX)
  * - Mengirim notifikasi ke Telegram untuk sinyal profitable
  * - Memberikan callback progress untuk UI
  *
- * Alur Scanning:
+ * Alur Scanning dengan Jeda:
  * 1. Send Telegram status ONLINE
  * 2. Fetch data real-time (Gas Gwei & USDT/IDR rate)
- * 3. Loop per batch token:
- *    a. Fetch CEX prices (orderbook)
- *    b. Fetch DEX quotes untuk setiap DEX aktif
- *    c. Kalkulasi PNL untuk kedua arah
- *    d. Update UI via callback
- *    e. Send Telegram jika PNL > threshold
+ * 3. Loop per GRUP (batch):
+ *    a. Loop per KOIN dalam grup (dengan jeda koin):
+ *       - Fetch CEX prices (dengan jeda CEX)
+ *       - Update UI untuk CEX data
+ *       - Loop per DEX aktif (dengan jeda DEX):
+ *         * Fetch DEX quote (dengan timeout)
+ *         * Kalkulasi PNL
+ *         * Update UI per DEX (tidak tunggu semua DEX selesai)
+ *         * Send Telegram jika profitable
+ *    b. Jeda GRUP sebelum ke grup berikutnya
  * 4. Send Telegram status OFFLINE
+ *
+ * Sistem Jeda:
+ * - Jeda Koin: Delay antar koin dalam satu grup (500ms * posisi koin)
+ * - Jeda Grup: Delay antar grup/batch (2000ms)
+ * - Jeda CEX: Delay spesifik per CEX saat fetch orderbook
+ * - Jeda DEX: Delay spesifik per DEX saat fetch quote
+ * - Timeout: Batas waktu fetch CEX/DEX (10000ms)
  */
 class PriceScanner {
     constructor(config, services, callbacks = {}) {
@@ -30,6 +42,9 @@ class PriceScanner {
         this.realtimeFetcher = services.realtimeFetcher;
         this.pnlCalculator = services.pnlCalculator;
         this.telegramService = services.telegramService;
+
+        // Delay Manager untuk mengelola semua jenis jeda
+        this.delayManager = new DelayManager(config, services.globalSettings || {});
 
         // Callbacks untuk UI
         this.callbacks = {
@@ -57,11 +72,10 @@ class PriceScanner {
 
         // Settings
         this.settings = {
-            tokensPerBatch: 3,          // Jumlah token per batch
+            tokensPerBatch: 3,          // Jumlah token per batch (grup)
             modalUsd: 100,              // Modal default dalam USD
-            minPnl: 0.5,                // REVISI: Minimum PNL (absolut) untuk notifikasi
-            autoSendTelegram: true,     // Auto send ke Telegram
-            jedaKoin: 50               // Default stagger antar token
+            minPnl: 0.5,                // Minimum PNL (absolut) untuk notifikasi
+            autoSendTelegram: true      // Auto send ke Telegram
         };
     }
 
@@ -85,6 +99,14 @@ class PriceScanner {
 
         // Override settings jika ada
         Object.assign(this.settings, scanSettings);
+
+        // Update DelayManager dengan globalSettings terbaru
+        if (scanSettings.globalSettings) {
+            this.delayManager.updateGlobalSettings(scanSettings.globalSettings);
+        }
+
+        // Log konfigurasi delay untuk debugging
+        console.log('[PriceScanner] Delay Configuration:', this.delayManager.getCurrentConfig());
 
         try {
             // Callback: Start
@@ -132,24 +154,27 @@ class PriceScanner {
                     break;
                 }
 
-                // ADOPSI APLIKASI LAMA: Proses token dengan stagger delay untuk menghindari rate limit
-                // Setiap token dalam batch diberi jeda (stagger) agar tidak request bersamaan
-                // PRIORITAS: globalSettings (user) > config.SCANNING_DELAYS (default) > hardcoded
-                const jedaKoin = this.settings.globalSettings?.jedaKoin ??
-                                this.settings.jedaKoin ??
-                                this.config?.SCANNING_DELAYS?.jedaKoin ??
-                                500;
-
-                // Buat jobs dengan stagger delay per token (seperti app lama)
+                // REFACTORED: Proses token dengan jeda koin yang terstruktur
+                // Setiap koin dalam grup diberi jeda bertahap (stagger) agar tidak request bersamaan
+                // Jeda diterapkan: antar koin, per CEX, per DEX
                 const jobs = batch.map((token, tokenIndex) => (async () => {
-                    // Stagger: token pertama langsung, token kedua tunggu jedaKoin, dst
-                    if (tokenIndex > 0) {
-                        await this._delay(tokenIndex * jedaKoin);
+                    if (!this.isScanning) {
+                        return;
                     }
+
+                    // Jeda Koin: Delay bertahap berdasarkan posisi koin dalam grup
+                    // Koin ke-0: 0ms, ke-1: jedaKoin*1, ke-2: jedaKoin*2, dst
+                    await this.delayManager.waitCoinDelay(tokenIndex);
+
+                    if (!this.isScanning) {
+                        return;
+                    }
+
                     return this._processToken(token, filters, gasData, usdtRate);
                 })());
 
-                // Jalankan semua jobs dan tunggu selesai (gunakan allSettled agar satu error tidak stop semua)
+                // Jalankan semua jobs paralel dan tunggu selesai
+                // allSettled memastikan satu error tidak menghentikan yang lain
                 await Promise.allSettled(jobs);
 
                 // Callback: Batch complete
@@ -165,20 +190,19 @@ class PriceScanner {
                     total: this.scanStats.totalTokens
                 });
 
-                // Delay sebelum batch berikutnya
+                // Jeda Grup: Delay sebelum memproses grup/batch berikutnya
                 if (i < batches.length - 1) {
                     if (!this.isScanning) {
-                        this._logProgress('BATCH_DIHENTIKAN', 'Proses dihentikan saat jeda antar batch.', { batchNumber }, 'warn');
+                        this._logProgress('BATCH_DIHENTIKAN', 'Proses dihentikan saat jeda antar grup.', { batchNumber }, 'warn');
                         aborted = true;
                         break;
                     }
-                    // ADOPSI APLIKASI LAMA: Gunakan jedaTimeGroup dari config
-                    // PRIORITAS: globalSettings (user) > config.SCANNING_DELAYS (default) > hardcoded
-                    const delay = this.settings.globalSettings?.jedaTimeGroup ??
-                                 this.config?.SCANNING_DELAYS?.jedaTimeGroup ??
-                                 2000;
-                    this._logProgress('BATCH_JEDA', `Menunggu ${delay}ms sebelum batch berikutnya...`, { delay });
-                    await this._delay(delay);
+
+                    const groupDelay = this.delayManager.getGroupDelay();
+                    if (groupDelay > 0) {
+                        this._logProgress('BATCH_JEDA', `Menunggu ${groupDelay}ms sebelum grup berikutnya...`, { delay: groupDelay });
+                        await this.delayManager.waitGroupDelay();
+                    }
                 }
             }
 
@@ -249,14 +273,7 @@ class PriceScanner {
             const cexKey = token.cex_name;
 
             if (cexKey) {
-                // ADOPSI APLIKASI LAMA: Gunakan per-CEX delay dari config
-                // PRIORITAS: globalSettings.config_cex[].jeda > config.SCANNING_DELAYS.JedaCexs > jedaKoin > hardcoded
-                const cexKeyLower = cexKey.toLowerCase();
-                const cexKeyUpper = cexKey.toUpperCase();
-                const cexDelay = this.settings.globalSettings?.config_cex?.[cexKeyLower]?.jeda ??
-                                this.config?.SCANNING_DELAYS?.JedaCexs?.[cexKeyUpper] ??
-                                this.settings.jedaKoin ??
-                                200;
+                const cexDelay = this.delayManager.getCexDelay(cexKey);
 
                 // Ambil orderbook untuk token utama
                 const tokenSymbol = (token.nama_token || token.cex_ticker_token || '').replace(/\s+/g, '');
@@ -265,9 +282,6 @@ class PriceScanner {
                 } else {
                     this._logProgress('ORDERBOOK_TOKEN', `Mengambil orderbook ${tokenSymbol} di ${cexKey}.`, { tokenId });
                     cexPrices.token = await this.cexFetcher.getOrderbook(cexKey, tokenSymbol);
-
-                    // ADOPSI APLIKASI LAMA: Delay setelah fetch orderbook token
-                    await this._delay(cexDelay);
 
                     if (cexPrices.token) {
                         this._logProgress('ORDERBOOK_TOKEN_SELESAI', `Orderbook token ${tokenSymbol} diterima (delay: ${cexDelay}ms).`, {
@@ -281,6 +295,9 @@ class PriceScanner {
                     }
                 }
 
+                // Jeda CEX: Delay setelah fetch orderbook token
+                await this.delayManager.waitCexDelay(cexKey);
+
                 // Ambil orderbook untuk pair jika ada
                 if (token.nama_pair) {
                     const pairSymbol = token.nama_pair.replace(/\s+/g, '');
@@ -289,9 +306,6 @@ class PriceScanner {
                     } else {
                         this._logProgress('ORDERBOOK_PAIR', `Mengambil orderbook ${pairSymbol} di ${cexKey}.`, { tokenId });
                         cexPrices.pair = await this.cexFetcher.getOrderbook(cexKey, pairSymbol);
-
-                        // ADOPSI APLIKASI LAMA: Delay setelah fetch orderbook pair
-                        await this._delay(cexDelay);
 
                         if (cexPrices.pair) {
                             this._logProgress('ORDERBOOK_PAIR_SELESAI', `Orderbook pair ${pairSymbol} diterima (delay: ${cexDelay}ms).`, {
@@ -307,6 +321,9 @@ class PriceScanner {
                 } else {
                     this._logProgress('ORDERBOOK_PAIR_LEWAT', `Nama pair tidak tersedia untuk ${tokenName}.`, { tokenId }, 'warn');
                 }
+
+                // Jeda CEX: Delay setelah fetch orderbook pair
+                await this.delayManager.waitCexDelay(cexKey);
             } else {
                 this._logProgress('ORDERBOOK_LEWAT', `CEX utama tidak ditemukan untuk ${tokenName}.`, { tokenId }, 'warn');
             }
@@ -332,8 +349,8 @@ class PriceScanner {
                 return;
             }
 
-            // Step 2 & 3 PARALLEL: Fetch DEX quotes DAN kalkulasi PNL untuk SETIAP DEX secara INDEPENDENT
-            // Setiap DEX tidak menunggu DEX lain selesai - benar-benar parallel
+            // Step 2 & 3: Fetch DEX quotes DAN kalkulasi PNL
+            // REFACTORED: Jeda DEX diterapkan hanya saat pergantian arah (CEX->DEX ke DEX->CEX)
             const dexFilters = filters?.dex || {};
             const activeDexKeys = Object.keys(dexFilters).filter(k => dexFilters[k]);
             if (activeDexKeys.length === 0) {
@@ -343,8 +360,8 @@ class PriceScanner {
             const dexResults = {};
             const pnlResults = {};
 
-            // REFACTOR: Buat array of promises untuk parallel execution
-            // Setiap DEX akan fetch, calculate, dan update UI secara independent
+            // REFACTORED: Proses DEX secara paralel dalam satu grup (per koin)
+            // Jeda antar DEX hanya untuk menghindari rate limit simultaneous request
             const dexJobs = activeDexKeys.map(async (dexKey, dexIndex) => {
                 if (!this.isScanning) {
                     return;
@@ -355,32 +372,27 @@ class PriceScanner {
                     return;
                 }
 
-                // STAGGER: DEX pertama langsung, DEX kedua tunggu 300ms, dst
-                // Ini mencegah semua DEX hit API secara bersamaan persis
-                const dexKeyLower = dexKey.toLowerCase();
-                const dexDelay = this.settings.globalSettings?.config_dex?.[dexKeyLower]?.jeda ??
-                                this.config?.SCANNING_DELAYS?.JedaDexs?.[dexKeyLower] ??
-                                300;
-
+                // Jeda bertahap antar DEX dalam grup yang sama (stagger)
+                // Untuk menghindari terlalu banyak request bersamaan
                 if (dexIndex > 0) {
-                    await this._delay(dexIndex * dexDelay);
+                    await this.delayManager.waitDexDelay(dexKey, dexIndex);
                 }
 
                 try {
-                    // Fetch quote untuk kedua arah
-                    this._logProgress('DEX_FETCH', `Mengambil quote dari ${dexKey} untuk ${tokenName}.`, { tokenId, dexKey });
+                    // Fetch quote untuk KEDUA arah sekaligus
+                    this._logProgress('DEX_FETCH', `Mengambil quote ${dexKey} untuk ${tokenName}.`, { tokenId, dexKey });
                     const quotes = await this._fetchDexQuotes(token, dexKey, dexInput);
 
                     if (quotes) {
                         dexResults[dexKey] = quotes;
-                        this._logProgress('DEX_FETCH_SELESAI', `Quote ${dexKey} diterima untuk ${tokenName}.`, {
+                        this._logProgress('DEX_FETCH_SELESAI', `Quote ${dexKey} diterima.`, {
                             tokenId,
                             dexKey,
                             toPair: quotes.tokenToPair?.amountOut || 0,
                             toToken: quotes.pairToToken?.amountOut || 0
                         });
 
-                        // LANGSUNG kalkulasi PNL setelah quote diterima
+                        // Kalkulasi PNL untuk KEDUA arah
                         const pnlCexToDex = this.pnlCalculator.calculateBothDirections({
                             token,
                             cexPrices,
@@ -413,8 +425,7 @@ class PriceScanner {
                             dexToCex: pnlDexToCex?.pnlPercent || 0
                         });
 
-                        // PENTING: Panggil callback onPnlResult SEGERA setelah DEX ini selesai
-                        // Ini memungkinkan UI update kolom DEX secara real-time per DEX
+                        // Update UI langsung per DEX (tidak tunggu semua DEX selesai)
                         this.callbacks.onPnlResult({
                             token,
                             dexKey,
@@ -422,16 +433,16 @@ class PriceScanner {
                             cexPrices
                         });
 
-                        // Check dan send Telegram jika profitable
+                        // Send sinyal Telegram jika profitable
                         if (this.settings.autoSendTelegram) {
                             await this._checkAndSendSignal(token, dexKey, pnlCexToDex, usdtRate);
                             await this._checkAndSendSignal(token, dexKey, pnlDexToCex, usdtRate);
                         }
 
                     } else {
-                        this._logProgress('DEX_FETCH_GAGAL', `Quote ${dexKey} gagal untuk ${tokenName}.`, { tokenId, dexKey }, 'warn');
+                        this._logProgress('DEX_FETCH_GAGAL', `Quote ${dexKey} gagal.`, { tokenId, dexKey }, 'warn');
 
-                        // Emit PNL result dengan error state untuk DEX yang gagal
+                        // Emit error state
                         this.callbacks.onPnlResult({
                             token,
                             dexKey,
@@ -443,7 +454,7 @@ class PriceScanner {
                         });
                     }
                 } catch (error) {
-                    this._logProgress('DEX_ERROR', `Error pada ${dexKey}: ${error.message}`, { tokenId, dexKey }, 'error');
+                    this._logProgress('DEX_ERROR', `Error ${dexKey}: ${error.message}`, { tokenId, dexKey }, 'error');
 
                     // Emit error state
                     this.callbacks.onPnlResult({
@@ -458,7 +469,7 @@ class PriceScanner {
                 }
             });
 
-            // TUNGGU SEMUA DEX SELESAI (parallel execution dengan stagger)
+            // Tunggu semua DEX dalam grup selesai (parallel dengan stagger)
             await Promise.allSettled(dexJobs);
 
             // Update stats
@@ -493,13 +504,14 @@ class PriceScanner {
      */
     async _fetchDexQuotes(token, dexKey, inputAmounts) {
         try {
-            const globalSettings = this.settings.globalSettings || { walletMeta: '0x0000000000000000000000000000000000000000', WaktuTunggu: 10000 };
+            const globalSettings = this.settings.globalSettings || { walletMeta: '0x0000000000000000000000000000000000000000' };
             const activeDexConfig = { [dexKey]: true };
 
             let pairToTokenQuote = null;
             let tokenToPairQuote = null;
 
-            const timeout = globalSettings.WaktuTunggu || 10000;
+            // Gunakan timeout dari DelayManager
+            const timeout = this.delayManager.getTimeout();
 
             // Gunakan callback untuk mendapatkan hasil
             await this.dexFetcher.getQuotes(
@@ -679,6 +691,14 @@ class PriceScanner {
     }
 
     /**
+     * Helper untuk mengambil global settings aktif
+     * @private
+     */
+    _getGlobalSettings() {
+        return this.settings?.globalSettings || {};
+    }
+
+    /**
      * Reset statistics
      * @private
      */
@@ -695,18 +715,23 @@ class PriceScanner {
     }
 
     /**
-     * Delay helper
-     * @private
-     */
-    async _delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    /**
      * Update settings
      */
     updateSettings(newSettings) {
         Object.assign(this.settings, newSettings);
+
+        // Update DelayManager dengan globalSettings terbaru
+        if (newSettings.globalSettings) {
+            this.delayManager.updateGlobalSettings(newSettings.globalSettings);
+        }
+
+        // Update fetchers dengan globalSettings
+        if (this.cexFetcher && typeof this.cexFetcher.updateGlobalSettings === 'function') {
+            this.cexFetcher.updateGlobalSettings(this.settings.globalSettings);
+        }
+        if (this.dexFetcher && typeof this.dexFetcher.updateGlobalSettings === 'function') {
+            this.dexFetcher.updateGlobalSettings(this.settings.globalSettings);
+        }
     }
 
     /**
@@ -725,4 +750,3 @@ class PriceScanner {
 if (typeof window !== 'undefined') {
     window.PriceScanner = PriceScanner;
 }
-

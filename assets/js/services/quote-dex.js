@@ -13,7 +13,7 @@ class DexDataFetcher {
     constructor(config, httpModule, globalSettings) {
         this.config = config;
         this.Http = httpModule;
-        this.globalSettings = globalSettings; // Diperlukan untuk wallet address
+        this.globalSettings = globalSettings || {}; // Diperlukan untuk wallet address
         this.delayPerCall = 300; // Jeda antar panggilan API ke aggregator yang sama
 
         // Adaptasi dari app-lama/services/dex.js
@@ -298,6 +298,33 @@ class DexDataFetcher {
         };
     }
 
+    updateGlobalSettings(globalSettings = {}) {
+        this.globalSettings = globalSettings || {};
+    }
+
+    _resolveDexDelay(dexKey) {
+        if (!dexKey) return this.delayPerCall;
+        const lower = String(dexKey).toLowerCase();
+        const upper = String(dexKey).toUpperCase();
+
+        const fromGlobal = this.globalSettings?.config_dex?.[lower]?.jeda;
+        const fromConfig =
+            this.config?.SCANNING_DELAYS?.JedaDexs?.[lower] ??
+            this.config?.SCANNING_DELAYS?.JedaDexs?.[upper];
+
+        const numeric = Number(fromGlobal ?? fromConfig);
+        if (Number.isFinite(numeric) && numeric > 0) {
+            return numeric;
+        }
+        return this.delayPerCall;
+    }
+
+    async _waitDexDelay(dexKey) {
+        const delay = this._resolveDexDelay(dexKey);
+        if (!delay) return;
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
     /**
      * Mendapatkan quote harga dari semua DEX yang relevan untuk sebuah token.
      * @param {object} token - Objek token dari database.
@@ -311,15 +338,18 @@ class DexDataFetcher {
     async getQuotes(token, activeDexConfig, inputAmounts, globalSettings, onResultCallback) {
         if (typeof onResultCallback !== 'function') return;
 
+        if (globalSettings) {
+            this.updateGlobalSettings(globalSettings);
+        }
+
         const activeDexKeys = Object.keys(activeDexConfig).filter(key => activeDexConfig[key] === true);
 
         for (const dexKey of activeDexKeys) {
             // Cek apakah token ini mendukung DEX tersebut
             if (token.dex && token.dex[dexKey] && token.dex[dexKey].status) {
-                const [pairToTokenQuote, tokenToPairQuote] = await Promise.all([
-                    this._fetchSingleQuote(dexKey, token, inputAmounts, 'CEXtoDEX', globalSettings),
-                    this._fetchSingleQuote(dexKey, token, inputAmounts, 'DEXtoCEX', globalSettings)
-                ]);
+                const pairToTokenQuote = await this._fetchSingleQuote(dexKey, token, inputAmounts, 'CEXtoDEX', this.globalSettings);
+                await this._waitDexDelay(dexKey);
+                const tokenToPairQuote = await this._fetchSingleQuote(dexKey, token, inputAmounts, 'DEXtoCEX', this.globalSettings);
 
                 // Panggil callback dengan hasil untuk DEX ini
                 onResultCallback(dexKey, {
@@ -327,8 +357,7 @@ class DexDataFetcher {
                     tokenToPair: tokenToPairQuote
                 });
 
-                const dexDelay = this.globalSettings?.config_dex?.[dexKey]?.jeda || this.delayPerCall;
-                await new Promise(resolve => setTimeout(resolve, dexDelay));
+                await this._waitDexDelay(dexKey);
             }
         }
     }
@@ -482,4 +511,9 @@ class DexDataFetcher {
         const normalized = fixed.replace('.', '');
         return BigInt(normalized);
     }
+}
+
+// Export untuk digunakan di window global
+if (typeof window !== 'undefined') {
+    window.DexDataFetcher = DexDataFetcher;
 }

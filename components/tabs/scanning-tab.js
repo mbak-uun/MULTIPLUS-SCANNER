@@ -118,18 +118,6 @@ const TokenRow = {
       return config?.NAMA_PENDEK || this.token.chain.toUpperCase();
     }
   },
-  watch: {
-    // Watch scanResult untuk memastikan UI update saat data berubah
-    scanResult: {
-      handler(newVal, oldVal) {
-        // Force update saat scanResult berubah
-        if (newVal !== oldVal) {
-          this.$forceUpdate();
-        }
-      },
-      deep: true // Watch nested properties
-    }
-  },
   methods: {
     getSignalCellId(dexKey, direction) {
       return buildSignalCellId(this.token.id, dexKey, direction);
@@ -1421,9 +1409,13 @@ const ScanningTab = {
         :filtered-tokens-count="filteredTokens.length"
         :disabled="isFilterLocked"
         :show-favorite-button="$root.activeChain !== 'multi'"
+        :show-autorun-button="isMultiChainMode"
+        :show-min-pnl-input="true"
+        :show-autoscroll-button="true"
         @update:filters="newFilters => $root.filters = newFilters"
         @toggle-favorite="toggleFavoritFilter"
         @toggle-autoscroll="toggleAutoscroll"
+        @toggle-autorun="toggleAutorun"
         @handle-min-pnl-change="handleMinPnlChange"
       >
         <!-- Slot untuk tombol Start/Stop Scan -->

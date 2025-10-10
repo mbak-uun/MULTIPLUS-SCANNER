@@ -172,6 +172,7 @@ const scannerMixin = {
             const tokenId = data?.data?.tokenId;
             const dexKey = data?.data?.dexKey;
 
+            // Update status loading per token per DEX
             if (tokenId && dexKey) {
                 if (stage === 'DEX_FETCH') {
                     this._setDexScanStatus(tokenId, dexKey, 'loading');
@@ -182,12 +183,12 @@ const scannerMixin = {
                 }
             }
 
+            // Reset status semua DEX saat token mulai di-scan
             if (stage === 'TOKEN_MULAI' && tokenId) {
                 this._resetDexStatusForToken(tokenId);
             }
 
-            // Force Vue reactivity
-            this.$forceUpdate();
+            // TIDAK PERLU $forceUpdate() - Vue 3 otomatis detect perubahan dexScanStatus
         },
 
         /**
@@ -197,16 +198,13 @@ const scannerMixin = {
         handleCexResult(data) {
             const { token, cexPrices } = data;
 
-            // Inisialisasi struktur data di scanResults
+            // VUE 3: Direct assignment works - Proxy-based reactivity
             if (!this.scanResults[token.id]) {
                 this.scanResults[token.id] = { pnl: {}, cex: null, dex: {} };
             }
 
-            // Update CEX data
+            // Update CEX data - Vue 3 akan otomatis detect perubahan
             this.scanResults[token.id].cex = cexPrices;
-
-            // Force Vue reactivity untuk update UI
-            this.$forceUpdate();
 
             // console.log(`[ScannerMixin] CEX data received for ${token.nama_token}/${token.nama_pair}`);
         },
@@ -219,28 +217,20 @@ const scannerMixin = {
         handlePnlResult(data) {
             const { token, dexKey, pnl, cexPrices } = data;
 
-            // Pastikan struktur data di scanResults ada
-            if (!this.scanResults[token.id]) {
-                this.scanResults[token.id] = { pnl: {}, cex: cexPrices, dex: {} };
-            }
-            if (!this.scanResults[token.id].pnl) {
-                this.scanResults[token.id].pnl = {};
-            }
-            if (cexPrices && !this.scanResults[token.id].cex) {
-                this.scanResults[token.id].cex = cexPrices;
-            }
+            // VUE 3: Buat object baru untuk trigger reactivity
+            // Spread existing data + update yang baru
+            const existingData = this.scanResults[token.id] || { pnl: {}, cex: null, dex: {} };
+            const existingPnl = existingData.pnl || {};
 
-            // Update PNL untuk DEX ini - buat object baru untuk trigger Vue reactivity
-            this.scanResults[token.id].pnl = {
-                ...this.scanResults[token.id].pnl,
-                [dexKey]: pnl
+            // Update dengan create new object reference (memastikan Vue detect change)
+            this.scanResults[token.id] = {
+                ...existingData,
+                cex: cexPrices || existingData.cex,
+                pnl: {
+                    ...existingPnl,
+                    [dexKey]: pnl
+                }
             };
-
-            // PENTING: Buat reference baru untuk scanResults agar Vue mendeteksi perubahan
-            this.scanResults = { ...this.scanResults };
-
-            // REVISI: Simpan hasil PNL terakhir agar bisa di-watch oleh komponen
-            this.lastPnlResult = { ...data, timestamp: Date.now() };
 
             const hasError = Boolean(
                 pnl?.cexToDex?.error ||
@@ -249,10 +239,10 @@ const scannerMixin = {
             );
             this._setDexScanStatus(token.id, dexKey, hasError ? 'error' : 'done');
 
-            // Force Vue reactivity untuk update UI
-            this.$forceUpdate();
+            // Simpan untuk signal card processing
+            this.lastPnlResult = { token, dexKey, pnl };
 
-            // console.log(`[ScannerMixin] PNL result received for ${token.nama_token}/${token.nama_pair} via ${dexKey} - UI updated immediately`);
+            // console.log(`[ScannerMixin] PNL result received for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
         },
 
         /**
@@ -261,17 +251,14 @@ const scannerMixin = {
         handleTokenComplete(data) {
             const { token, cexPrices, dexResults, pnlResults, progress } = data;
 
-            // Gabungkan hasil PNL yang sudah ada (dari onPnlResult)
-            const existingPnl = this.scanResults[token.id]?.pnl || {};
-
-            // Update hasil final di memori
-            const finalResult = {
+            // REVISI: Cukup pastikan data CEX dan DEX tersimpan. PNL sudah diupdate secara real-time.
+            // Ini mencegah re-render yang tidak perlu di akhir proses token.
+            this.scanResults[token.id] = {
+                ...(this.scanResults[token.id] || { pnl: {} }), // Pertahankan PNL yang sudah ada
                 cex: cexPrices,
-                dex: dexResults,
-                pnl: { ...existingPnl, ...pnlResults },
+                dex: dexResults, // Simpan hasil quote DEX mentah jika perlu
                 timestamp: Date.now()
             };
-            this.scanResults[token.id] = finalResult;
 
             // Update progress
             this.scanProgress = progress;

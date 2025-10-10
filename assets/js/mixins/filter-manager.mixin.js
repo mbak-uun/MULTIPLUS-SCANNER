@@ -718,6 +718,20 @@ const filterManagerMixin = {
             }
         },
 
+    // REVISI: Tambahkan watcher untuk allCoins untuk mengatasi race condition.
+    // Ini memastikan filter pair diinisialisasi ulang setelah data koin selesai dimuat.
+    '$root.allCoins': {
+      deep: false, // Tidak perlu deep watch, hanya perlu tahu saat array berubah
+      handler(newCoins, oldCoins) {
+        if (newCoins.length > 0 && oldCoins.length === 0) {
+          console.log('[FilterManager] Data koin telah dimuat. Menginisialisasi ulang filter PAIRDEX...');
+          // Panggil kembali inisialisasi filter, yang sekarang akan memiliki
+          // akses ke `availablePairFilters` yang sudah terisi.
+          this.initializeFilters();
+        }
+      }
+    },
+
         // Watch untuk status inisialisasi aplikasi
         '$root.isAppInitialized': {
             handler(isInitialized) {

@@ -9,34 +9,34 @@ const KONFIG_APLIKASI = {
   "DEXS": {
     "flytrade": {
       "WARNA": "#740affff",
-      "PROXY": "https://server1.ciwayeh967.workers.dev/?",
+      "PROXY": "",
       "URL_DEX": "https://app.magpiefi.xyz/swap/{chainName}/{tokenSymbol}/{chainName}/{pairSymbol}",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "fly", "DEXtoCEX": "fly" },
-        "ALTERNATIVE": { "ENABLE": true, "CEXtoDEX": "fly", "DEXtoCEX": "fly" }
+        "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
       }
     },
     "kyber": {
       "WARNA": "#3db50aff",
-      "PROXY": "https://server1.ciwayeh967.workers.dev/?",
+      "PROXY": "",
       "URL_DEX": "https://kyberswap.com/swap/{chainName}/{tokenAddress}-to-{pairAddress}",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "kyber", "DEXtoCEX": "kyber" },
-        "ALTERNATIVE": { "ENABLE": true, "CEXtoDEX": "swoop", "DEXtoCEX": "swoop" }
+        "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
       }
     },
-    "odos": {
+    "odos": { 
       "WARNA": "#EA1E1EFF",
-      "PROXY": "https://server1.ciwayeh967.workers.dev/?",
+      "PROXY": "",
       "URL_DEX": "https://app.odos.xyz",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "odos", "DEXtoCEX": "odos" },
-        "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
+        "ALTERNATIVE": { "ENABLE": true, "CEXtoDEX": "swoop", "DEXtoCEX": "dzap" }
       }
     },
     "0x": {
       "WARNA": "#40a6e4ff",
-      "PROXY": "https://server1.ciwayeh967.workers.dev/?",
+      "PROXY": "",
       "URL_DEX": "https://matcha.xyz/tokens/{chainName}/{tokenAddress}?buyChain={chainCode}&buyAddress={pairAddress}",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "0x", "DEXtoCEX": "0x" },
@@ -45,11 +45,11 @@ const KONFIG_APLIKASI = {
     },
     "para": {
       "WARNA": "#f7941dff",
-      "PROXY": "https://server1.ciwayeh967.workers.dev/?",
+      "PROXY": "",
       "URL_DEX": "https://app.paraswap.io/#/swap/{tokenAddress}-{pairAddress}?version=6.2&network={chainName}",
       "FETCH_DEX": {
         "PRIMARY": { "CEXtoDEX": "para", "DEXtoCEX": "para" },
-        "ALTERNATIVE": { "ENABLE": false, "CEXtoDEX": "", "DEXtoCEX": "" }
+        "ALTERNATIVE": { "ENABLE": true, "CEXtoDEX": "swoop", "DEXtoCEX": "dzap" }
       }
     },
     "1inch": {

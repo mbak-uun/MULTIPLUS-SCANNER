@@ -12,7 +12,7 @@ class CexPriceFetcher {
     constructor(config, httpModule, globalSettings) {
         this.config = config;
         this.Http = httpModule;
-        this.globalSettings = globalSettings;
+        this.globalSettings = globalSettings || {};
         // REVISI: Gunakan jeda global per token, fallback ke konfigurasi default.
         this.delayPerCall = globalSettings?.jedaKoin ?? this.config?.SCANNING_DELAYS?.jedaKoin ?? 200;
         // Timeout default untuk CEX API
@@ -169,6 +169,11 @@ class CexPriceFetcher {
      */
     async _delay() {
         return new Promise(resolve => setTimeout(resolve, this.delayPerCall));
+    }
+
+    updateGlobalSettings(globalSettings = {}) {
+        this.globalSettings = globalSettings || {};
+        this.delayPerCall = this.globalSettings?.jedaKoin ?? this.config?.SCANNING_DELAYS?.jedaKoin ?? 200;
     }
 }
 
