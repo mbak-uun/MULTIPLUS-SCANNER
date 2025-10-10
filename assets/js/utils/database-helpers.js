@@ -110,7 +110,7 @@ const DatabaseHelpers = {
         try {
             return JSON.parse(JSON.stringify(data));
         } catch (error) {
-            console.error('[DatabaseHelpers] Error cloning data:', error);
+            // console.error('[DatabaseHelpers] Error cloning data:', error);
             return data;
         }
     },

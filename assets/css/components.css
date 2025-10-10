@@ -1898,6 +1898,25 @@ body.theme-single-chain .table-striped tbody tr:nth-of-type(odd) {
   color: var(--text-secondary);
 }
 
+.scanning-tab .signal-card-content {
+  line-height: 1.1;
+}
+
+.scanning-tab .signal-card-content .signal-pair,
+.scanning-tab .signal-card-content .signal-pnl {
+  font-size: 0.75rem;
+}
+
+.scanning-tab .signal-card-content .signal-cex-name,
+.scanning-tab .signal-card-content .signal-modal,
+.scanning-tab .signal-card-content .signal-fee {
+  font-size: 0.7rem;
+}
+
+.scanning-tab .signal-card-content .signal-modal {
+  letter-spacing: 0.03em;
+}
+
 .scanning-tab .dex-signal-pair {
   font-weight: 600;
 }

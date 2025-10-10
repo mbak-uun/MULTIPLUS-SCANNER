@@ -25,7 +25,7 @@ const routerMixin = {
           this.activeTab = resolvedTab;
 
           if (resolvedTab !== modeParam) {
-            console.warn(`[RouterMixin] Mode "${modeParam}" tidak diizinkan pada multi-chain. Mengalihkan ke "scan".`);
+            // console.warn(`[RouterMixin] Mode "${modeParam}" tidak diizinkan pada multi-chain. Mengalihkan ke "scan".`);
             this.updateURL('mode', resolvedTab);
           }
         } else if (validMenus.includes(modeParam)) {

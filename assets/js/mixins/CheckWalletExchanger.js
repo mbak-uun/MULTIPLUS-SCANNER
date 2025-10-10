@@ -183,7 +183,7 @@ class CheckWalletExchanger {
     const fetcher = this._getBalanceFetcher(upperCex);
 
     if (!fetcher) {
-      console.warn(`[CheckWalletExchanger] No balance fetcher found for CEX: ${upperCex}`);
+      // console.warn(`[CheckWalletExchanger] No balance fetcher found for CEX: ${upperCex}`);
       throw new Error(`Balance fetcher for ${upperCex} is not implemented.`);
     }
 
@@ -191,7 +191,7 @@ class CheckWalletExchanger {
       // Teruskan kredensial ke fungsi fetcher yang sesuai
       return await fetcher(credentials);
     } catch (error) {
-      console.error(`[CheckWalletExchanger] Failed to fetch account balance for ${upperCex}:`, error);
+      // console.error(`[CheckWalletExchanger] Failed to fetch account balance for ${upperCex}:`, error);
       throw new Error(`Failed to fetch ${upperCex} balance: ${error.message}`);
     }
   }
@@ -471,14 +471,14 @@ class CheckWalletExchanger {
     const fetcher = this._getCoinListFetcher(upperCex);
 
     if (!fetcher) {
-      console.warn(`[CheckWalletExchanger] No fetcher found for CEX: ${upperCex}`);
+      // console.warn(`[CheckWalletExchanger] No fetcher found for CEX: ${upperCex}`);
       return [];
     }
 
     try {
       return await fetcher(chainKey);
     } catch (error) {
-      console.error(`[CheckWalletExchanger] Failed to fetch coin list for ${upperCex} on ${chainKey}:`, error);
+      // console.error(`[CheckWalletExchanger] Failed to fetch coin list for ${upperCex} on ${chainKey}:`, error);
       throw new Error(`Failed to fetch ${upperCex}: ${error.message}`);
     }
   }
@@ -509,7 +509,7 @@ class CheckWalletExchanger {
         const data = await this.Http.get(url, { responseType: 'json' });
         map[cex.toUpperCase()] = source.parse(data);
       } catch (error) {
-        console.warn(`[CheckWalletExchanger] Gagal mengambil Trade Status [${cex}]:`, error);
+        // console.warn(`[CheckWalletExchanger] Gagal mengambil Trade Status [${cex}]:`, error);
         map[cex.toUpperCase()] = new Set();
       }
     }
@@ -571,7 +571,7 @@ class CheckWalletExchanger {
         const data = await this.Http.get(url, { responseType: 'json' });
         maps[cex.toUpperCase()] = source.parse(data) || {};
       } catch (error) {
-        console.warn(`[CheckWalletExchanger] Gagal mengambil Harga [${cex}]:`, error);
+        // console.warn(`[CheckWalletExchanger] Gagal mengambil Harga [${cex}]:`, error);
         maps[cex.toUpperCase()] = {};
       }
     }

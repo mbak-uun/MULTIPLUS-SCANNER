@@ -84,11 +84,11 @@ const TokenRow = {
         : '#';
     },
     tokenWithdrawLink() {
-      const symbol = this.token.cex_ticker_token || this.token.nama_token;
+      const symbol = this.token.nama_token || this.token.cex_ticker_token;
       return this.helpers.getCexWithdrawLink ? this.helpers.getCexWithdrawLink(this.token, symbol) : '#';
     },
     tokenDepositLink() {
-      const symbol = this.token.cex_ticker_token || this.token.nama_token;
+      const symbol = this.token.nama_token || this.token.cex_ticker_token;
       return this.helpers.getCexDepositLink ? this.helpers.getCexDepositLink(this.token, symbol) : '#';
     },
     pairWithdrawLink() {
@@ -111,6 +111,9 @@ const TokenRow = {
     },
     chainStyle() {
       return this.chainColors('chain', this.token.chain, 'solid');
+    },
+    cexStyle() {
+      return this.chainColors('cex', this.token.cex_name, 'solid');
     },
     chainShortName() {
       if (!this.helpers.getChainConfig) return this.token.chain.toUpperCase();
@@ -298,8 +301,7 @@ const TokenRow = {
             <button class="btn btn-sm btn-outline-danger py-0 px-2" @click="deleteToken" title="Delete"><i class="bi bi-trash"></i></button>
           </div>
           <div class="small mb-2"  >
-            <span class="badge bg-warning text-dark">{{ primaryCex }}</span>
- on
+            <span class="badge" :style="cexStyle">{{ primaryCex }}</span> on
             <span class="badge" :style="chainStyle">{{ chainShortName.toUpperCase() }}</span>
           </div>
           <div class="mb-1 small">
@@ -596,6 +598,25 @@ const ScanningTab = {
       const pair = this.availablePairOptions.find(p => p.key === this.formData.selectedPairType);
       return pair || null;
     }
+    ,
+    // REVISI: Tambahkan computed property baru untuk sorting
+    sortedAndFilteredTokens() {
+      // Ambil token yang sudah difilter dari mixin
+      let tokens = this.filteredTokens;
+
+      // Terapkan sorting
+      const direction = this.filters.sortDirection === 'asc' ? 1 : -1;
+      
+      // Urutkan berdasarkan 'id' atau properti lain yang konsisten, misal 'nama_koin'
+      // Di sini kita gunakan 'id' sebagai contoh.
+      tokens.sort((a, b) => {
+        const valA = a.nama_koin || '';
+        const valB = b.nama_koin || '';
+        return valA.localeCompare(valB) * direction;
+      });
+
+      return tokens;
+    }
   },
 
   methods: {
@@ -610,6 +631,7 @@ const ScanningTab = {
         this.isScanningRoot = false; // Update root state
         this.filters.run = 'stop';
         this.saveFilter('run'); // REFACTOR: Gunakan method dari mixin
+        window.location.reload(); // PERMINTAAN: Reload halaman saat stop
       } else {
         // console.clear();
         // console.log('🚀 Memulai proses pemindaian...');
@@ -654,15 +676,13 @@ const ScanningTab = {
       if (!pnlData || !pnlData.token || !pnlData.pnl) return;
 
       const { token, dexKey, pnl } = pnlData;
-      const minPnlThreshold = Number(this.filters?.minPnl) || 0;
+      const minPnlThreshold = Number(this.filters?.minPnl ?? 0);
 
-      const formatNumber = (value, { min = 0, max = 2, fallback = '0' } = {}) => {
+      // Helper untuk format angka dengan 2 desimal
+      const formatCurrency = (value, prefix = '$') => {
         const numeric = Number(value);
-        if (!Number.isFinite(numeric)) return fallback;
-        return numeric.toLocaleString('id-ID', {
-          minimumFractionDigits: min,
-          maximumFractionDigits: max
-        });
+        if (!Number.isFinite(numeric)) return `${prefix}0.00`;
+        return `${prefix}${numeric.toFixed(2)}`;
       };
 
       const resolveSymbol = (preferred, fallback) => {
@@ -682,9 +702,20 @@ const ScanningTab = {
           : resolveSymbol(token.nama_token, token.cex_ticker_token);
 
         const pnlUsd = Number(pnlDirection.pnl) || 0;
-        const pnlPercent = Number.isFinite(pnlDirection.pnlPercent) ? pnlDirection.pnlPercent : null;
         const modalUsd = Number(pnlDirection.modal) || 0;
-        const cexKey = resolveSymbol(token.cex_name, token.cex || 'CEX');
+        const baseSymbol = resolveSymbol(token.nama_token, token.cex_ticker_token);
+        const pairSymbol = resolveSymbol(token.nama_pair, token.cex_ticker_pair);
+        const totalFeeUsd = Number(pnlDirection.costs?.total) || 0;
+
+        const cexKeyRaw = token.cex_name || token.cex || '';
+        const cexKey = cexKeyRaw.toString().toUpperCase() || 'CEX';
+        const cexConfig = this.config?.CEX?.[cexKey];
+        const cexDisplayName =   cexConfig?.NAMA || cexKey;
+        const cexColor = cexConfig?.WARNA || null;
+        
+        const chainConfig = this.getChainConfig(token.chain);
+        const chainShortName = chainConfig?.NAMA_PENDEK || token.chain.toUpperCase();
+        const chainStyle = this.chainColorFn('chain', token.chain, 'solid');
 
         const targetId = buildSignalCellId(token.id, dexKey, directionCode);
 
@@ -693,21 +724,22 @@ const ScanningTab = {
           tokenId: token.id,
           dex: dexKey,
           direction: directionCode,
-          directionLabel,
           cexKey,
-          cexName: cexKey,
+          cexName: cexDisplayName,
+          cexColor,
+          chainName: chainShortName,
+          chainStyle,
           modal: modalUsd,
-          modalDisplay: formatNumber(modalUsd, { min: 0, max: 2 }),
+          modalDisplay: formatCurrency(modalUsd, ''), // Tanpa simbol $
           pnlUsd,
-          pnlUsdFormatted: `${formatNumber(pnlUsd, { min: 2, max: 2 })}$`,
-          pnlPercent,
-          pnlPercentFormatted: pnlPercent !== null ? `${pnlPercent > 0 ? '+' : ''}${formatNumber(pnlPercent, { min: 2, max: 2 })}%` : null,
-          tokenIn,
-          tokenOut,
-          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          pnlUsdFormatted: formatCurrency(pnlUsd),
+          totalFeeUsd,
+          totalFeeDisplay: formatCurrency(totalFeeUsd),
+          pairLabel: `${baseSymbol} ➡️ ${pairSymbol}`,
           meetsThreshold: pnlUsd >= minPnlThreshold,
           targetId,
-          directionClass: directionCode === 'CEXtoDEX' ? 'text-success' : 'text-danger'
+          directionClass: directionCode === 'CEXtoDEX' ? 'text-success' : 'text-danger',
+          pnlClass: 'text-success'
         };
 
         // Hapus sinyal lama untuk kombinasi token/dex/direction agar selalu menampilkan yang terbaru
@@ -728,13 +760,13 @@ const ScanningTab = {
     },
 
     async loadTokensFromDB() {
-      console.log('[ScanningTab] loadTokensFromDB() dipanggil.', {
+      /* // console.log('[ScanningTab] loadTokensFromDB() dipanggil.', {
         activeChain: this.$root.activeChain,
         isAppInitialized: this.$root.isAppInitialized
-      });
+      // }); */
 
       if (!this.$root.activeChain || !this.$root.isAppInitialized) {
-        console.log('[ScanningTab] Guard terpanggil, root belum siap. Tokens dikosongkan.');
+        /* // console.log('[ScanningTab] Guard terpanggil, root belum siap. Tokens dikosongkan.'); */
         this.tokens = [];
         return;
       }
@@ -742,11 +774,11 @@ const ScanningTab = {
       await this.$root.loadCoinsForFilter();
       this.tokens = this.$root.allCoins.map(token => ({ ...token }));
 
-      console.log('[ScanningTab] Tokens dimuat:', {
+      /* // console.log('[ScanningTab] Tokens dimuat:', {
         activeChain: this.$root.activeChain,
         total: this.tokens.length,
         sample: this.tokens.slice(0, 5)
-      });
+      // }); */
     },
     // Method untuk mengubah arah sorting
     toggleSortDirection() {
@@ -802,7 +834,7 @@ const ScanningTab = {
         }
         this.$emit('show-toast', 'Alamat berhasil disalin.', 'success');
       } catch (error) {
-        console.error('Gagal menyalin alamat kontrak:', error);
+        // console.error('Gagal menyalin alamat kontrak:', error);
         this.$emit('show-toast', 'Gagal menyalin alamat.', 'danger');
       }
     },
@@ -1360,7 +1392,7 @@ const ScanningTab = {
       handler(isInitialized) {
         // Jika aplikasi sudah siap dan tabel masih kosong, coba muat ulang data.
         if (isInitialized && this.tokens.length === 0) {
-          console.log('[ScanningTab] Aplikasi terinisialisasi, memuat ulang data token...');
+          /* // console.log('[ScanningTab] Aplikasi terinisialisasi, memuat ulang data token...'); */
           this.loadTokensFromDB();
         }
       }
@@ -1371,7 +1403,7 @@ const ScanningTab = {
       handler(newTokens, oldTokens) {
         // Jika daftar token yang akan ditampilkan berubah, bersihkan hasil scan lama.
         if (this.scanResults && Object.keys(this.scanResults).length > 0) {
-          // console.log('Daftar token berubah, membersihkan hasil scan lama dari tampilan.');
+          // // console.log('Daftar token berubah, membersihkan hasil scan lama dari tampilan.');
 
         // REVISI: Jika scan sedang berjalan, jangan bersihkan hasil.
         // Ini mencegah hasil scan hilang saat user mengetik di search box.
@@ -1473,18 +1505,19 @@ const ScanningTab = {
                      class="list-group-item list-group-item-action p-1 signal-item"
                      :class="{ 'signal-item-success': signal.meetsThreshold, 'signal-item-light': !signal.meetsThreshold }"
                      @click="goToSignal(signal)"
-                     :title="'Klik untuk scroll ke ' + signal.tokenIn">
-                  <div class="d-flex w-100 justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                      <i class="bi bi-caret-right-fill signal-bullet" :class="signal.directionClass"></i>
-                      <div class="d-flex flex-column ms-1" :style="$root.getColorStyles('dex', dex.key, 'text')">
-                        <span class="fw-bold signal-modal" style="line-height: 1;">{{ signal.tokenIn }} <i class="bi bi-arrow-right"></i> {{ signal.tokenOut }}</span>
-                        <span class="small" style="line-height: 1;">{{ signal.cexName }}</span>
-                        <span class="small" style="line-height: 1;">{{ signal.modalDisplay }}</span>
-                      </div>
+                     :title="'Klik untuk scroll ke ' + signal.pairLabel">
+                  <div class="signal-card-content">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                      <span class="fw-semibold text-uppercase signal-pair" :class="signal.directionClass">
+                        {{ signal.pairLabel }}
+                      </span>
+                      <span class="text-muted small mx-1">|</span>
+                      <span class="fw-semibold text-dark small">{{ signal.modalDisplay }}$</span>
+                      <span class="fw-semibold signal-pnl ms-auto" :class="signal.pnlClass">PNL: {{ signal.pnlUsdFormatted }}</span>
                     </div>
-                    <div class="text-end">
-                      <span class="fw-bolder d-block signal-pnl" :class="signal.directionClass" style="line-height: 1;">{{ signal.pnlUsdFormatted }}{{ signal.pnlPercentFormatted ? ' (' + signal.pnlPercentFormatted + ')' : '' }}</span>
+                    <div class="d-flex justify-content-between align-items-center small mt-1">
+                      <span class="fw-semibold text-uppercase" :style="signal.cexColor ? { color: signal.cexColor } : null">{{ signal.cexName }} on <span class="badge" :style="signal.chainStyle">{{ signal.chainName }}</span></span>
+                      <span class="signal-fee fw-semibold text-dark">Fee: {{ signal.totalFeeDisplay }}</span>
                     </div>
                   </div>
                 </div>
@@ -1521,7 +1554,7 @@ const ScanningTab = {
               </td>
             </tr>
             <token-row
-              v-for="(token, index) in filteredTokens"
+              v-for="(token, index) in sortedAndFilteredTokens"
               :key="token.id"
               :token="token"
               :index="index"

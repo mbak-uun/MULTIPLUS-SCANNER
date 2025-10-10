@@ -28,7 +28,7 @@ AppContainer.register('config', () => window.CONFIG_APPS);
 // ============================================================================
 
 AppContainer.register('coinRepository', (container) => {
-    console.log('[Bootstrap] Registering coinRepository factory.'); // Log is still correct
+    /* console.log('[Bootstrap] Registering coinRepository factory.'); */ // Log is still correct
     return new CoinRepository(window.DB);
 });
 
@@ -104,5 +104,5 @@ if (typeof window !== 'undefined') {
     window.AppContainer = AppContainer;
 }
 
-console.log('✅ Application Bootstrap completed');
-console.log('📦 Registered services:', AppContainer.getRegisteredServices());
+/* console.log('✅ Application Bootstrap completed'); */
+/* console.log('📦 Registered services:', AppContainer.getRegisteredServices()); */

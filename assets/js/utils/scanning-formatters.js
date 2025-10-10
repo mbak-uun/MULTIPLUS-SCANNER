@@ -91,7 +91,7 @@ const ScanningFormatters = {
       if (value === undefined || value === null || Number.isNaN(value)) return '-';
       const formatter = Number(value);
       return `${formatter.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
+        minimumFractionDigits: 0,
         maximumFractionDigits: 2
       })}$`;
     };
@@ -175,7 +175,7 @@ const ScanningFormatters = {
         return Formatters.usd(value);
       }
       return `$${Number(value).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
+        minimumFractionDigits: 0,
         maximumFractionDigits: 2
       })}`;
     };

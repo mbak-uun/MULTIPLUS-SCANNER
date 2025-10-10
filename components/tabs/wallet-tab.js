@@ -212,7 +212,7 @@ const WalletTab = {
         }
         this.$emit('show-toast', 'Alamat dompet berhasil disalin.', 'success');
       } catch (error) {
-        console.error('Gagal menyalin alamat dompet:', error);
+        // console.error('Gagal menyalin alamat dompet:', error);
         this.$emit('show-toast', 'Gagal menyalin alamat dompet.', 'danger');
       }
     },

@@ -43,7 +43,7 @@ const databaseMixin = {
       try {
         return await DB.getData(storeName, key);
       } catch (error) {
-        console.error(`Gagal mengambil data dari store ${storeName} (key: ${key}):`, error);
+        // console.error(`Gagal mengambil data dari store ${storeName} (key: ${key}):`, error);
         throw error;
       }
     },
@@ -65,7 +65,7 @@ const databaseMixin = {
       try {
         return await DB.saveData(storeName, data, key);
       } catch (error) {
-        console.error(`Gagal menyimpan data ke store ${storeName}:`, error);
+        // console.error(`Gagal menyimpan data ke store ${storeName}:`, error);
         throw error;
       }
     },
@@ -102,7 +102,7 @@ const databaseMixin = {
         };
 
       } catch (error) {
-        console.error('Gagal memuat info database:', error);
+        // console.error('Gagal memuat info database:', error);
         this.showToast('Gagal memuat info database.', 'danger');
       } finally {
         this.$root.isLoading = false;
@@ -127,7 +127,7 @@ const databaseMixin = {
         URL.revokeObjectURL(url);
         this.showToast('Backup database berhasil diunduh.', 'success');
       } catch (error) {
-        console.error('Gagal melakukan backup:', error);
+        // console.error('Gagal melakukan backup:', error);
         this.showToast('Gagal melakukan backup database.', 'danger');
       }
     },
@@ -172,7 +172,7 @@ const databaseMixin = {
           this.showToast('Database berhasil di-restore. Muat ulang halaman...', 'success');
           setTimeout(() => window.location.reload(), 2000);
         } catch (error) {
-          console.error('Gagal me-restore database:', error);
+          // console.error('Gagal me-restore database:', error);
 
           // Log error ke riwayat
           await this.$root.logDatabase('restore', 'error',
@@ -202,7 +202,7 @@ const databaseMixin = {
           this.showToast('Database berhasil dihapus. Muat ulang halaman...', 'success');
           setTimeout(() => window.location.reload(), 2000);
         } catch (error) {
-          console.error('Gagal menghapus database:', error);
+          // console.error('Gagal menghapus database:', error);
 
           // Log error ke riwayat
           await this.$root.logDatabase('delete_store', 'error',

@@ -100,22 +100,22 @@ const FilterToolbar = {
               </div>
             </div>
 
-            <div v-if="showMinPnlInput" class="col-6 col-sm-auto">
-              <div class="input-group input-group-sm w-100" style="min-width: 140px;">
-                <span class="input-group-text">
-                  <i class="bi bi-graph-up-arrow"></i>
-                </span>
-                <input
-                  type="number"
-                  class="form-control"
-                  placeholder="Min PnL"
-                  min="0"
-                  step="0.1"
-                  :disabled="disabled"
-                  v-model.number="localMinPnl"
-                  @change="$emit('handle-min-pnl-change')">
-              </div>
-            </div>
+            <div v-if="showMinPnlInput" class="col-auto">
+  <div class="input-group input-group-sm w-auto">
+    <span class="input-group-text small fw-semibold">MinPNL</span>
+    <input
+      type="number"
+      class="form-control"
+      placeholder="Min PnL"
+      min="0"
+      step="0.1"
+      style="max-width: 80px;"
+      :disabled="disabled"
+      v-model.number="localMinPnl"
+      @change="$emit('handle-min-pnl-change')">
+  </div>
+</div>
+
 
             <div v-if="showFavoriteButton" class="col-6 col-sm-auto">
               <button

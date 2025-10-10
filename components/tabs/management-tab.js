@@ -149,23 +149,23 @@ const ManagementTab = {
     // ✅ REFACTORED: Using repository
     async loadTokensFromDB() {
       if (!this.activeChain) {
-        console.warn('[ManagementTab] activeChain tidak ada, skip loading');
+        // console.warn('[ManagementTab] activeChain tidak ada, skip loading');
         return;
       }
-      console.log(`[ManagementTab] Memuat token untuk tab manajemen (Chain: ${this.activeChain})...`);
+      /* // console.log(`[ManagementTab] Memuat token untuk tab manajemen (Chain: ${this.activeChain})...`); */
 
       await this.$root.loadCoinsForFilter();
       this.tokens = this.$root.allCoins.map(token => ({ ...token }));
 
-      console.log(`[ManagementTab] ✅ Total ${this.tokens.length} token dimuat untuk manajemen.`);
-      console.log(`[ManagementTab] Sample token:`, this.tokens[0]);
-      console.log(`[ManagementTab] Current filters:`, JSON.parse(JSON.stringify(this.filters)));
+      /* // console.log(`[ManagementTab] ✅ Total ${this.tokens.length} token dimuat untuk manajemen.`); */
+      /* // console.log(`[ManagementTab] Sample token:`, this.tokens[0]); */
+      /* // console.log(`[ManagementTab] Current filters:`, JSON.parse(JSON.stringify(this.filters))); */
 
       // Debug filtered tokens
       this.$nextTick(() => {
-        console.log(`[ManagementTab] ✅ filteredTokens count:`, this.filteredTokens.length);
+        /* // console.log(`[ManagementTab] ✅ filteredTokens count:`, this.filteredTokens.length); */
         if (this.filteredTokens.length === 0 && this.tokens.length > 0) {
-          console.warn('[ManagementTab] ⚠️ WARNING: Ada tokens tapi filteredTokens kosong! Check filter conditions!');
+          // console.warn('[ManagementTab] ⚠️ WARNING: Ada tokens tapi filteredTokens kosong! Check filter conditions!');
         }
       });
     },
@@ -217,7 +217,7 @@ const ManagementTab = {
         this.$emit('show-toast', `${token.nama_koin} ${newFavoriteStatus ? 'ditambahkan ke' : 'dihapus dari'} favorit.`, 'success');
         await this.loadTokensFromDB();
       } catch (error) {
-        console.error('Gagal memperbarui status favorit:', error);
+        // console.error('Gagal memperbarui status favorit:', error);
         // Rollback state jika gagal
         this.tokens[tokenIndex].isFavorite = originalIsFavorite;
         this.$emit('show-toast', 'Gagal memperbarui status favorit.', 'danger');
@@ -246,7 +246,7 @@ const ManagementTab = {
         this.$emit('show-toast', `${token.nama_koin} ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`, 'success');
         await this.loadTokensFromDB();
       } catch (error) {
-        console.error('Gagal memperbarui status:', error);
+        // console.error('Gagal memperbarui status:', error);
         // Rollback jika gagal
         this.tokens[tokenIndex].status = originalStatus;
         this.$emit('show-toast', 'Gagal memperbarui status.', 'danger');
@@ -273,10 +273,7 @@ const ManagementTab = {
     formatDexValue(value) {
       const numeric = Number(value);
       if (!Number.isFinite(numeric)) return value ?? '0';
-      if (Math.abs(numeric) >= 1000) {
-        return ID_NUMBER_FORMAT.format(Math.round(numeric));
-      }
-      return numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
+      return ID_NUMBER_FORMAT.format(Math.round(numeric));
     },
 
     // Helper untuk badge status
@@ -380,7 +377,7 @@ const ManagementTab = {
         this.closeDeleteModal();
         await this.loadTokensFromDB();
       } catch (error) {
-        console.error('Error deleting token:', error);
+        // console.error('Error deleting token:', error);
         this.$emit('show-toast', 'Gagal menghapus token.', 'danger');
       }
     },
@@ -463,7 +460,7 @@ const ManagementTab = {
         this.$emit('show-toast', `${addedCount} token berhasil ditambahkan.`, 'success');
         this.closeFormModal();
       } catch (error) {
-        console.error('Error saving token:', error);
+        // console.error('Error saving token:', error);
         this.$emit('show-toast', 'Gagal menyimpan token.', 'danger');
       }
     },
@@ -528,7 +525,7 @@ const ManagementTab = {
         this.$emit('show-toast', `Token ${updatedToken.nama_koin} berhasil diupdate.`, 'success');
         this.closeFormModal();
       } catch (error) {
-        console.error('Error updating token:', error);
+        // console.error('Error updating token:', error);
         this.$emit('show-toast', 'Gagal mengupdate token.', 'danger');
       }
     },
@@ -609,7 +606,7 @@ const ManagementTab = {
         await this.logManagement('export_csv', 'success', `Export ${this.filteredTokens.length} token ke CSV dari chain ${this.activeChain.toUpperCase()}.`, { chain: this.activeChain });
         this.$emit('show-toast', `${this.filteredTokens.length} token berhasil di-export ke ${filename}`, 'success');
       } catch (error) {
-        console.error('Error exporting CSV:', error);
+        // console.error('Error exporting CSV:', error);
         this.$emit('show-toast', 'Gagal export CSV.', 'danger');
       }
     },
@@ -642,7 +639,7 @@ const ManagementTab = {
                 bestDelimiter = delimiter;
               }
             });
-            console.log(`Delimiter terdeteksi: '${bestDelimiter}'`);
+            /* // console.log(`Delimiter terdeteksi: '${bestDelimiter}'`); */
             return bestDelimiter;
           };
 
@@ -726,7 +723,7 @@ const ManagementTab = {
               await DB.saveData(storeName, record);
               imported++;
             } catch (err) {
-              console.error('Error importing row:', err);
+              // console.error('Error importing row:', err);
               errors++;
             }
           }
@@ -736,7 +733,7 @@ const ManagementTab = {
           await this.loadTokensFromDB();
           this.$emit('show-toast', `Import selesai: ${imported} token berhasil, ${errors} gagal.`, 'success');
         } catch (error) {
-          console.error('Error reading CSV:', error);
+          // console.error('Error reading CSV:', error);
           this.$emit('show-toast', 'Gagal membaca file CSV.', 'danger');
         }
       };
@@ -830,18 +827,15 @@ const ManagementTab = {
               <td class="text-center fw-semibold">{{ index + 1 }}</td>
               <td>
                 <div class="d-flex flex-column">
-                  <div class="d-flex align-items-center">
-                    <span class="fw-bold text-primary">{{ token.nama_koin || '-' }}</span>
-                    <span class="badge bg-light text-dark border ms-2">Dec: {{ token.des_token ?? 'N/A' }}</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-primary fs-6">{{ token.nama_token || '-' }}</span>
+                    <span class="text-muted small">({{ token.nama_koin || 'N/A' }})</span>
                   </div>
                   <div class="small text-muted">
                     {{ token.sc_token }}
                   </div>
                   <hr class="my-1">
-                  <div class="d-flex align-items-center">
-                    <span class="fw-semibold text-info">{{ token.nama_pair || '-' }}</span>
-                    <span v-if="token.sc_pair" class="badge bg-light text-dark border ms-2">Dec: {{ token.des_pair ?? 'N/A' }}</span>
-                  </div>
+                  <span class="fw-semibold text-info fs-6">{{ token.nama_pair || '-' }}</span>
                   <div v-if="token.sc_pair" class="small text-muted">
                     {{ token.sc_pair }}
                   </div>

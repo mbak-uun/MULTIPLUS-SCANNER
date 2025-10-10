@@ -105,83 +105,72 @@ const app = createApp({
   async mounted() {
     // Inisialisasi Database
     try {
-      console.log('⚙️ [1/5] Menginisialisasi Database...');
+      /* // console.log('⚙️ [1/5] Menginisialisasi Database...'); */
       await DB.initDB();
       this.dbStatus = 'success';
 
       // FIX: Tandai bahwa inisialisasi selesai SEBELUM memuat pengaturan.
       // Ini akan memberi sinyal ke komponen anak (seperti scanning-tab) bahwa DB sudah siap.
       this.isAppInitialized = true;
-      console.log('🚀 [PRE-INIT] Database siap, aplikasi siap untuk memuat data.');
+      /* // console.log('🚀 [PRE-INIT] Database siap, aplikasi siap untuk memuat data.'); */
 
       const allStores = DB.getAllStoreNames();
-    //  console.log('📦 Database berhasil dimuat dengan stores:', allStores);
-     // console.log(`✅ Total ${allStores.length} stores dibuat`);
+    //  // console.log('📦 Database berhasil dimuat dengan stores:', allStores);
+     // // console.log(`✅ Total ${allStores.length} stores dibuat`);
 
      // this.showToast('Database berhasil dimuat.', 'success');
 
       // Muat semua pengaturan setelah DB siap
-      console.log('⚙️ [2/5] Memuat semua pengaturan...');
+      /* // console.log('⚙️ [2/5] Memuat semua pengaturan...'); */
       // REVISI: Panggil loadAllSettings dan TUNGGU hingga selesai.
       // Ini memastikan globalSettings dan filterSettings sudah terisi penuh
       // sebelum melanjutkan ke langkah berikutnya.
       // REVISI: Panggil loadAllSettings dengan chain yang sudah diinisialisasi dari URL.
       const initialChain = this.activeChain;
-      console.log(`⚙️ [2.1/5] Memuat pengaturan untuk chain awal: "${initialChain}"`);
+      /* // console.log(`⚙️ [2.1/5] Memuat pengaturan untuk chain awal: "${initialChain}"`); */
       await this.loadAllSettings(initialChain);
+
+      // Proses parameter URL untuk mengatur state awal
+      /* // console.log('⚙️ [3/5] Memproses parameter URL...'); */
+      this.processURLParams();
+      this.updateThemeColor();
+
+      // Sembunyikan boot overlay SEKARANG, jangan tunggu data koin
+      this.isBooting = false;
+      this.isLoading = false;
+      document.body.classList.remove('app-loading');
+      /* // console.log('✅ [UI RENDERED] Antarmuka aplikasi ditampilkan.'); */
 
       // ⚠️ GUARD: Jika global settings tidak valid, tampilkan modal
       if (!this.isGlobalSettingsValid) {
-        console.warn('🔴 [CHECK FAILED] Pengaturan global tidak lengkap atau tidak valid. Menampilkan modal.');
+        // console.warn('🔴 [CHECK FAILED] Pengaturan global tidak lengkap atau tidak valid. Menampilkan modal.');
         this.isGlobalSettingsRequired = true;
         // PERBAIKAN UX: Tampilkan notifikasi yang jelas
         setTimeout(() => {
           this.showToast('⚠️ Pengaturan Global belum lengkap! Silakan isi Wallet Address, Chain, dan CEX terlebih dahulu.', 'warning', 8000);
         }, 1000);
       } else {
-        console.log('🟢 [CHECK OK] Pengaturan global valid.');
+        /* // console.log('🟢 [CHECK OK] Pengaturan global valid.'); */
 
-        // REFAKTOR: Inisialisasi Web3Service secara terpusat
-        if (window.Web3Service && !this.web3Service) {
-          this.web3Service = new window.Web3Service(this.config);
-          console.log('✅ Web3Service initialized globally.');
-        }
-        // Inisialisasi RealtimeDataFetcher
-        if (window.RealtimeDataFetcher && !this.realtimeDataFetcher) {
-          this.realtimeDataFetcher = new window.RealtimeDataFetcher(this.config, window.Http);
-          console.log('✅ RealtimeDataFetcher initialized globally.');
-        }
+        // Inisialisasi service setelah UI tampil
+        if (window.Web3Service && !this.web3Service) this.web3Service = new window.Web3Service(this.config);
+        if (window.RealtimeDataFetcher && !this.realtimeDataFetcher) this.realtimeDataFetcher = new window.RealtimeDataFetcher(this.config, window.Http);
+
+        // Muat data koin di latar belakang
+        /* // console.log('⚙️ [4/5] Memuat data koin untuk filter di latar belakang...'); */
+        this.loadCoinsForFilter(); // Tidak perlu 'await'
       }
 
     } catch (error) {
       this.dbStatus = 'error';
-      console.error('Gagal menginisialisasi database dari app.js:', error);
+      // console.error('Gagal menginisialisasi database dari app.js:', error);
       this.showToast('Gagal memuat database.', 'danger');
-    }
-
-    // Proses parameter URL untuk mengatur state awal (hanya jika settings valid)
-    console.log('⚙️ [3/5] Memproses parameter URL...');
-    if (this.isGlobalSettingsValid) {
-      // REVISI: processURLParams sekarang hanya membaca, tidak mengubah state secara langsung.
-      this.processURLParams();
-      this.updateThemeColor();
-      // Load coins untuk filter count
-      // REVISI: Pindahkan pemuatan koin ke sini, setelah semua setting (termasuk filter) dijamin sudah dimuat.
-      console.log('⚙️ [4/5] Memuat data koin untuk filter...');
-      await this.loadCoinsForFilter();
-    } else {
-      console.log('🟡 [SKIP] Melewatkan pemrosesan URL dan pemuatan koin karena pengaturan global tidak valid.');
-    }
-
-    // Hide boot overlay
-    setTimeout(() => {
       this.isBooting = false;
       this.isLoading = false;
-      document.body.classList.remove('app-loading');
-    }, 500);
+    }
 
     // isAppInitialized sudah dipindahkan ke atas setelah DB init.
-    console.log('🚀 [5/5] Aplikasi selesai dimuat!');
+    /* // console.log('🚀 [5/5] Aplikasi selesai dimuat!'); */
   },
 
   watch: {
@@ -193,11 +182,11 @@ const app = createApp({
           return;
         }
 
-        console.log(`🔄 [WATCHER-CHAIN] Chain berubah dari '${oldChain}' ke '${newChain}'. Memuat ulang...`);
+        /* // console.log(`🔄 [WATCHER-CHAIN] Chain berubah dari '${oldChain}' ke '${newChain}'. Memuat ulang...`); */
 
         // Guard: Jika global settings tidak valid, block navigasi
         if (!this.isGlobalSettingsValid) {
-          console.warn('⚠️ Global settings belum valid, navigasi diblokir.');
+          // console.warn('⚠️ Global settings belum valid, navigasi diblokir.');
           // Kembalikan ke chain sebelumnya secara visual jika memungkinkan
           this.activeChain = oldChain;
           return;
@@ -443,11 +432,11 @@ const app = createApp({
     },
     // Handler untuk tombol "Mulai Isi Setting" di modal
     handleStartSettings() {
-      console.log('🔘 Tombol "Mulai Isi Setting" diklik.');
+      /* // console.log('🔘 Tombol "Mulai Isi Setting" diklik.'); */
       this.isGlobalSettingsRequired = false; // Sembunyikan modal
       this.activeMenu = 'settings'; // Tampilkan menu settings
       this.loadSettingsForm(); // Pastikan form settings dimuat
-      console.log('➡️ Mengarahkan ke menu pengaturan.');
+      /* // console.log('➡️ Mengarahkan ke menu pengaturan.'); */
     },
 
     // Initialize Filters
@@ -459,11 +448,11 @@ const app = createApp({
       this.filters.cex = {};
       this.filters.dex = {};
       this.filters.pairs = {};
-      console.log('Filter diinisialisasi ulang untuk chain:', this.activeChain);
+      /* // console.log('Filter diinisialisasi ulang untuk chain:', this.activeChain); */
     },
 
     reloadActiveTab() {
-      console.log('Reloading active tab:', this.activeTab);
+      /* // console.log('Reloading active tab:', this.activeTab); */
       this.isLoading = true;
       this.loadingText = 'Refreshing data...';
 
@@ -472,7 +461,7 @@ const app = createApp({
         // Contoh:
         // if (this.activeTab === 'scan') this.fetchScanData();
         // if (this.activeTab === 'management') this.loadCoins();
-        console.log(`Data untuk tab ${this.activeTab} di-refresh.`);
+        /* // console.log(`Data untuk tab ${this.activeTab} di-refresh.`); */
         this.isLoading = false;
       }, 1000);
     },
@@ -487,7 +476,7 @@ const app = createApp({
       }
 
       const isMultiChainMode = this.activeChain === 'multi';
-      console.log(`📊 Memuat dataset token untuk mode "${this.activeChain}"...`);
+      /* // console.log(`📊 Memuat dataset token untuk mode "${this.activeChain}"...`); */
 
       const allChainKeys = Object.keys(this.config.CHAINS || {});
       const chainsToLoad = isMultiChainMode
@@ -537,12 +526,12 @@ const app = createApp({
             });
           }
         } catch (error) {
-          console.warn(`⚠️ Gagal memuat data dari ${storeName}:`, error);
+          // console.warn(`⚠️ Gagal memuat data dari ${storeName}:`, error);
         }
       }
 
       this.allCoins = aggregatedTokens;
-      console.log(`✅ Dataset token dimuat (${aggregatedTokens.length} entri) untuk mode "${this.activeChain}".`);
+      /* // console.log(`✅ Dataset token dimuat (${aggregatedTokens.length} entri) untuk mode "${this.activeChain}".`); */
 
       // Perbarui statistik dan cache token terfilter
       this.refreshFilterStats();
@@ -597,16 +586,16 @@ const app = createApp({
       this.filterStats = stats;
 
       const chainKey = this.filterSettings?.chainKey || this.activeChain || 'unknown';
-      console.log(`[FilterStats] Updated for "${chainKey}". Filtered tokens: ${filtered.length}`);
+      /* // console.log(`[FilterStats] Updated for "${chainKey}". Filtered tokens: ${filtered.length}`); */
       // if (filtered.length) {
-      //   console.table(filtered.map(token => ({
+      //   // console.table(filtered.map(token => ({
       //     id: token.id,
       //     chain: token.chain,
       //     token: token.nama_token || token.nama_koin,
       //     pair: token.nama_pair,
       //     cex: token.cex_name,
       //     favorite: Boolean(token.isFavorite || token.isFavorit)
-      //   })));
+      //   // })));
       // } else {
       //   console.log('[FilterStats] Tidak ada token setelah filter diterapkan.');
       // }
@@ -626,12 +615,12 @@ const app = createApp({
     // Tetap dipertahankan untuk backward compatibility dan untuk akses dari $root
     async saveFilterChange(filterType) {
       if (!this.filterSettings || !this.filterSettings.chainKey) {
-        console.warn('[App] Chain key tidak ditemukan di filterSettings');
+        // console.warn('[App] Chain key tidak ditemukan di filterSettings');
         return;
       }
 
       const chainKey = this.filterSettings.chainKey;
-      console.log(`[App] Menyimpan perubahan filter "${filterType}" untuk chain: ${chainKey}`);
+      /* // console.log(`[App] Menyimpan perubahan filter "${filterType}" untuk chain: ${chainKey}`); */
 
       try {
         // PERBAIKAN: Clone data menggunakan JSON untuk menghilangkan Vue reactivity
@@ -666,25 +655,25 @@ const app = createApp({
         const message = this.getFilterChangeMessage(filterType);
         this.showToast(message, 'success', 2000);
 
-        console.log(`✅ Filter ${filterType} disimpan untuk ${chainKey}`);
+        /* // console.log(`✅ Filter ${filterType} disimpan untuk ${chainKey}`); */
         const filterTableName = `SETTING_FILTER_${String(chainKey).toUpperCase()}`;
-        console.groupCollapsed(`[Setting Filter] Menyimpan data ke tabel "${filterTableName}" melalui aksi "${filterType}"`);
-        console.table([{
-          chainKey,
-          minPnl: this.filterSettings.minPnl,
-          favoritOnly: this.filterSettings.favoritOnly,
-          autorun: this.filterSettings.autorun,
-          autoscroll: this.filterSettings.autoscroll,
-          run: this.filterSettings.run,
-          sortDirection: this.filterSettings.sortDirection,
-          darkMode: this.filterSettings.darkMode
-        }]);
-        console.table(Object.entries(this.filterSettings.cex || {}).map(([key, value]) => ({ kategori: 'CEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-        console.table(Object.entries(this.filterSettings.dex || {}).map(([key, value]) => ({ kategori: 'DEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-        console.table(Object.entries(this.filterSettings.chains || {}).map(([key, value]) => ({ kategori: 'CHAIN', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-        console.table(Object.entries(this.filterSettings.pairs || {}).map(([key, value]) => ({ kategori: 'PAIR', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-        console.log(`[Setting Filter] Data JSON lengkap (${filterTableName}):\n`, JSON.stringify(this.filterSettings, null, 2));
-        console.groupEnd();
+        // // console.groupCollapsed(`[Setting Filter] Menyimpan data ke tabel "${filterTableName}" melalui aksi "${filterType}"`);
+        // // console.table([{
+        //   chainKey,
+        //   minPnl: this.filterSettings.minPnl,
+        //   favoritOnly: this.filterSettings.favoritOnly,
+        //   autorun: this.filterSettings.autorun,
+        //   autoscroll: this.filterSettings.autoscroll,
+        //   run: this.filterSettings.run,
+        //   sortDirection: this.filterSettings.sortDirection,
+        //   darkMode: this.filterSettings.darkMode
+        // // }]);
+        // console.table(Object.entries(this.filterSettings.cex || {}).map(([key, value]) => ({ kategori: 'CEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        // console.table(Object.entries(this.filterSettings.dex || {}).map(([key, value]) => ({ kategori: 'DEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        // console.table(Object.entries(this.filterSettings.chains || {}).map(([key, value]) => ({ kategori: 'CHAIN', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        // console.table(Object.entries(this.filterSettings.pairs || {}).map(([key, value]) => ({ kategori: 'PAIR', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+        /* // console.log(`[Setting Filter] Data JSON lengkap (${filterTableName}):\n`, JSON.stringify(this.filterSettings, null, 2)); */
+        // console.groupEnd();
 
         // Log aksi perubahan filter
         if (['cex', 'dex', 'chains', 'pairs'].includes(filterType)) {
@@ -696,7 +685,7 @@ const app = createApp({
 
         this.scheduleFilterStatsRefresh();
       } catch (error) {
-        console.error('❌ Error saving filter:', error);
+        // console.error('❌ Error saving filter:', error);
         this.showToast('Gagal menyimpan filter!', 'danger');
       }
     },
@@ -773,7 +762,7 @@ const app = createApp({
           ...details
         });
       } catch (error) {
-        console.error('Error logging action:', error);
+        // console.error('Error logging action:', error);
       }
     }
   }

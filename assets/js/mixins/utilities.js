@@ -8,10 +8,10 @@ const utilitiesMixin = {
         navigator.clipboard.writeText(text);
         this.showToast(`${label} disalin ke clipboard!`, 'success');
       } else {
-        console.warn('Clipboard API tidak tersedia');
+        // console.warn('Clipboard API tidak tersedia');
         this.showToast('Gagal menyalin ke clipboard', 'danger');
       }
-      console.log('Copied to clipboard:', text);
+      // console.log('Copied to clipboard:', text);
     },
 
     // Utility untuk format waktu

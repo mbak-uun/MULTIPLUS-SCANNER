@@ -52,16 +52,16 @@ const filterAutoSaveMixin = {
             // PERBAIKAN: Tambahkan guard untuk memastikan aplikasi dan DB sudah siap.
             // Ini mencegah race condition saat komponen dimuat sebelum DB diinisialisasi.
             if (!this.$root.isAppInitialized) {
-                console.log('[FilterAutoSave] Load ditunda, aplikasi belum terinisialisasi.');
+                // console.log('[FilterAutoSave] Load ditunda, aplikasi belum terinisialisasi.');
                 return;
             }
             if (!this.activeChain || this._isLoadingFilters) {
-                console.log(`[FilterAutoSave] Load dilewati (activeChain: ${this.activeChain}, isLoading: ${this._isLoadingFilters})`);
+                // console.log(`[FilterAutoSave] Load dilewati (activeChain: ${this.activeChain}, isLoading: ${this._isLoadingFilters})`);
                 return;
             }
 
             this._isLoadingFilters = true;
-            console.log(`[FilterAutoSave] Loading filter settings for chain: ${this.activeChain}`);
+            // console.log(`[FilterAutoSave] Loading filter settings for chain: ${this.activeChain}`);
 
             try {
                 let settings = null;
@@ -88,12 +88,12 @@ const filterAutoSaveMixin = {
                         ...settings
                     };
 
-                    console.log(`[FilterAutoSave] Filter settings loaded successfully`);
+                    // console.log(`[FilterAutoSave] Filter settings loaded successfully`);
                 } else {
-                    console.log(`[FilterAutoSave] No saved filter settings found, using defaults`);
+                    // console.log(`[FilterAutoSave] No saved filter settings found, using defaults`);
                 }
             } catch (error) {
-                console.error(`[FilterAutoSave] Error loading filter settings:`, error);
+                // console.error(`[FilterAutoSave] Error loading filter settings:`, error);
             } finally {
                 this._isLoadingFilters = false;
             }
@@ -106,7 +106,7 @@ const filterAutoSaveMixin = {
          */
         async saveFilterSettings(field = 'unknown', immediate = false) {
             if (!this.activeChain) {
-                console.warn(`[FilterAutoSave] Cannot save: no active chain`);
+                // console.warn(`[FilterAutoSave] Cannot save: no active chain`);
                 return;
             }
 
@@ -123,7 +123,7 @@ const filterAutoSaveMixin = {
 
             // Set timer baru
             this._filterSaveTimers[field] = setTimeout(async () => {
-                console.log(`[FilterAutoSave] Saving filter field "${field}" for chain: ${this.activeChain}`);
+                // console.log(`[FilterAutoSave] Saving filter field "${field}" for chain: ${this.activeChain}`);
 
                 try {
                     // PERBAIKAN: Clone data menggunakan JSON untuk menghilangkan Vue reactivity
@@ -145,9 +145,9 @@ const filterAutoSaveMixin = {
                         await DB.saveData(storeName, dataToSave);
                     }
 
-                    console.log(`[FilterAutoSave] Filter settings saved successfully`);
+                    // console.log(`[FilterAutoSave] Filter settings saved successfully`);
                 } catch (error) {
-                    console.error(`[FilterAutoSave] Error saving filter settings:`, error);
+                    // console.error(`[FilterAutoSave] Error saving filter settings:`, error);
                     if (this.$root.showToast) {
                         this.$root.showToast('Gagal menyimpan pengaturan filter', 'danger');
                     }
@@ -178,7 +178,7 @@ const filterAutoSaveMixin = {
         async resetFilterSettings() {
             if (!confirm('Reset filter settings ke default?')) return;
 
-            console.log(`[FilterAutoSave] Resetting filter settings for chain: ${this.activeChain}`);
+            // console.log(`[FilterAutoSave] Resetting filter settings for chain: ${this.activeChain}`);
 
             // Reset ke default dari root
             this.$root.filters = this.$root.getDefaultFilters();
@@ -203,7 +203,7 @@ const filterAutoSaveMixin = {
             immediate: false,
             handler(newChain, oldChain) {
                 if (newChain && newChain !== oldChain) {
-                    console.log(`[FilterAutoSave] Chain changed from ${oldChain} to ${newChain}, reloading filters`);
+                    // console.log(`[FilterAutoSave] Chain changed from ${oldChain} to ${newChain}, reloading filters`);
                     this.loadFilterSettings();
                 }
             }
@@ -214,7 +214,7 @@ const filterAutoSaveMixin = {
         '$root.isAppInitialized': {
             handler(isInitialized) {
                 if (isInitialized) {
-                    console.log('[FilterAutoSave] Aplikasi terinisialisasi, mencoba memuat filter.');
+                    // console.log('[FilterAutoSave] Aplikasi terinisialisasi, mencoba memuat filter.');
                     this.loadFilterSettings();
                 }
             }
@@ -222,7 +222,7 @@ const filterAutoSaveMixin = {
     },
 
     mounted() {
-        console.log(`[FilterAutoSave] Mixin mounted on component: ${this.$options.name}`);
+        // console.log(`[FilterAutoSave] Mixin mounted on component: ${this.$options.name}`);
 
         // FIX: Skip load jika sudah diload oleh settings.js (untuk menghindari double load)
         // Cek apakah filterSettings sudah ada dan populated (lebih dari 2 keys: key + chainKey)
@@ -230,7 +230,7 @@ const filterAutoSaveMixin = {
                                Object.keys(this.$root.filterSettings).length > 2;
 
         if (isAlreadyLoaded) {
-            console.log('[FilterAutoSave] Filter sudah diload oleh settings.js, skip double load');
+            // console.log('[FilterAutoSave] Filter sudah diload oleh settings.js, skip double load');
             return;
         }
 

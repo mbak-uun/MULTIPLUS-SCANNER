@@ -167,7 +167,7 @@ class Http {
           const randomIndex = Math.floor(Math.random() * proxies.length);
           proxyUrl = proxies[randomIndex];
         } else {
-          console.warn('Http.request: proxy set to true, but KONFIG_APLIKASI.LIST_PROXY.SERVERS is not defined or empty.');
+          // console.warn('Http.request: proxy set to true, but KONFIG_APLIKASI.LIST_PROXY.SERVERS is not defined or empty.');
         }
       } else if (typeof proxy === 'string') {
         proxyUrl = proxy;
@@ -244,7 +244,7 @@ class Http {
       clearTimeout(timeoutId);
       if (timedOut) {
         const timeoutError = new Error(`Request timeout after ${timeout}ms`);
-        timeoutError.code = 'ETIMEDOUT';
+        timeoutError.code = 'TIMEOUT';
         throw timeoutError;
       }
       throw error;

@@ -267,13 +267,13 @@ class Web3Service {
       try {
         return await this.getTokenBalance(chainKey, token.address, address);
       } catch (error) {
-        console.warn(`⚠️ Failed to fetch ${token.symbol} balance on ${chainKey}:`, error.message || error);
+        //console.warn(`⚠️ Failed to fetch ${token.symbol} balance on ${chainKey}:`, error.message || error);
         return 0;
       }
     }));
 
     const nativeBalancePromise = this.getNativeBalance(chainKey, address).catch((error) => {
-      console.warn(`⚠️ Failed to fetch native balance for ${chainKey}:`, error.message || error);
+      //console.warn(`⚠️ Failed to fetch native balance for ${chainKey}:`, error.message || error);
       return 0;
     });
 
@@ -316,7 +316,7 @@ class Web3Service {
           }
         }
       } catch (err) {
-        console.warn('⚠️ Failed to fetch fallback USDT balance:', err.message || err);
+        //console.warn('⚠️ Failed to fetch fallback USDT balance:', err.message || err);
       }
     }
 

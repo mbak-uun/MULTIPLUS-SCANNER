@@ -13,12 +13,12 @@ const filterMixin = {
      */
     filteredTokens() {
       if (!this.tokens || !this.$root.filters) {
-        console.log('[FilterMixin] No tokens or filters:', { tokens: !!this.tokens, filters: !!this.filters });
+        // console.log('[FilterMixin] No tokens or filters:', { tokens: !!this.tokens, filters: !!this.filters });
         return [];
       }
 
       let filtered = [...this.tokens];
-      console.log(`[FilterMixin] Starting with ${filtered.length} tokens`);
+      // console.log(`[FilterMixin] Starting with ${filtered.length} tokens`);
       
       // Panggil metode filtering yang terpusat
       filtered = this.applyFiltersToTokens(filtered, {
@@ -52,7 +52,7 @@ const filterMixin = {
         });
       }
 
-      console.log(`[FilterMixin] ✅ FINAL filteredTokens count: ${filtered.length}`);
+      // console.log(`[FilterMixin] ✅ FINAL filteredTokens count: ${filtered.length}`);
       return filtered;
     }
   },

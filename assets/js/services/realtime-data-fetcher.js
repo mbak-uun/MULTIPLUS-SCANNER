@@ -80,7 +80,7 @@ class RealtimeDataFetcher {
         const gasData = {};
         // REVISI: Gunakan activeChains jika disediakan, jika tidak, fallback ke semua chain di config.
         const chainsToFetch = activeChains.length > 0 ? activeChains : Object.keys(this.config.CHAINS);
-        console.log(`[RealtimeDataFetcher] Fetching gas for chains: ${chainsToFetch.join(', ')}`);
+        /* console.log(`[RealtimeDataFetcher] Fetching gas for chains: ${chainsToFetch.join(', ')}`); */
 
         for (const chainKey of chainsToFetch) {
             // Cek cache
@@ -131,7 +131,7 @@ class RealtimeDataFetcher {
 
             if (!rate) {
                 // Fallback ke Indodax
-                console.log('[RealtimeDataFetcher] Tokocrypto failed, trying Indodax...');
+                /* console.log('[RealtimeDataFetcher] Tokocrypto failed, trying Indodax...'); */
                 rate = await this._fetchFromIndodax();
             }
 
@@ -176,7 +176,7 @@ class RealtimeDataFetcher {
             return 0;
 
         } catch (error) {
-            console.warn(`[RealtimeDataFetcher] Failed to fetch gas price from ${rpcUrl}:`, error.message);
+            //console.warn(`[RealtimeDataFetcher] Failed to fetch gas price from ${rpcUrl}:`, error.message);
             return 0;
         }
     }
@@ -199,7 +199,7 @@ class RealtimeDataFetcher {
             return parseFloat(response.price) || 0;
 
         } catch (error) {
-            console.warn(`[RealtimeDataFetcher] Failed to fetch ${symbol} price:`, error.message);
+            //console.warn(`[RealtimeDataFetcher] Failed to fetch ${symbol} price:`, error.message);
             return 0;
         }
     }
@@ -224,16 +224,16 @@ class RealtimeDataFetcher {
                 const topBid = parseFloat(response.bids[0][0]);
 
                 if (!isNaN(topBid) && topBid > 0) {
-                    console.log(`[RealtimeDataFetcher] USDT/IDR rate from Tokocrypto: ${topBid}`);
+                    /* console.log(`[RealtimeDataFetcher] USDT/IDR rate from Tokocrypto: ${topBid}`); */
                     return topBid;
                 }
             }
 
-            console.warn('[RealtimeDataFetcher] Invalid Tokocrypto data structure');
+            //console.warn('[RealtimeDataFetcher] Invalid Tokocrypto data structure');
             return null;
 
         } catch (error) {
-            console.warn('[RealtimeDataFetcher] Tokocrypto fetch failed:', error.message);
+            //console.warn('[RealtimeDataFetcher] Tokocrypto fetch failed:', error.message);
             return null;
         }
     }
@@ -255,7 +255,7 @@ class RealtimeDataFetcher {
             return parseFloat(response.ticker?.last) || null;
 
         } catch (error) {
-            console.warn('[RealtimeDataFetcher] Indodax fetch failed:', error.message);
+            //console.warn('[RealtimeDataFetcher] Indodax fetch failed:', error.message);
             return null;
         }
     }

@@ -23,9 +23,9 @@ const historyLoggerMixin = {
         };
 
         await DB.saveData('RIWAYAT_AKSI', logEntry);
-        console.log(`📝 [HISTORY LOG] ${action}: ${message}`);
+        // console.log(`📝 [HISTORY LOG] ${action}: ${message}`);
       } catch (error) {
-        console.error('❌ Gagal menyimpan log riwayat:', error);
+        // console.error('❌ Gagal menyimpan log riwayat:', error);
       }
     },
 

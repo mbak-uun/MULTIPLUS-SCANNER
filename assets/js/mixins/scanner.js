@@ -61,7 +61,7 @@ const scannerMixin = {
             // Buat scanner instance
             this.scanner = new PriceScanner(this.$root.config, services, callbacks);
 
-            // console.log('[ScannerMixin] Scanner initialized');
+            // // console.log('[ScannerMixin] Scanner initialized');
         },
 
         /**
@@ -69,7 +69,7 @@ const scannerMixin = {
          */
         async startScanning() {
             if (this.scanningInProgress) {
-                // console.warn('[ScannerMixin] Scan already in progress');
+                // // console.warn('[ScannerMixin] Scan already in progress');
                 return;
             }
 
@@ -88,18 +88,28 @@ const scannerMixin = {
             // Ambil filter aktif
             const filters = this.$root.filters;
 
+            // Normalisasi jumlah token per batch (Anggota Grup)
+            const rawBatchSize = Number(
+                this.$root.globalSettings?.tokensPerBatch ??
+                this.$root.globalSettings?.AnggotaGrup ??
+                0
+            );
+            const tokensPerBatch = Number.isFinite(rawBatchSize) && rawBatchSize > 0
+                ? Math.min(Math.trunc(rawBatchSize), 10)
+                : 3;
+
             // ADOPSI APLIKASI LAMA: Ambil settings lengkap termasuk delay configuration
             const scanSettings = {
                 modalUsd: this.$root.globalSettings?.modalUsd || 100,
                 minPnlPercent: this.$root.filters?.minPnl || 0.5,
-                tokensPerBatch: this.$root.globalSettings?.tokensPerBatch || 3,
+                tokensPerBatch,
 
                 // ADOPSI APLIKASI LAMA: Delay settings dari config
                 jedaTimeGroup: this.$root.config?.SCANNING_DELAYS?.jedaTimeGroup || 2000,
                 jedaKoin: this.$root.globalSettings?.jedaKoin ?? this.$root.config?.SCANNING_DELAYS?.jedaKoin ?? 500,
                 JedaCexs: this.$root.config?.SCANNING_DELAYS?.JedaCexs || {},
                 JedaDexs: this.$root.config?.SCANNING_DELAYS?.JedaDexs || {},
-                dexTimeout: this.$root.config?.SCANNING_DELAYS?.dexTimeout || 10000,
+                dexTimeout: this.$root.config?.SCANNING_DELAYS?.dexTimeout || 5000,
 
                 autoSendTelegram: true,
                 globalSettings: this.$root.globalSettings // WAJIB: Teruskan globalSettings yang berisi nickname
@@ -110,7 +120,7 @@ const scannerMixin = {
 
             // Mulai scan
             this.clearScanResults();
-            // console.log(`[ScannerMixin] Starting scan for ${tokensToScan.length} tokens...`);
+            // // console.log(`[ScannerMixin] Starting scan for ${tokensToScan.length} tokens...`);
             this.scanningInProgress = true;
             this.$root.isFilterLocked = true;
 
@@ -134,7 +144,7 @@ const scannerMixin = {
          * Handler: Scan start
          */
         handleScanStart(data) {
-            // console.log('[ScannerMixin] Scan started:', data);
+            // // console.log('[ScannerMixin] Scan started:', data);
             this.scanProgress = 0;
             this.currentBatch = 0;
             this.totalBatches = Math.ceil(data.totalTokens / data.settings.tokensPerBatch);
@@ -206,7 +216,7 @@ const scannerMixin = {
             // Update CEX data - Vue 3 akan otomatis detect perubahan
             this.scanResults[token.id].cex = cexPrices;
 
-            // console.log(`[ScannerMixin] CEX data received for ${token.nama_token}/${token.nama_pair}`);
+            // // console.log(`[ScannerMixin] CEX data received for ${token.nama_token}/${token.nama_pair}`);
         },
 
         /**
@@ -242,7 +252,7 @@ const scannerMixin = {
             // Simpan untuk signal card processing
             this.lastPnlResult = { token, dexKey, pnl };
 
-            // console.log(`[ScannerMixin] PNL result received for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
+            // // console.log(`[ScannerMixin] PNL result received for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
         },
 
         /**
@@ -264,7 +274,7 @@ const scannerMixin = {
             this.scanProgress = progress;
             this._markTokenDexDone(token.id);
 
-            // console.log(`[ScannerMixin] Token ${token.nama_token} completed (${progress.toFixed(1)}%)`);
+            // // console.log(`[ScannerMixin] Token ${token.nama_token} completed (${progress.toFixed(1)}%)`);
         },
 
         /**
@@ -276,14 +286,14 @@ const scannerMixin = {
             if (shouldAutoScroll) {
                 this.scrollToFirstTokenRow();
             }
-            // console.log(`[ScannerMixin] Batch ${data.batchNumber}/${data.totalBatches} completed`);
+            // // console.log(`[ScannerMixin] Batch ${data.batchNumber}/${data.totalBatches} completed`);
         },
 
         /**
          * Handler: Scan complete
          */
         handleScanComplete(data) {
-            // console.log('[ScannerMixin] Scan completed:', data);
+            // // console.log('[ScannerMixin] Scan completed:', data);
 
             this.scanningInProgress = false;
             this.$root.isFilterLocked = false;
@@ -308,7 +318,7 @@ const scannerMixin = {
          * Handler: Scan error
          */
         handleScanError(error) {
-            // console.error('[ScannerMixin] Scan error:', error);
+            // // console.error('[ScannerMixin] Scan error:', error);
             this.scanningInProgress = false;
             this.$root.isFilterLocked = false;
             this.dexScanStatus = {};

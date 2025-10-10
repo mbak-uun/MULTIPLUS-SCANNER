@@ -34,7 +34,7 @@ const themeMixin = {
       // PERBAIKAN: Sync tema ke localStorage untuk prevent flash saat refresh
       localStorage.setItem('darkMode_' + this.activeChain, theme);
       localStorage.setItem('darkMode', theme); // Fallback global
-      console.log(`[Theme Toggle] Saved theme to localStorage: ${theme} for chain: ${this.activeChain}`);
+      // console.log(`[Theme Toggle] Saved theme to localStorage: ${theme} for chain: ${this.activeChain}`);
 
       await this.saveFilterChange('darkMode');
     },
@@ -184,9 +184,9 @@ const themeMixin = {
       const contrastColor = this.getContrastYIQ(normalizedBrand);
 
       // ===== DEBUGGING LOG =====
-      console.group(`[DEBUG updateThemeColor] Chain: ${this.activeChain.toUpperCase()}`);
-      console.log(`🎨 Warna dasar diambil: ${brandColor} (dinormalisasi menjadi ${normalizedBrand})`);
-      console.log(`🎨 Variabel CSS --brand-soft-bg diatur ke: rgba(${brandRgb}, 0.15)`);
+      // console.group(`[DEBUG updateThemeColor] Chain: ${this.activeChain.toUpperCase()}`);
+      // console.log(`🎨 Warna dasar diambil: ${brandColor} (dinormalisasi menjadi ${normalizedBrand})`);
+      // console.log(`🎨 Variabel CSS --brand-soft-bg diatur ke: rgba(${brandRgb}, 0.15)`);
 
       // Brand colors
       root.style.setProperty('--brand', normalizedBrand);
@@ -208,7 +208,7 @@ const themeMixin = {
       document.body.classList.toggle('theme-multi-chain', isMulti);
       document.body.classList.toggle('theme-single-chain', !isMulti);
 
-      console.groupEnd();
+      // console.groupEnd();
     },
     getChainColor(chainKey) { return this.getColorInfo('chain', chainKey).color; },
     getCexColor(cexKey) { return this.getColorInfo('cex', cexKey).color; },

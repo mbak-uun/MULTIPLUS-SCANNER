@@ -87,7 +87,7 @@ class PriceScanner {
      */
     async startScan(tokens, filters, scanSettings = {}) {
         if (this.isScanning) {
-            // console.warn('[PriceScanner] Scan already in progress');
+            // // console.warn('[PriceScanner] Scan already in progress');
             return;
         }
 
@@ -95,7 +95,6 @@ class PriceScanner {
         this._resetStats();
         this.scanStats.totalTokens = tokens.length;
         this.scanStats.startTime = Date.now();
-        this._logProgress('INISIASI', `Menyiapkan pemindaian untuk ${tokens.length} token.`);
 
         // Override settings jika ada
         Object.assign(this.settings, scanSettings);
@@ -106,7 +105,7 @@ class PriceScanner {
         }
 
         // Log konfigurasi delay untuk debugging
-        console.log('[PriceScanner] Delay Configuration:', this.delayManager.getCurrentConfig());
+        // console.log('[PriceScanner] Delay Configuration:', this.delayManager.getCurrentConfig());
 
         try {
             // Callback: Start
@@ -121,24 +120,20 @@ class PriceScanner {
             // Set username di service agar bisa digunakan untuk status lain (STOPPED, ERROR)
             this.telegramService.setUserName(nickname);
             await this.telegramService.sendStatus('ONLINE');
-            this._logProgress('STATUS', `Status Telegram diatur ke ONLINE untuk ${nickname}.`);
 
             // Step 2: Fetch data real-time
-            this._logProgress('REALTIME_FETCH', 'Mengambil data gas & kurs real-time.');
 
             // PENTING: Ambil chain dari token yang akan di-scan, bukan dari filter
             // Karena filter.chains mungkin berisi semua chain (true), tapi token yang akan di-scan hanya beberapa chain
             const uniqueChains = [...new Set(tokens.map(t => t.chain.toLowerCase()))];
-            // console.log('[PriceScanner] Chains from tokens to scan:', uniqueChains);
-            // console.log('[PriceScanner] Total tokens:', tokens.length);
+            // // console.log('[PriceScanner] Chains from tokens to scan:', uniqueChains);
+            // // console.log('[PriceScanner] Total tokens:', tokens.length);
 
             const realtimeData = await this.realtimeFetcher.getAllRealtimeData(uniqueChains);
             const { gasData, usdtRate } = realtimeData;
-            this._logProgress('REALTIME_SELESAI', 'Data real-time berhasil diperoleh.', { chains: uniqueChains, usdtRate });
 
             // Step 3: Proses tokens dalam batch
             const batches = this._createBatches(tokens, this.settings.tokensPerBatch);
-            this._logProgress('BATCH_INFO', `Total batch: ${batches.length}.`, { totalBatches: batches.length });
 
             let aborted = false;
 
@@ -146,10 +141,7 @@ class PriceScanner {
                 const batch = batches[i];
                 const batchNumber = i + 1;
 
-                this._logProgress('BATCH_MULAI', `Memproses batch ${batchNumber} dari ${batches.length}.`, { batchNumber, totalBatches: batches.length });
-
                 if (!this.isScanning) {
-                    this._logProgress('BATCH_DIHENTIKAN', 'Proses dihentikan sebelum batch dijalankan.', { batchNumber }, 'warn');
                     aborted = true;
                     break;
                 }
@@ -184,23 +176,16 @@ class PriceScanner {
                     processed: this.scanStats.processedTokens,
                     total: this.scanStats.totalTokens
                 });
-                this._logProgress('BATCH_SELESAI', `Batch ${batchNumber} selesai.`, {
-                    batchNumber,
-                    processed: this.scanStats.processedTokens,
-                    total: this.scanStats.totalTokens
-                });
 
                 // Jeda Grup: Delay sebelum memproses grup/batch berikutnya
                 if (i < batches.length - 1) {
                     if (!this.isScanning) {
-                        this._logProgress('BATCH_DIHENTIKAN', 'Proses dihentikan saat jeda antar grup.', { batchNumber }, 'warn');
                         aborted = true;
                         break;
                     }
 
                     const groupDelay = this.delayManager.getGroupDelay();
                     if (groupDelay > 0) {
-                        this._logProgress('BATCH_JEDA', `Menunggu ${groupDelay}ms sebelum grup berikutnya...`, { delay: groupDelay });
                         await this.delayManager.waitGroupDelay();
                     }
                 }
@@ -209,9 +194,7 @@ class PriceScanner {
             // Step 4: Send Telegram OFFLINE
             if (!aborted) {
                 await this.telegramService.sendStatus('OFFLINE');
-                this._logProgress('STATUS', 'Status Telegram diatur ke OFFLINE.');
             } else {
-                this._logProgress('STATUS', 'Status OFFLINE dilewati karena proses dihentikan.', null, 'warn');
             }
 
             // Finish
@@ -225,19 +208,10 @@ class PriceScanner {
                 aborted
             });
 
-            this._logProgress('SELESAI', 'Proses scanning tuntas.', {
-                sukses: this.scanStats.successCount,
-                gagal: this.scanStats.errorCount,
-                sinyal: this.scanStats.profitableSignals,
-                durasiMs: this.scanStats.endTime - this.scanStats.startTime,
-                dihentikan: aborted
-            });
-
         } catch (error) {
             this.isScanning = false;
-            // console.error('[PriceScanner] Scan error:', error);
+            // // console.error('[PriceScanner] Scan error:', error);
             this.callbacks.onError(error);
-            this._logProgress('ERROR', 'Terjadi kesalahan saat scanning.', { error: error.message }, 'error');
             await this.telegramService.sendStatus('ERROR');
         }
     }
@@ -248,7 +222,6 @@ class PriceScanner {
     stopScan() {
         if (!this.isScanning) return;
 
-        this._logProgress('STOP', 'Permintaan penghentian scanning diterima.');
         this.isScanning = false;
         this.telegramService.sendStatus('STOPPED');
     }
@@ -265,7 +238,6 @@ class PriceScanner {
         try {
             const tokenId = token.id;
             const tokenName = `${token.nama_token}/${token.nama_pair}`;
-            this._logProgress('TOKEN_MULAI', `Memproses ${tokenName}.`, { tokenId, tokenName });
 
             // Step 1: Fetch CEX prices
             // REVISI: Logika pemanggilan CEX dipindahkan ke sini untuk menghormati filter chain.
@@ -277,22 +249,8 @@ class PriceScanner {
 
                 // Ambil orderbook untuk token utama
                 const tokenSymbol = (token.nama_token || token.cex_ticker_token || '').replace(/\s+/g, '');
-                if (!tokenSymbol) {
-                    this._logProgress('ORDERBOOK_TOKEN_LEWAT', `Nama token tidak tersedia untuk ${tokenName}.`, { tokenId }, 'warn');
-                } else {
-                    this._logProgress('ORDERBOOK_TOKEN', `Mengambil orderbook ${tokenSymbol} di ${cexKey}.`, { tokenId });
+                if (tokenSymbol) {
                     cexPrices.token = await this.cexFetcher.getOrderbook(cexKey, tokenSymbol);
-
-                    if (cexPrices.token) {
-                        this._logProgress('ORDERBOOK_TOKEN_SELESAI', `Orderbook token ${tokenSymbol} diterima (delay: ${cexDelay}ms).`, {
-                            tokenId,
-                            bestBid: cexPrices.token.bestBid,
-                            bestAsk: cexPrices.token.bestAsk,
-                            cexDelay
-                        });
-                    } else {
-                        this._logProgress('ORDERBOOK_TOKEN_GAGAL', `Orderbook token ${tokenSymbol} tidak tersedia.`, { tokenId }, 'warn');
-                    }
                 }
 
                 // Jeda CEX: Delay setelah fetch orderbook token
@@ -301,31 +259,13 @@ class PriceScanner {
                 // Ambil orderbook untuk pair jika ada
                 if (token.nama_pair) {
                     const pairSymbol = token.nama_pair.replace(/\s+/g, '');
-                    if (!pairSymbol) {
-                        this._logProgress('ORDERBOOK_PAIR_LEWAT', `Nama pair kosong untuk ${tokenName}.`, { tokenId }, 'warn');
-                    } else {
-                        this._logProgress('ORDERBOOK_PAIR', `Mengambil orderbook ${pairSymbol} di ${cexKey}.`, { tokenId });
+                    if (pairSymbol) {
                         cexPrices.pair = await this.cexFetcher.getOrderbook(cexKey, pairSymbol);
-
-                        if (cexPrices.pair) {
-                            this._logProgress('ORDERBOOK_PAIR_SELESAI', `Orderbook pair ${pairSymbol} diterima (delay: ${cexDelay}ms).`, {
-                                tokenId,
-                                bestBid: cexPrices.pair.bestBid,
-                                bestAsk: cexPrices.pair.bestAsk,
-                                cexDelay
-                            });
-                        } else {
-                            this._logProgress('ORDERBOOK_PAIR_GAGAL', `Orderbook pair ${pairSymbol} tidak tersedia.`, { tokenId }, 'warn');
-                        }
                     }
-                } else {
-                    this._logProgress('ORDERBOOK_PAIR_LEWAT', `Nama pair tidak tersedia untuk ${tokenName}.`, { tokenId }, 'warn');
                 }
 
                 // Jeda CEX: Delay setelah fetch orderbook pair
                 await this.delayManager.waitCexDelay(cexKey);
-            } else {
-                this._logProgress('ORDERBOOK_LEWAT', `CEX utama tidak ditemukan untuk ${tokenName}.`, { tokenId }, 'warn');
             }
 
             // REVISI: Emit callback CEX result segera setelah data CEX diterima
@@ -336,7 +276,6 @@ class PriceScanner {
             });
 
             if (!cexPrices || !cexPrices.token) {
-                this._logProgress('TOKEN_GAGAL', `Orderbook utama tidak ditemukan untuk ${tokenName}.`, { tokenId }, 'warn');
                 this.scanStats.errorCount++;
                 this.scanStats.processedTokens++;
                 return;
@@ -353,9 +292,6 @@ class PriceScanner {
             // REFACTORED: Jeda DEX diterapkan hanya saat pergantian arah (CEX->DEX ke DEX->CEX)
             const dexFilters = filters?.dex || {};
             const activeDexKeys = Object.keys(dexFilters).filter(k => dexFilters[k]);
-            if (activeDexKeys.length === 0) {
-                this._logProgress('DEX_SKIP', `Tidak ada DEX aktif untuk ${tokenName}.`, { tokenId }, 'warn');
-            }
 
             const dexResults = {};
             const pnlResults = {};
@@ -380,17 +316,10 @@ class PriceScanner {
 
                 try {
                     // Fetch quote untuk KEDUA arah sekaligus
-                    this._logProgress('DEX_FETCH', `Mengambil quote ${dexKey} untuk ${tokenName}.`, { tokenId, dexKey });
                     const quotes = await this._fetchDexQuotes(token, dexKey, dexInput);
 
                     if (quotes) {
                         dexResults[dexKey] = quotes;
-                        this._logProgress('DEX_FETCH_SELESAI', `Quote ${dexKey} diterima.`, {
-                            tokenId,
-                            dexKey,
-                            toPair: quotes.tokenToPair?.amountOut || 0,
-                            toToken: quotes.pairToToken?.amountOut || 0
-                        });
 
                         // Kalkulasi PNL untuk KEDUA arah
                         const pnlCexToDex = this.pnlCalculator.calculateBothDirections({
@@ -418,13 +347,6 @@ class PriceScanner {
                             dexToCex: pnlDexToCex
                         };
 
-                        this._logProgress('PNL_SELESAI', `PNL ${tokenName} via ${dexKey}.`, {
-                            tokenId,
-                            dexKey,
-                            cexToDex: pnlCexToDex?.pnlPercent || 0,
-                            dexToCex: pnlDexToCex?.pnlPercent || 0
-                        });
-
                         // Update UI langsung per DEX (tidak tunggu semua DEX selesai)
                         this.callbacks.onPnlResult({
                             token,
@@ -440,8 +362,6 @@ class PriceScanner {
                         }
 
                     } else {
-                        this._logProgress('DEX_FETCH_GAGAL', `Quote ${dexKey} gagal.`, { tokenId, dexKey }, 'warn');
-
                         // Emit error state
                         this.callbacks.onPnlResult({
                             token,
@@ -454,8 +374,6 @@ class PriceScanner {
                         });
                     }
                 } catch (error) {
-                    this._logProgress('DEX_ERROR', `Error ${dexKey}: ${error.message}`, { tokenId, dexKey }, 'error');
-
                     // Emit error state
                     this.callbacks.onPnlResult({
                         token,
@@ -484,17 +402,11 @@ class PriceScanner {
                 pnlResults,
                 progress: (this.scanStats.processedTokens / this.scanStats.totalTokens) * 100
             });
-            this._logProgress('TOKEN_SELESAI', `Token ${tokenName} selesai diproses.`, {
-                tokenId,
-                processed: this.scanStats.processedTokens,
-                total: this.scanStats.totalTokens
-            });
 
         } catch (error) {
             // console.error(`[PriceScanner] Error processing token ${token.id}:`, error);
             this.scanStats.errorCount++;
             this.scanStats.processedTokens++;
-            this._logProgress('TOKEN_ERROR', `Kesalahan saat memproses ${token.id}.`, { error: error.message }, 'error');
         }
     }
 
@@ -534,7 +446,7 @@ class PriceScanner {
             };
 
         } catch (error) {
-            // console.error(`[PriceScanner] DEX fetch error for ${dexKey}:`, error);
+            // // console.error(`[PriceScanner] DEX fetch error for ${dexKey}:`, error);
             return null;
         }
     }
@@ -624,13 +536,9 @@ class PriceScanner {
             const formatted = this.pnlCalculator.formatPnlResult(pnlResult, usdtRate);
 
             const message = this._formatTelegramMessage(token, dexKey, formatted);
-            this._logProgress('SIGNAL', `Mengirim sinyal ${token.nama_token}/${token.nama_pair} via ${dexKey}.`, {
-                pnlPercent,
-                pnlUsd: pnl
-            });
             await this.telegramService.sendSignal(message);
 
-            // console.log(`[PriceScanner] 📢 Signal sent for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
+            // // console.log(`[PriceScanner] 📢 Signal sent for ${token.nama_token}/${token.nama_pair} via ${dexKey}`);
         }
     }
 

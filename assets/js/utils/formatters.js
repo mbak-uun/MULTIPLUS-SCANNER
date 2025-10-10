@@ -15,7 +15,7 @@ const Formatters = {
     number(value, decimals = 2) {
         if (value === undefined || value === null || isNaN(value)) return '-';
         return Number(value).toLocaleString('id-ID', {
-            minimumFractionDigits: decimals,
+            minimumFractionDigits: 0,
             maximumFractionDigits: decimals
         });
     },
@@ -31,13 +31,13 @@ const Formatters = {
 
         if (Math.abs(num) >= 1) {
             return num.toLocaleString('id-ID', {
-                minimumFractionDigits: 2,
+                minimumFractionDigits: 0,
                 maximumFractionDigits: 4
             });
         }
 
         return num.toLocaleString('id-ID', {
-            minimumFractionDigits: 2,
+            minimumFractionDigits: 0,
             maximumFractionDigits: 8
         });
     },

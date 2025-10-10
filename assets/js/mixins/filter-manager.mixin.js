@@ -189,7 +189,7 @@ const filterManagerMixin = {
         async loadAvailablePairs() {
             // Guard: Pastikan aplikasi dan DB sudah siap
             if (!this.$root || !this.$root.isAppInitialized) {
-                console.log('[FilterManager] Load pairs ditunda, aplikasi belum terinisialisasi.');
+                // console.log('[FilterManager] Load pairs ditunda, aplikasi belum terinisialisasi.');
                 this._filterCache.availablePairs = [];
                 return;
             }
@@ -238,11 +238,11 @@ const filterManagerMixin = {
                     .sort((a, b) => a.key.localeCompare(b.key));
 
                 this._filterCache.availablePairs = availablePairs;
-                console.log(`[FilterManager] Loaded ${availablePairs.length} available pairs for ${this.activeChain}`);
+                // console.log(`[FilterManager] Loaded ${availablePairs.length} available pairs for ${this.activeChain}`);
 
                 return availablePairs;
             } catch (error) {
-                console.error('[FilterManager] Error loading available pairs:', error);
+                // console.error('[FilterManager] Error loading available pairs:', error);
                 this._filterCache.availablePairs = [];
                 return [];
             }
@@ -272,7 +272,7 @@ const filterManagerMixin = {
             // Save to database
             await this.saveFilterSettings('chains');
 
-            console.log(`[FilterManager] Chain filter ${chainKey} = ${filters.chains[chainKey]}`);
+            // console.log(`[FilterManager] Chain filter ${chainKey} = ${filters.chains[chainKey]}`);
         },
 
         /**
@@ -295,7 +295,7 @@ const filterManagerMixin = {
             // Save to database
             await this.saveFilterSettings('cex');
 
-            console.log(`[FilterManager] CEX filter ${cexKey} = ${filters.cex[cexKey]}`);
+            // console.log(`[FilterManager] CEX filter ${cexKey} = ${filters.cex[cexKey]}`);
         },
 
         /**
@@ -318,7 +318,7 @@ const filterManagerMixin = {
             // Save to database
             await this.saveFilterSettings('dex');
 
-            console.log(`[FilterManager] DEX filter ${dexKey} = ${filters.dex[dexKey]}`);
+            // console.log(`[FilterManager] DEX filter ${dexKey} = ${filters.dex[dexKey]}`);
         },
 
         /**
@@ -341,7 +341,7 @@ const filterManagerMixin = {
             // Save to database
             await this.saveFilterSettings('pairs');
 
-            console.log(`[FilterManager] Pair filter ${pairKey} = ${filters.pairs[pairKey]}`);
+            // console.log(`[FilterManager] Pair filter ${pairKey} = ${filters.pairs[pairKey]}`);
         },
 
         /**
@@ -383,7 +383,7 @@ const filterManagerMixin = {
             }
 
             await this.saveFilterSettings(filterType);
-            console.log(`[FilterManager] Selected all ${filterType} filters`);
+            // console.log(`[FilterManager] Selected all ${filterType} filters`);
         },
 
         /**
@@ -425,7 +425,7 @@ const filterManagerMixin = {
             }
 
             await this.saveFilterSettings(filterType);
-            console.log(`[FilterManager] Deselected all ${filterType} filters`);
+            // console.log(`[FilterManager] Deselected all ${filterType} filters`);
         },
 
         // =================================================================
@@ -439,12 +439,12 @@ const filterManagerMixin = {
         async saveFilterSettings(field = 'unknown') {
             // Guard: Pastikan aplikasi dan DB sudah siap
             if (!this.$root || !this.$root.isAppInitialized) {
-                console.log('[FilterManager] Save ditunda, aplikasi belum terinisialisasi.');
+                // console.log('[FilterManager] Save ditunda, aplikasi belum terinisialisasi.');
                 return;
             }
 
             if (!this.activeChain) {
-                console.warn('[FilterManager] Cannot save: no active chain');
+                // console.warn('[FilterManager] Cannot save: no active chain');
                 return;
             }
 
@@ -452,7 +452,7 @@ const filterManagerMixin = {
                 const normalizedField = ['chains', 'cex', 'dex'].includes(field) ? field : null;
                 const constraintsChanged = this.applyFilterConstraints(normalizedField);
                 if (constraintsChanged) {
-                    console.log(`[FilterManager] Filter constraints updated before saving (field: ${field})`);
+                    // console.log(`[FilterManager] Filter constraints updated before saving (field: ${field})`);
                 }
 
                 // Clone data to remove Vue reactivity
@@ -468,7 +468,7 @@ const filterManagerMixin = {
                 const storeName = DB.getStoreNameByChain('SETTING_FILTER', this.activeChain);
                 await DB.saveData(storeName, dataToSave, 'SETTING_FILTER');
 
-                console.log(`[FilterManager] Filter settings saved for ${this.activeChain}, field: ${field}`);
+                // console.log(`[FilterManager] Filter settings saved for ${this.activeChain}, field: ${field}`);
 
                 // FIX: Tampilkan toast notification untuk user feedback
                 // Skip toast untuk operasi internal (initialize, global-sync)
@@ -483,7 +483,7 @@ const filterManagerMixin = {
                     this.$root.showToast(`✓ Pengaturan ${label} berhasil disimpan`, 'success', 2000);
                 }
             } catch (error) {
-                console.error('[FilterManager] Error saving filter settings:', error);
+                // console.error('[FilterManager] Error saving filter settings:', error);
                 if (this.$root && this.$root.showToast) {
                     this.$root.showToast('Gagal menyimpan pengaturan filter', 'danger');
                 }
@@ -623,7 +623,7 @@ const filterManagerMixin = {
         async initializeFilters() {
             // Guard: Pastikan aplikasi dan DB sudah siap
             if (!this.$root || !this.$root.isAppInitialized) {
-                console.log('[FilterManager] Initialize filters ditunda, aplikasi belum terinisialisasi.');
+                // console.log('[FilterManager] Initialize filters ditunda, aplikasi belum terinisialisasi.');
                 this._pendingFilterInit = true;
                 return;
             }
@@ -634,10 +634,10 @@ const filterManagerMixin = {
             const currentChain = this.activeChain;
 
             if (!filters || filters.chainKey !== currentChain || Object.keys(filters).length <= 2) {
-                console.log('[FilterManager] Filter settings belum siap, menunggu load dari DB.', {
-                    chain: currentChain,
-                    hasChainKey: !!filters?.chainKey
-                });
+                // // console.log('[FilterManager] Filter settings belum siap, menunggu load dari DB.', {
+                //     chain: currentChain,
+                //     hasChainKey: !!filters?.chainKey
+                // });
                 this._pendingFilterInit = true;
                 return;
             }
@@ -696,7 +696,7 @@ const filterManagerMixin = {
 
             if (needsSave) {
                 await this.saveFilterSettings('initialize');
-                console.log('[FilterManager] Filters initialized with defaults');
+                // console.log('[FilterManager] Filters initialized with defaults');
             }
 
             this._pendingFilterInit = false;
@@ -710,7 +710,7 @@ const filterManagerMixin = {
             immediate: false,
             handler(newChain, oldChain) {
                 if (newChain && newChain !== oldChain) {
-                    console.log(`[FilterManager] Chain changed to ${newChain}, reloading pairs`);
+                    // console.log(`[FilterManager] Chain changed to ${newChain}, reloading pairs`);
                     this._pendingFilterInit = true;
                     this._lastInitializedChain = null;
                     this.loadAvailablePairs();
@@ -724,7 +724,7 @@ const filterManagerMixin = {
       deep: false, // Tidak perlu deep watch, hanya perlu tahu saat array berubah
       handler(newCoins, oldCoins) {
         if (newCoins.length > 0 && oldCoins.length === 0) {
-          console.log('[FilterManager] Data koin telah dimuat. Menginisialisasi ulang filter PAIRDEX...');
+          // console.log('[FilterManager] Data koin telah dimuat. Menginisialisasi ulang filter PAIRDEX...');
           // Panggil kembali inisialisasi filter, yang sekarang akan memiliki
           // akses ke `availablePairFilters` yang sudah terisi.
           this.initializeFilters();
@@ -736,7 +736,7 @@ const filterManagerMixin = {
         '$root.isAppInitialized': {
             handler(isInitialized) {
                 if (isInitialized) {
-                    console.log('[FilterManager] Aplikasi terinisialisasi, memuat filter data.');
+                    // console.log('[FilterManager] Aplikasi terinisialisasi, memuat filter data.');
                     this.loadAvailablePairs();
                     this.initializeFilters();
                 }
@@ -759,7 +759,7 @@ const filterManagerMixin = {
                 }
 
                 if (this._pendingFilterInit || this._lastInitializedChain !== currentChain) {
-                    console.log('[FilterManager] Filter settings diperbarui, mencoba inisialisasi ulang.');
+                    // console.log('[FilterManager] Filter settings diperbarui, mencoba inisialisasi ulang.');
                     this.initializeFilters();
                 }
             }
@@ -777,9 +777,9 @@ const filterManagerMixin = {
 
                 const changed = this.applyFilterConstraints();
                 if (changed) {
-                    console.log('[FilterManager] Global settings changed, menyelaraskan filter aktif.');
+                    // console.log('[FilterManager] Global settings changed, menyelaraskan filter aktif.');
                     this.saveFilterSettings('global-sync').catch(error => {
-                        console.error('[FilterManager] Gagal menyimpan filter setelah sinkron global:', error);
+                        // console.error('[FilterManager] Gagal menyimpan filter setelah sinkron global:', error);
                     });
                 }
             }
@@ -787,7 +787,7 @@ const filterManagerMixin = {
     },
 
     async mounted() {
-        console.log('[FilterManager] Mixin mounted');
+        // console.log('[FilterManager] Mixin mounted');
 
         // Hanya load jika aplikasi sudah siap
         if (this.$root && this.$root.isAppInitialized) {
@@ -797,7 +797,7 @@ const filterManagerMixin = {
             // Initialize filters if needed
             await this.initializeFilters();
         } else {
-            console.log('[FilterManager] Mounted, menunggu aplikasi siap...');
+            // console.log('[FilterManager] Mounted, menunggu aplikasi siap...');
         }
     }
 };

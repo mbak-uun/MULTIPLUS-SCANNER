@@ -641,7 +641,7 @@ const PortfolioMenu = {
     },
     handleIconError(event) {
       event.target.style.display = 'none';
-      console.warn('Failed to load icon:', event.target.src);
+      //console.warn('Failed to load icon:', event.target.src);
     },
     reloadPage() {
       this.$root.reloadActiveTab();
@@ -856,7 +856,7 @@ const PortfolioMenu = {
         await this.dbSet('PORTFOLIO_CREDENTIALS', state);
         this.notify(`Pengaturan ${exchange.name} tersimpan`, 'success');
       } catch (error) {
-        console.warn('Failed to save exchange state:', error);
+        //console.warn('Failed to save exchange state:', error);
         this.notify(`Gagal menyimpan pengaturan ${exchange.name}`, 'danger');
       }
     },
@@ -871,7 +871,7 @@ const PortfolioMenu = {
         await this.dbSet('PORTFOLIO_CREDENTIALS', state);
         this.notify(`Pengaturan ${wallet.name} tersimpan`, 'success');
       } catch (error) {
-        console.warn('Failed to save wallet state:', error);
+        //console.warn('Failed to save wallet state:', error);
         this.notify(`Gagal menyimpan pengaturan ${wallet.name}`, 'danger');
       }
     },
@@ -893,7 +893,7 @@ const PortfolioMenu = {
           lastChecked: new Date().toISOString()
         };
         await this.dbSet('ASET_WALLET', dbWalletData);
-        console.log(`✅ Data wallet pending untuk ${wallet.name} disimpan ke IndexedDB.`);
+        /* console.log(`✅ Data wallet pending untuk ${wallet.name} disimpan ke IndexedDB.`); */
       } catch (error) {
         console.error(`❌ Gagal menyimpan data wallet pending untuk ${wallet.name}:`, error);
       }
@@ -969,7 +969,7 @@ const PortfolioMenu = {
           case 'uid':
             return 'Uid';
           default:
-            console.warn(`[Portfolio] Tidak mengenal field credential "${rawKey}" untuk exchange ${exchangeId}.`);
+            //console.warn(`[Portfolio] Tidak mengenal field credential "${rawKey}" untuk exchange ${exchangeId}.`);
             return null;
         }
       };
@@ -1079,7 +1079,7 @@ const PortfolioMenu = {
             });
 
             totalCex += normalized.total;
-            console.log(`✅ ${exchange.name}: $${normalized.total.toFixed(2)}`);
+            /* console.log(`✅ ${exchange.name}: $${normalized.total.toFixed(2)}`); */
           } catch (error) {
             exchange.status = 'error';
             exchange.error = error.message;
@@ -1200,7 +1200,7 @@ const PortfolioMenu = {
             const walletId = res.value?.walletId;
 
             if (!resultData || !walletId) {
-              console.warn('⚠️ Invalid result data:', res.value);
+              //console.warn('⚠️ Invalid result data:', res.value);
               continue;
             }
 
@@ -1508,10 +1508,10 @@ const PortfolioMenu = {
       const allCexKeys = Object.keys(allCexConfig);
 
       // Debug logging
-      console.log('🔍 Portfolio._initializeExchanges()');
-      console.log('  - Total CEX di config:', allCexKeys.length);
-      console.log('  - globalSettings ada?', !!this.globalSettings);
-      console.log('  - globalSettings.config_cex:', this.globalSettings?.config_cex);
+      /* console.log('🔍 Portfolio._initializeExchanges()'); */
+      /* console.log('  - Total CEX di config:', allCexKeys.length); */
+      /* console.log('  - globalSettings ada?', !!this.globalSettings); */
+      /* console.log('  - globalSettings.config_cex:', this.globalSettings?.config_cex); */
 
       // Filter berdasarkan status di globalSettings (jika ada)
       // PERBAIKAN: Gunakan .toLowerCase() pada 'key' untuk mencocokkan dengan struktur globalSettings
@@ -1522,7 +1522,7 @@ const PortfolioMenu = {
           })
         : []; // Fallback: jangan tampilkan apa-apa jika globalSettings tidak ada
 
-      console.log('  - CEX yang akan ditampilkan:', enabledCexKeys);
+      /* console.log('  - CEX yang akan ditampilkan:', enabledCexKeys); */
 
       this.exchanges = enabledCexKeys.map(cexKey => {
         const cex = allCexConfig[cexKey];
@@ -1558,10 +1558,10 @@ const PortfolioMenu = {
       const allChainKeys = Object.keys(allChainsConfig);
 
       // Debug logging
-      console.log('🔍 Portfolio._initializeWallets()');
-      console.log('  - Total Chain di config:', allChainKeys.length);
-      console.log('  - globalSettings ada?', !!this.globalSettings);
-      console.log('  - globalSettings.config_chain:', this.globalSettings?.config_chain); // Untuk debugging
+      /* console.log('🔍 Portfolio._initializeWallets()'); */
+      /* console.log('  - Total Chain di config:', allChainKeys.length); */
+      /* console.log('  - globalSettings ada?', !!this.globalSettings); */
+      /* console.log('  - globalSettings.config_chain:', this.globalSettings?.config_chain); */ // Untuk debugging
 
       // REVISI: Filter berdasarkan status di globalSettings (jika ada)
       const enabledChainKeys = this.globalSettings?.config_chain
@@ -1572,7 +1572,7 @@ const PortfolioMenu = {
           })
         : allChainKeys; // Fallback: tampilkan semua jika globalSettings belum ada
 
-      console.log('  - Chain yang akan ditampilkan:', enabledChainKeys);
+      /* console.log('  - Chain yang akan ditampilkan:', enabledChainKeys); */
 
       this.wallets = enabledChainKeys.map(chainKey => { // REVISI: Gunakan enabledChainKeys
         const chain = allChainsConfig[chainKey];
@@ -1623,9 +1623,9 @@ const PortfolioMenu = {
           }
         });
 
-        console.log('✅ Loaded portfolio saved data from IndexedDB');
+        /* console.log('✅ Loaded portfolio saved data from IndexedDB'); */
       } catch (error) {
-        console.warn('Failed to load portfolio saved data:', error);
+        //console.warn('Failed to load portfolio saved data:', error);
       }
     },
     async _loadPnlHistoryFromDB() {
@@ -1634,7 +1634,7 @@ const PortfolioMenu = {
     },
     async _loadDataFromDB() {
       try {
-        console.log('Attempting to load portfolio data from IndexedDB...');
+        /* console.log('Attempting to load portfolio data from IndexedDB...'); */
         let totalCex = 0;
         let totalWallet = 0;
         let totalWalletAssets = 0;
@@ -1697,9 +1697,9 @@ const PortfolioMenu = {
         this.activeWalletCount = this.activeWalletResults.length;
         this.inactiveWallets = this.wallets.filter(w => !w.enabled);
 
-        console.log('✅ Successfully loaded persisted asset data.');
+        /* console.log('✅ Successfully loaded persisted asset data.'); */
       } catch (error) {
-        console.warn('Could not load data from IndexedDB on mount:', error);
+        //console.warn('Could not load data from IndexedDB on mount:', error);
       }
     },
 
@@ -2132,7 +2132,7 @@ const PortfolioMenu = {
   `,
 
   async mounted() {
-    console.log('Portfolio component mounted');
+    /* console.log('Portfolio component mounted'); */
 
     // PENTING: Tunggu globalSettings ter-load dari root
     // Maksimal tunggu 5 detik, polling setiap 100ms
@@ -2140,7 +2140,7 @@ const PortfolioMenu = {
     const maxAttempts = 50; // 50 x 100ms = 5 detik
 
     while (!this.globalSettings && attempts < maxAttempts) {
-      console.log(`⏳ Menunggu globalSettings... (${attempts + 1}/${maxAttempts})`);
+      /* console.log(`⏳ Menunggu globalSettings... (${attempts + 1}/${maxAttempts})`); */
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
@@ -2151,11 +2151,11 @@ const PortfolioMenu = {
       return;
     }
 
-    console.log('✅ globalSettings berhasil dimuat, inisialisasi Portfolio...');
+    /* console.log('✅ globalSettings berhasil dimuat, inisialisasi Portfolio...'); */
 
     this._initializeExchanges();
     this._initializeWallets();
-    console.log(`✅ Portfolio initialized with ${this.exchanges.length} exchanges and ${this.wallets.length} chains.`);
+    /* console.log(`✅ Portfolio initialized with ${this.exchanges.length} exchanges and ${this.wallets.length} chains.`); */
 
     await this._loadStateFromStorage();
 
@@ -2169,7 +2169,7 @@ const PortfolioMenu = {
     // Tunggu web3Service siap di root.
     let web3Attempts = 0;
     while (!this.$root.web3Service && web3Attempts < 50) {
-      console.log(`⏳ Portfolio menunggu web3Service... (${web3Attempts + 1}/50)`);
+      /* console.log(`⏳ Portfolio menunggu web3Service... (${web3Attempts + 1}/50)`); */
       await new Promise(resolve => setTimeout(resolve, 100));
       web3Attempts++;
     }
@@ -2179,7 +2179,7 @@ const PortfolioMenu = {
       this.notify('⚠️ Gagal memuat Web3 Service. Silakan refresh halaman.', 'danger');
       return;
     }
-    console.log('✅ Portfolio mendapatkan web3Service dari root.');
+    /* console.log('✅ Portfolio mendapatkan web3Service dari root.'); */
     this.portfolioReady = true;
 
     // Tunggu realtimeDataFetcher siap
@@ -2191,7 +2191,7 @@ const PortfolioMenu = {
 
     // --- PERMINTAAN: Autoload Aset ---
     // Secara otomatis memanggil pengecekan aset gabungan setelah semua inisialisasi selesai.
-    console.log('🚀 Memulai autoload aset portofolio...');
+    /* console.log('🚀 Memulai autoload aset portofolio...'); */
     this.checkModalCombined();
   }
 };

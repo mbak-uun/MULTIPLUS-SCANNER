@@ -92,7 +92,7 @@ class TelegramService {
      */
     async _sendMessage(message, parseMode = 'HTML') {
         if (!this.credentials || !this.credentials.botToken || !this.credentials.chatId) {
-            console.warn('[TelegramService] Credentials not configured');
+            // console.warn('[TelegramService] Credentials not configured');
             return false;
         }
 
@@ -109,15 +109,15 @@ class TelegramService {
             const data = await this.Http.get(`${url}?${params}`, { responseType: 'json' });
 
             if (data.ok) {
-                console.log('[TelegramService] Message sent successfully');
+                // console.log('[TelegramService] Message sent successfully');
                 return true;
             } else {
-                console.error('[TelegramService] Failed to send message:', data);
+                // console.error('[TelegramService] Failed to send message:', data);
                 return false;
             }
 
         } catch (error) {
-            console.error('[TelegramService] Error sending message:', error);
+            // console.error('[TelegramService] Error sending message:', error);
             return false;
         }
     }

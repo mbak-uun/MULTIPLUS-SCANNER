@@ -375,7 +375,7 @@ class DexDataFetcher {
 
         const strategy = this.dexStrategies[strategyKey];
         if (!strategy) {
-            console.warn(`[DexDataFetcher] Strategy '${strategyKey}' for ${dexKey} not found.`);
+            //console.warn(`[DexDataFetcher] Strategy '${strategyKey}' for ${dexKey} not found.`);
             return null;
         }
 
@@ -395,7 +395,7 @@ class DexDataFetcher {
         }
 
         if (!amountIn || Number(amountIn) <= 0) {
-            console.warn(`[DexDataFetcher] Skip ${dexKey} ${direction}: invalid amount ${amountIn}`);
+            //console.warn(`[DexDataFetcher] Skip ${dexKey} ${direction}: invalid amount ${amountIn}`);
             return null;
         }
 
@@ -450,7 +450,7 @@ class DexDataFetcher {
         } catch (error) {
             const errorCode = error.status || error.code;
             const isRateLimited = errorCode === 429 || error.message?.includes('rate limit');
-            const isTimeout = error.code === 'ETIMEDOUT' || error.message?.includes('timeout');
+            const isTimeout = error.code === 'TIMEOUT' || error.message?.includes('timeout');
 
             // ADOPSI APLIKASI LAMA: Logging error detail
             console.warn(`[DexDataFetcher] Primary fetch for ${dexKey} (${strategyKey}) failed:`, {
@@ -462,7 +462,7 @@ class DexDataFetcher {
 
             // ADOPSI APLIKASI LAMA: Coba fallback jika ada (terutama untuk rate limit 429)
             if (fallbackStrategyKey && (isRateLimited || isTimeout)) {
-                console.log(`[DexDataFetcher] Trying fallback strategy '${fallbackStrategyKey}' for ${dexKey}...`);
+                /* console.log(`[DexDataFetcher] Trying fallback strategy '${fallbackStrategyKey}' for ${dexKey}...`); */
                 const fallbackStrategy = this.dexStrategies[fallbackStrategyKey];
                 if (fallbackStrategy) {
                     try {
@@ -487,7 +487,7 @@ class DexDataFetcher {
 
                         const parsed = fallbackStrategy.parseResponse(response, params);
                         if (parsed && typeof parsed === 'object') {
-                            console.log(`[DexDataFetcher] ✅ Fallback success for ${dexKey} using ${fallbackStrategyKey}`);
+                            /* console.log(`[DexDataFetcher] ✅ Fallback success for ${dexKey} using ${fallbackStrategyKey}`); */
                             return { ...parsed, rawResponse: response, usedFallback: true };
                         }
                         return { rawResponse: response };

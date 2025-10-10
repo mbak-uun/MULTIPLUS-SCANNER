@@ -13,7 +13,7 @@ class BaseRepository {
             console.trace();
         }
         this.db = dbService;
-        console.log(`[${this.constructor.name}] Initialized with db:`, this.db ? 'OK' : 'UNDEFINED');
+        /* console.log(`[${this.constructor.name}] Initialized with db:`, this.db ? 'OK' : 'UNDEFINED'); */
     }
 
     /**

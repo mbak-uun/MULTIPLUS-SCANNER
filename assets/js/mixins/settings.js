@@ -66,20 +66,20 @@ const settingsMixin = {
           this.globalSettings = settings;
           this.isGlobalSettingsValid = this.validateGlobalSettings(settings);
           this.isGlobalSettingsRequired = !this.isGlobalSettingsValid;
-          console.log('⚙️ Global settings loaded:', { settings, isValid: this.isGlobalSettingsValid });
+          // console.log('⚙️ Global settings loaded:', { settings, isValid: this.isGlobalSettingsValid });
         } else {
           // Pengaturan tidak ditemukan (first run), langsung paksa user untuk mengisi
-          console.warn('⚠️ Global settings not found. Forcing user to settings page.');
+          // console.warn('⚠️ Global settings not found. Forcing user to settings page.');
           const defaultSettings = this.createDefaultGlobalSettings(true); // true = create empty settings
           // Jangan simpan dulu, biarkan user yang save
           await settingsRepo.saveGlobal(defaultSettings);
           this.globalSettings = defaultSettings;
           this.isGlobalSettingsValid = this.validateGlobalSettings(defaultSettings);
           this.isGlobalSettingsRequired = !this.isGlobalSettingsValid;
-          console.log('🟢 Default global settings saved.', { settings: defaultSettings, isValid: this.isGlobalSettingsValid });
+          // console.log('🟢 Default global settings saved.', { settings: defaultSettings, isValid: this.isGlobalSettingsValid });
         }
       } catch (error) {
-        console.error('❌ Error loading global settings:', error);
+        // console.error('❌ Error loading global settings:', error);
         this.isGlobalSettingsValid = false;
         this.isGlobalSettingsRequired = true;
       }
@@ -96,7 +96,7 @@ const settingsMixin = {
     async loadFilterSettings(chainKey) {
       // REVISI: Tambahkan guard untuk memastikan chainKey valid.
       if (!chainKey) {
-        console.warn('[loadFilterSettings] Pemuatan filter dilewati, chainKey tidak valid.');
+        // console.warn('[loadFilterSettings] Pemuatan filter dilewati, chainKey tidak valid.');
         return;
       }
 
@@ -105,13 +105,13 @@ const settingsMixin = {
 
       // Jika tidak ada setting tersimpan, buat default
       if (!loadedSettings || Object.keys(loadedSettings).length <= 2) { // <=2 untuk handle {key, chainKey}
-        console.log(`No saved filter for "${chainKey}". Creating default.`);
+        // console.log(`No saved filter for "${chainKey}". Creating default.`);
         loadedSettings = this.createDefaultFilterSettings(chainKey);
       }
       
       // **PERBAIKAN UTAMA**: Pastikan filter 'chains' diisi untuk mode multi-chain
       if (chainKey === 'multi' && (!loadedSettings.chains || Object.keys(loadedSettings.chains).length === 0)) {
-        console.log("Multi-chain filter is empty. Initializing with all active chains.");
+        // console.log("Multi-chain filter is empty. Initializing with all active chains.");
         loadedSettings.chains = this.activeChains.reduce((acc, key) => {
           acc[key] = true; // Aktifkan semua chain yang tersedia secara default
           return acc;
@@ -139,7 +139,7 @@ const settingsMixin = {
         ...mergedSettings
       };
 
-      console.log(`✅ Filter settings for "${chainKey}" loaded and merged.`, this.filters);
+      // console.log(`✅ Filter settings for "${chainKey}" loaded and merged.`, this.filters);
 
       // REVISI: Panggil refresh statistik filter dari sini setelah filter dipastikan dimuat.
       // Ini memastikan sidebar menampilkan count yang benar.
@@ -151,23 +151,23 @@ const settingsMixin = {
 
       const snapshot = JSON.parse(JSON.stringify(this.filterSettings));
       const filterTableName = `SETTING_FILTER_${String(chainKey).toUpperCase()}`;
-      console.groupCollapsed(`[Setting Filter] Memuat data dari tabel "${filterTableName}"`);
-      console.table([{
-        chainKey: snapshot.chainKey,
-        minPnl: snapshot.minPnl,
-        favoritOnly: snapshot.favoritOnly,
-        autorun: snapshot.autorun,
-        autoscroll: snapshot.autoscroll,
-        run: snapshot.run,
-        sortDirection: snapshot.sortDirection,
-        darkMode: snapshot.darkMode
-      }]);
-      console.table(Object.entries(snapshot.cex || {}).map(([key, value]) => ({ kategori: 'CEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-      console.table(Object.entries(snapshot.dex || {}).map(([key, value]) => ({ kategori: 'DEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-      console.table(Object.entries(snapshot.chains || {}).map(([key, value]) => ({ kategori: 'CHAIN', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-      console.table(Object.entries(snapshot.pairs || {}).map(([key, value]) => ({ kategori: 'PAIR', kunci: key.toUpperCase(), aktif: Boolean(value) })));
-      console.log(`[Setting Filter] Data JSON lengkap (${filterTableName}):\n`, JSON.stringify(snapshot, null, 2));
-      console.groupEnd();
+      // console.groupCollapsed(`[Setting Filter] Memuat data dari tabel "${filterTableName}"`);
+      // // console.table([{
+      //   chainKey: snapshot.chainKey,
+      //   minPnl: snapshot.minPnl,
+      //   favoritOnly: snapshot.favoritOnly,
+      //   autorun: snapshot.autorun,
+      //   autoscroll: snapshot.autoscroll,
+      //   run: snapshot.run,
+      //   sortDirection: snapshot.sortDirection,
+      //   darkMode: snapshot.darkMode
+      // // }]);
+      // console.table(Object.entries(snapshot.cex || {}).map(([key, value]) => ({ kategori: 'CEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      // console.table(Object.entries(snapshot.dex || {}).map(([key, value]) => ({ kategori: 'DEX', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      // console.table(Object.entries(snapshot.chains || {}).map(([key, value]) => ({ kategori: 'CHAIN', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      // console.table(Object.entries(snapshot.pairs || {}).map(([key, value]) => ({ kategori: 'PAIR', kunci: key.toUpperCase(), aktif: Boolean(value) })));
+      // console.log(`[Setting Filter] Data JSON lengkap (${filterTableName}):\n`, JSON.stringify(snapshot, null, 2));
+      // console.groupEnd();
     },
 
     createDefaultFilterSettings(chainKey) {
@@ -232,7 +232,7 @@ const settingsMixin = {
         window.location.reload();
 
       } catch (error) {
-        console.error('❌ Error saving global settings:', error);
+        // console.error('❌ Error saving global settings:', error);
         this.showToast('Gagal menyimpan pengaturan!', 'danger');
       }
     },
@@ -274,7 +274,7 @@ const settingsMixin = {
           chatId: settings.telegram?.chatId || ''
         }
       };
-      console.log('Settings form loaded with data:', this.settingsForm);
+      // console.log('Settings form loaded with data:', this.settingsForm);
     },
 
     createDefaultGlobalSettings(isEmpty = false) {
