@@ -394,9 +394,14 @@ class DexDataFetcher {
                 url = `${dexConfig.PROXY}${url}`;
             }
 
-            // ADOPSI APLIKASI LAMA: Tambahkan timeout dari config
-            // PRIORITAS: globalSettings.WaktuTunggu (user) > config.SCANNING_DELAYS.dexTimeout (default) > hardcoded
-            const timeout = globalSettings?.WaktuTunggu ??
+            // TIMEOUT CONFIGURATION (prioritas tertinggi ke terendah):
+            // 1. globalSettings.config_dex[dexKey].timeout (user setting per DEX)
+            // 2. globalSettings.WaktuTunggu (user setting global)
+            // 3. config.SCANNING_DELAYS.dexTimeout (config default)
+            // 4. 10000ms (hardcoded fallback)
+            const dexKeyLower = dexKey.toLowerCase();
+            const timeout = globalSettings?.config_dex?.[dexKeyLower]?.timeout ??
+                           globalSettings?.WaktuTunggu ??
                            this.config?.SCANNING_DELAYS?.dexTimeout ??
                            10000;
 

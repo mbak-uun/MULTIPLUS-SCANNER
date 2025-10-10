@@ -1591,6 +1591,48 @@ body.theme-single-chain .table-striped tbody tr:nth-of-type(odd) {
   -webkit-overflow-scrolling: touch;
 }
 
+/* FIXED HEIGHT - Konsisten baik sidebar tampil/sembunyi */
+.scanning-tab {
+  /* Container dengan height tetap */
+  min-height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+}
+
+.scanning-tab .scanning-table-container {
+  /* TINGGI TETAP - tidak terpengaruh sidebar toggle */
+  /* Overhead: navbar (60px) + tab pills (50px) + padding (30px) = 140px */
+  height: calc(100vh - 140px);
+  max-height: calc(100vh - 140px);
+  min-height: 500px;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  flex: 1 1 auto;
+}
+
+/* When signal cards exist - kurangi tinggi tabel */
+.scanning-tab:has(.row.g-2.mb-3:not(:empty)) .scanning-table-container {
+  /* Signal cards (~200px) + overhead = total ~340px */
+  height: calc(100vh - 340px);
+  max-height: calc(100vh - 340px);
+}
+
+/* Mobile/Tablet responsive */
+@media (max-width: 991px) {
+  .scanning-tab .scanning-table-container {
+    height: calc(100vh - 180px);
+    max-height: calc(100vh - 180px);
+    min-height: 400px;
+  }
+
+  .scanning-tab:has(.row.g-2.mb-3:not(:empty)) .scanning-table-container {
+    height: calc(100vh - 380px);
+    max-height: calc(100vh - 380px);
+  }
+}
+
 .scanning-tab .scanning-table {
   width: 100%;
   min-width: 100%;

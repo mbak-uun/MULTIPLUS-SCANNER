@@ -14,7 +14,7 @@ const settingsMixin = {
         walletMeta: '',
         AnggotaGrup: 3,
         jedaTimeGroup: 1000,
-        jedaPerAnggota: 200,
+        jedaKoin: 500,
         WaktuTunggu: 5000,
         modalUsd: 100,
         usdtRate: 16000,
@@ -260,7 +260,11 @@ const settingsMixin = {
         walletMeta: settings.walletMeta || '',
         AnggotaGrup: settings.AnggotaGrup || 3,
         jedaTimeGroup: settings.jedaTimeGroup || 1500,
-        jedaPerAnggota: settings.jedaPerAnggota || 200,
+        jedaKoin:
+          settings.jedaKoin ??
+          settings.jedaPerAnggota ?? // Backward compatibility for legacy data
+          this.config?.SCANNING_DELAYS?.jedaKoin ??
+          500,
         WaktuTunggu: settings.WaktuTunggu || 5000,
         config_chain: mapConfig(config.CHAINS, settings.config_chain, 30), // Fallback delay untuk chain
         config_cex: mapConfig(config.CEX, settings.config_cex, 35), // Fallback delay untuk CEX
@@ -306,7 +310,7 @@ const settingsMixin = {
         walletMeta: '',
         AnggotaGrup: 3,
         jedaTimeGroup: 1000,
-        jedaPerAnggota: 200,
+        jedaKoin: this.config?.SCANNING_DELAYS?.jedaKoin ?? 500,
         WaktuTunggu: 5000,
         config_chain: mapConfig(this.config?.CHAINS),
         config_cex: mapConfig(this.config?.CEX, 35), 

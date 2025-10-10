@@ -86,6 +86,13 @@ const SyncTab = {
     filteredSyncData() {
       let result = Array.isArray(this.syncData) ? [...this.syncData] : [];
 
+      // Filter untuk hanya menampilkan token dengan format SC EVM yang valid.
+      const scRegex = /^0x[a-fA-F0-9]{40}$/i;
+      result = result.filter(item => {
+        const sc = item.sc_token || '';
+        return scRegex.test(sc);
+      });
+
       const query = this.syncSearchQuery.trim().toLowerCase();
       if (query) {
         result = result.filter(item => {
@@ -451,9 +458,12 @@ const SyncTab = {
         const upper = this.normalizeCex(cexKey);
         const fullList = grouped[upper] || [];
         
-        // PERMINTAAN: Hitung jumlah koin yang memiliki smart contract (sc_token)
-        // agar sesuai dengan data yang ditampilkan di tabel.
-        const filteredList = fullList.filter(token => token.sc_token && String(token.sc_token).trim() !== '');
+        // REVISI: Samakan filter ini dengan filter di tabel (filteredSyncData).
+        // Gunakan regex untuk memastikan hanya SC dengan format EVM yang valid yang dihitung.
+        const scRegex = /^0x[a-fA-F0-9]{40}$/i;
+        const filteredList = fullList.filter(token => {
+          return scRegex.test(token.sc_token || '');
+        });
         
         acc[upper] = { hasData: filteredList.length > 0, count: filteredList.length };
         return acc;
@@ -1465,17 +1475,23 @@ const SyncTab = {
         </div>
         <div class="col-12 col-lg-auto">
           <div class="d-grid d-sm-inline-flex align-items-center gap-2 justify-content-sm-end">
-            <span v-if="selectedTokenCount > 0" class="text-danger small d-inline-flex align-items-center gap-1">
+            <!-- REVISI: Ganti v-if dengan v-show untuk mencegah layout shift.
+                 v-show hanya mengubah display CSS, tidak menghapus elemen dari DOM. -->
+            <span v-show="selectedTokenCount > 0" class="text-danger small d-inline-flex align-items-center gap-1">
               <i class="bi bi-check-square"></i> {{ selectedTokenCount }} Koin dipilih
             </span>
             <div class="vr mx-2 d-none d-sm-block"></div>
-            <button class="btn btn-sm btn-outline-primary" @click="openImportModal" :disabled="!canManageSelection">
+            <!-- REVISI: Ubah style tombol menjadi solid saat ada koin dipilih -->
+            <button :class="['btn', 'btn-sm', selectedTokenCount > 0 ? 'btn-primary' : 'btn-outline-primary']"
+                    @click="openImportModal" :disabled="!canManageSelection">
               <i class="bi bi-box-arrow-in-down"></i> Import
             </button>
-            <button class="btn btn-sm btn-outline-success" @click="saveSelectedTokens" :disabled="!canManageSelection">
+            <button :class="['btn', 'btn-sm', selectedTokenCount > 0 ? 'btn-success' : 'btn-outline-success']"
+                    @click="saveSelectedTokens" :disabled="!canManageSelection">
               <i class="bi bi-save"></i> Save
             </button>
-            <button class="btn btn-sm btn-outline-danger" @click="removeSelectedTokens" :disabled="!canManageSelection">
+            <button :class="['btn', 'btn-sm', selectedTokenCount > 0 ? 'btn-danger' : 'btn-outline-danger']"
+                    @click="removeSelectedTokens" :disabled="!canManageSelection">
               <i class="bi bi-trash"></i> Delete
             </button>
           </div>

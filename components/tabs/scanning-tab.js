@@ -1503,7 +1503,7 @@ const ScanningTab = {
       </div>
 
       <!-- TEMPLATE DARI SCANNING-TABLE -->
-      <div class="table-responsive " style="max-height: calc(100vh - 300px);">
+      <div class="table-responsive scanning-table-container">
         <table class="table table-sm table-hover table-bordered align-middle scanning-table">
           <thead class="sticky-top">
             <tr class="text-center" :style="tableHeaderStyle">

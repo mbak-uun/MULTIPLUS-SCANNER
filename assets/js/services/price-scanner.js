@@ -60,7 +60,8 @@ class PriceScanner {
             tokensPerBatch: 3,          // Jumlah token per batch
             modalUsd: 100,              // Modal default dalam USD
             minPnl: 0.5,                // REVISI: Minimum PNL (absolut) untuk notifikasi
-            autoSendTelegram: true      // Auto send ke Telegram
+            autoSendTelegram: true,     // Auto send ke Telegram
+            jedaKoin: 500               // Default stagger antar token
         };
     }
 
@@ -135,6 +136,7 @@ class PriceScanner {
                 // Setiap token dalam batch diberi jeda (stagger) agar tidak request bersamaan
                 // PRIORITAS: globalSettings (user) > config.SCANNING_DELAYS (default) > hardcoded
                 const jedaKoin = this.settings.globalSettings?.jedaKoin ??
+                                this.settings.jedaKoin ??
                                 this.config?.SCANNING_DELAYS?.jedaKoin ??
                                 500;
 
@@ -248,12 +250,12 @@ class PriceScanner {
 
             if (cexKey) {
                 // ADOPSI APLIKASI LAMA: Gunakan per-CEX delay dari config
-                // PRIORITAS: globalSettings.config_cex[].jeda > globalSettings.jedaPerAnggota > config.SCANNING_DELAYS > hardcoded
+                // PRIORITAS: globalSettings.config_cex[].jeda > config.SCANNING_DELAYS.JedaCexs > jedaKoin > hardcoded
                 const cexKeyLower = cexKey.toLowerCase();
                 const cexKeyUpper = cexKey.toUpperCase();
                 const cexDelay = this.settings.globalSettings?.config_cex?.[cexKeyLower]?.jeda ??
-                                this.settings.globalSettings?.jedaPerAnggota ??
                                 this.config?.SCANNING_DELAYS?.JedaCexs?.[cexKeyUpper] ??
+                                this.settings.jedaKoin ??
                                 200;
 
                 // Ambil orderbook untuk token utama
@@ -330,8 +332,8 @@ class PriceScanner {
                 return;
             }
 
-            // Step 2 & 3 DIGABUNG: Fetch DEX quotes DAN kalkulasi PNL langsung per DEX
-            // Ini memungkinkan UI update segera setelah satu DEX selesai, tidak menunggu semua DEX
+            // Step 2 & 3 PARALLEL: Fetch DEX quotes DAN kalkulasi PNL untuk SETIAP DEX secara INDEPENDENT
+            // Setiap DEX tidak menunggu DEX lain selesai - benar-benar parallel
             const dexFilters = filters?.dex || {};
             const activeDexKeys = Object.keys(dexFilters).filter(k => dexFilters[k]);
             if (activeDexKeys.length === 0) {
@@ -341,102 +343,123 @@ class PriceScanner {
             const dexResults = {};
             const pnlResults = {};
 
-            for (const dexKey of activeDexKeys) {
+            // REFACTOR: Buat array of promises untuk parallel execution
+            // Setiap DEX akan fetch, calculate, dan update UI secara independent
+            const dexJobs = activeDexKeys.map(async (dexKey, dexIndex) => {
                 if (!this.isScanning) {
-                    break;
+                    return;
                 }
 
                 // Cek apakah token support DEX ini
                 if (!token.dex || !token.dex[dexKey] || !token.dex[dexKey].status) {
-                    continue;
+                    return;
                 }
 
-                // Fetch quote untuk kedua arah
-                this._logProgress('DEX_FETCH', `Mengambil quote dari ${dexKey} untuk ${tokenName}.`, { tokenId, dexKey });
-                const quotes = await this._fetchDexQuotes(token, dexKey, dexInput);
-
-                if (quotes) {
-                    dexResults[dexKey] = quotes;
-                    this._logProgress('DEX_FETCH_SELESAI', `Quote ${dexKey} diterima untuk ${tokenName}.`, {
-                        tokenId,
-                        dexKey,
-                        toPair: quotes.tokenToPair?.amountOut || 0,
-                        toToken: quotes.pairToToken?.amountOut || 0
-                    });
-
-                    // LANGSUNG kalkulasi PNL setelah quote diterima
-                    const pnlCexToDex = this.pnlCalculator.calculateBothDirections({
-                        token,
-                        cexPrices,
-                        dexQuote: quotes.tokenToPair,
-                        direction: 'CEXtoDEX',
-                        modalUsd: this.settings.modalUsd,
-                        gasData,
-                        usdtRate
-                    });
-
-                    const pnlDexToCex = this.pnlCalculator.calculateBothDirections({
-                        token,
-                        cexPrices,
-                        dexQuote: quotes.pairToToken,
-                        direction: 'DEXtoCEX',
-                        modalUsd: this.settings.modalUsd,
-                        gasData,
-                        usdtRate
-                    });
-
-                    pnlResults[dexKey] = {
-                        cexToDex: pnlCexToDex,
-                        dexToCex: pnlDexToCex
-                    };
-
-                    this._logProgress('PNL_SELESAI', `PNL ${tokenName} via ${dexKey}.`, {
-                        tokenId,
-                        dexKey,
-                        cexToDex: pnlCexToDex?.pnlPercent || 0,
-                        dexToCex: pnlDexToCex?.pnlPercent || 0
-                    });
-
-                    // PENTING: Panggil callback onPnlResult SEGERA setelah DEX ini selesai
-                    // Ini memungkinkan UI update kolom DEX secara real-time per DEX
-                    this.callbacks.onPnlResult({
-                        token,
-                        dexKey,
-                        pnl: pnlResults[dexKey],
-                        cexPrices
-                    });
-
-                    // Check dan send Telegram jika profitable
-                    if (this.settings.autoSendTelegram) {
-                        await this._checkAndSendSignal(token, dexKey, pnlCexToDex, usdtRate);
-                        await this._checkAndSendSignal(token, dexKey, pnlDexToCex, usdtRate);
-                    }
-
-                } else {
-                    this._logProgress('DEX_FETCH_GAGAL', `Quote ${dexKey} gagal untuk ${tokenName}.`, { tokenId, dexKey }, 'warn');
-
-                    // Emit PNL result dengan error state untuk DEX yang gagal
-                    this.callbacks.onPnlResult({
-                        token,
-                        dexKey,
-                        pnl: {
-                            cexToDex: { error: true, errorMessage: 'Quote gagal' },
-                            dexToCex: { error: true, errorMessage: 'Quote gagal' }
-                        },
-                        cexPrices
-                    });
-                }
-
-                // ADOPSI APLIKASI LAMA: Delay sebelum fetch DEX berikutnya (per-DEX configuration)
-                // PRIORITAS: globalSettings.config_dex[].jeda > config.SCANNING_DELAYS > hardcoded
+                // STAGGER: DEX pertama langsung, DEX kedua tunggu 300ms, dst
+                // Ini mencegah semua DEX hit API secara bersamaan persis
                 const dexKeyLower = dexKey.toLowerCase();
                 const dexDelay = this.settings.globalSettings?.config_dex?.[dexKeyLower]?.jeda ??
                                 this.config?.SCANNING_DELAYS?.JedaDexs?.[dexKeyLower] ??
                                 300;
 
-                this._logProgress('DEX_DELAY', `Menunggu ${dexDelay}ms sebelum DEX berikutnya...`, { dexKey, dexDelay });
-                await this._delay(dexDelay);
-            }
+                if (dexIndex > 0) {
+                    await this._delay(dexIndex * dexDelay);
+                }
+
+                try {
+                    // Fetch quote untuk kedua arah
+                    this._logProgress('DEX_FETCH', `Mengambil quote dari ${dexKey} untuk ${tokenName}.`, { tokenId, dexKey });
+                    const quotes = await this._fetchDexQuotes(token, dexKey, dexInput);
+
+                    if (quotes) {
+                        dexResults[dexKey] = quotes;
+                        this._logProgress('DEX_FETCH_SELESAI', `Quote ${dexKey} diterima untuk ${tokenName}.`, {
+                            tokenId,
+                            dexKey,
+                            toPair: quotes.tokenToPair?.amountOut || 0,
+                            toToken: quotes.pairToToken?.amountOut || 0
+                        });
+
+                        // LANGSUNG kalkulasi PNL setelah quote diterima
+                        const pnlCexToDex = this.pnlCalculator.calculateBothDirections({
+                            token,
+                            cexPrices,
+                            dexQuote: quotes.tokenToPair,
+                            direction: 'CEXtoDEX',
+                            modalUsd: this.settings.modalUsd,
+                            gasData,
+                            usdtRate
+                        });
+
+                        const pnlDexToCex = this.pnlCalculator.calculateBothDirections({
+                            token,
+                            cexPrices,
+                            dexQuote: quotes.pairToToken,
+                            direction: 'DEXtoCEX',
+                            modalUsd: this.settings.modalUsd,
+                            gasData,
+                            usdtRate
+                        });
+
+                        pnlResults[dexKey] = {
+                            cexToDex: pnlCexToDex,
+                            dexToCex: pnlDexToCex
+                        };
+
+                        this._logProgress('PNL_SELESAI', `PNL ${tokenName} via ${dexKey}.`, {
+                            tokenId,
+                            dexKey,
+                            cexToDex: pnlCexToDex?.pnlPercent || 0,
+                            dexToCex: pnlDexToCex?.pnlPercent || 0
+                        });
+
+                        // PENTING: Panggil callback onPnlResult SEGERA setelah DEX ini selesai
+                        // Ini memungkinkan UI update kolom DEX secara real-time per DEX
+                        this.callbacks.onPnlResult({
+                            token,
+                            dexKey,
+                            pnl: pnlResults[dexKey],
+                            cexPrices
+                        });
+
+                        // Check dan send Telegram jika profitable
+                        if (this.settings.autoSendTelegram) {
+                            await this._checkAndSendSignal(token, dexKey, pnlCexToDex, usdtRate);
+                            await this._checkAndSendSignal(token, dexKey, pnlDexToCex, usdtRate);
+                        }
+
+                    } else {
+                        this._logProgress('DEX_FETCH_GAGAL', `Quote ${dexKey} gagal untuk ${tokenName}.`, { tokenId, dexKey }, 'warn');
+
+                        // Emit PNL result dengan error state untuk DEX yang gagal
+                        this.callbacks.onPnlResult({
+                            token,
+                            dexKey,
+                            pnl: {
+                                cexToDex: { error: true, errorMessage: 'Quote gagal' },
+                                dexToCex: { error: true, errorMessage: 'Quote gagal' }
+                            },
+                            cexPrices
+                        });
+                    }
+                } catch (error) {
+                    this._logProgress('DEX_ERROR', `Error pada ${dexKey}: ${error.message}`, { tokenId, dexKey }, 'error');
+
+                    // Emit error state
+                    this.callbacks.onPnlResult({
+                        token,
+                        dexKey,
+                        pnl: {
+                            cexToDex: { error: true, errorMessage: error.message },
+                            dexToCex: { error: true, errorMessage: error.message }
+                        },
+                        cexPrices
+                    });
+                }
+            });
+
+            // TUNGGU SEMUA DEX SELESAI (parallel execution dengan stagger)
+            await Promise.allSettled(dexJobs);
 
             // Update stats
             this.scanStats.processedTokens++;

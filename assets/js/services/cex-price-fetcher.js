@@ -12,9 +12,11 @@ class CexPriceFetcher {
     constructor(config, httpModule, globalSettings) {
         this.config = config;
         this.Http = httpModule;
-        // REVISI: Gunakan jeda dari globalSettings, dengan fallback ke nilai default.
-        this.delayPerCall = globalSettings?.jedaPerAnggota || 200;
-        // Sekarang akan membaca langsung dari this.config.CEX.
+        this.globalSettings = globalSettings;
+        // REVISI: Gunakan jeda global per token, fallback ke konfigurasi default.
+        this.delayPerCall = globalSettings?.jedaKoin ?? this.config?.SCANNING_DELAYS?.jedaKoin ?? 200;
+        // Timeout default untuk CEX API
+        this.defaultTimeout = 10000; // 10 detik
     }
 
     /**
@@ -51,11 +53,21 @@ class CexPriceFetcher {
             // REVISI: Dapatkan tipe parser dari helper internal untuk konsistensi.
             const parserType = this._getParserType(cexKey);
 
+            // TIMEOUT CONFIGURATION (prioritas tertinggi ke terendah):
+            // 1. globalSettings.config_cex[cexKey].timeout (user setting)
+            // 2. config.CEX[cexKey].TIMEOUT (config default)
+            // 3. defaultTimeout (10000ms)
+            const cexKeyLower = cexKey.toLowerCase();
+            const cexKeyUpper = cexKey.toUpperCase();
+            const timeout = this.globalSettings?.config_cex?.[cexKeyLower]?.timeout ??
+                           this.config?.CEX?.[cexKeyUpper]?.TIMEOUT ??
+                           this.defaultTimeout;
+
             const response = await this.Http.request({
                 url,
                 method: 'GET',
                 responseType: 'json',
-                timeout: 10000
+                timeout
             });
 
             // REVISI: Parser ditentukan oleh config, bukan switch-case.

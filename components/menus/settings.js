@@ -59,27 +59,21 @@ const SettingsMenu = {
                     </h6>
 
                     <div class="mb-3">
-                      <label class="form-label fw-bold">Jeda Antar Batch (ms) <span class="text-danger">[1500 s/d 3000]</span></label>
+                      <label class="form-label fw-bold">Jeda Antar Grup (ms) <span class="text-danger">[1500 s/d 3000]</span></label>
                       <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaTimeGroup" min="1500" max="3000" required>
-                      <small class="form-text text-muted">Jeda antar grup/batch token. Rekomendasi: 2000ms</small>
+                      <small class="form-text text-muted">Jeda antar grup/batch koin. Rekomendasi: 1500ms</small>
                     </div>
 
                     <div class="mb-3">
-                      <label class="form-label fw-bold">Jeda Stagger Token (ms) <span class="text-danger">[300 s/d 1000]</span></label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaKoin" min="300" max="1000" required>
-                      <small class="form-text text-muted">Stagger antar token dalam batch untuk avoid rate limit. Rekomendasi: 500ms</small>
-                    </div>
-
-                    <div class="mb-3">
-                      <label class="form-label fw-bold">Jeda Default (ms) <span class="text-danger">[100 s/d 500]</span></label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaPerAnggota" min="100" max="500" required>
-                      <small class="form-text text-muted">Jeda default jika tidak ada config spesifik. Rekomendasi: 200ms</small>
+                      <label class="form-label fw-bold">Jeda Antar Aggota Grup (ms) <span class="text-danger">[100 s/d 300]</span></label>
+                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.jedaKoin" min="100" max="300" required>
+                      <small class="form-text text-muted">Stagger antar koin dalam batch untuk avoid rate limit. Rekomendasi: 500ms</small>
                     </div>
 
                     <div class="mb-2">
-                      <label class="form-label fw-bold">Timeout DEX Call (ms) <span class="text-danger">[5000 s/d 15000]</span></label>
-                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.WaktuTunggu" min="5000" max="15000" required>
-                      <small class="form-text text-muted">Waktu tunggu maksimal untuk setiap DEX call. Rekomendasi: 10000ms</small>
+                      <label class="form-label fw-bold">Timeout DEX Call (ms) <span class="text-danger">[5000 s/d 10000]</span></label>
+                      <input type="number" class="form-control form-control-sm" v-model.number="settingsForm.WaktuTunggu" min="5000" max="10000" required>
+                      <small class="form-text text-muted">Waktu tunggu maksimal untuk setiap DEX call. Rekomendasi: 5000ms</small>
                     </div>
                   </div>
                 </div>

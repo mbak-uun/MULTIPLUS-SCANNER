@@ -103,6 +103,12 @@ class PnlCalculator {
         const pnlNettoUsd = finalUsdReceived - modalUsd - totalCostUsd;
         const pnlPercent = modalUsd > 0 ? (pnlNettoUsd / modalUsd) * 100 : 0;
 
+        // TAMBAHAN: Hitung rate DEX dalam USDT (harga per 1 token di DEX)
+        // Rate DEX = (pairReceived × sellPriceForPair) / tokenAmountAfterWithdrawal
+        const dexRateUsdt = tokenAmountAfterWithdrawal > 0
+            ? (pairReceived * sellPriceForPair) / tokenAmountAfterWithdrawal
+            : 0;
+
         return {
             direction: 'CEXtoDEX',
             modal: modalUsd,
@@ -121,7 +127,8 @@ class PnlCalculator {
                 tokenAmount: tokenAmountBought,
                 tokenAfterWithdrawal: tokenAmountAfterWithdrawal,
                 pairReceived,
-                sellPrice: sellPriceForPair
+                sellPrice: sellPriceForPair,
+                dexRateUsdt // Rate DEX dalam USDT
             },
             timestamp: Date.now()
         };
@@ -192,6 +199,15 @@ class PnlCalculator {
         const pnlNettoUsd = finalUsdReceived - modalUsd - totalCostUsd;
         const pnlPercent = modalUsd > 0 ? (pnlNettoUsd / modalUsd) * 100 : 0;
 
+        // TAMBAHAN: Hitung rate DEX dalam USDT (harga per 1 token di DEX)
+        // Untuk DEX→CEX: Swap USDT → TOKEN
+        // Rate TOKEN = berapa USDT per 1 TOKEN
+        // Formula: pairInput / tokenOutput
+        // Contoh: 99 USDT → 19,500 TOKEN = 99 / 19,500 = 0.005077 USDT per TOKEN
+        const dexRateUsdt = tokenReceived > 0
+            ? pairAmountAfterWithdrawal / tokenReceived
+            : 0;
+
         return {
             direction: 'DEXtoCEX',
             modal: modalUsd,
@@ -210,7 +226,8 @@ class PnlCalculator {
                 pairAmount: pairAmountBought,
                 pairAfterWithdrawal: pairAmountAfterWithdrawal,
                 tokenReceived,
-                sellPrice: sellPriceForToken
+                sellPrice: sellPriceForToken,
+                dexRateUsdt // Rate DEX dalam USDT
             },
             timestamp: Date.now()
         };

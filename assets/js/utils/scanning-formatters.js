@@ -279,11 +279,9 @@ const ScanningFormatters = {
     const buyPrice = this.formatPriceWithZeros(details.buyPrice || details.buyPriceForPair);
     const sellPrice = this.formatPriceWithZeros(details.sellPrice);
 
-    // Output amount (jumlah token/pair yang didapat dari swap)
-    const outputAmount = direction === 'CEXtoDEX'
-      ? details.pairReceived
-      : details.tokenReceived;
-    const outputAmountFormatted = outputAmount ? `${outputAmount.toFixed(4)}$` : '-';
+    // DEX Rate dalam USDT (harga per 1 token di DEX) - DISAMAKAN DENGAN PERHITUNGAN PNL
+    const dexRateUsdt = details.dexRateUsdt || 0;
+    const dexRateFormatted = dexRateUsdt > 0 ? this.formatPriceWithZeros(dexRateUsdt) : '-';
 
     // Fees
     const feeWD = costs.withdrawal.toFixed(2);
@@ -296,7 +294,7 @@ const ScanningFormatters = {
     const pnlUsdAbs = Math.abs(pnl).toFixed(2);
 
     const buyPriceBlock = renderTradeValue(cexBuyLink, buyPrice, 'scanning-dex-value text-success d-block fw-semibold');
-    const outputBlock = renderTradeValue(dexLink, outputAmountFormatted, 'text-primary scanning-dex-value d-block fw-semibold');
+    const dexRateBlock = renderTradeValue(dexLink, dexRateFormatted, 'text-primary scanning-dex-value d-block fw-semibold');
     const sellPriceBlock = renderTradeValue(cexSellLink, sellPrice, 'scanning-dex-value text-danger d-block fw-semibold');
 
     // Tampilkan modal jika ada
@@ -317,7 +315,7 @@ const ScanningFormatters = {
       <div class="${cellClass}">
         ${buildHeader(modalRaw)}
         <div class="scanning-dex-line">${buyPriceBlock}</div>
-        <div class="scanning-dex-line">${outputBlock}</div>
+        <div class="scanning-dex-line">${dexRateBlock}</div>
         <div class="scanning-dex-line">${sellPriceBlock}</div>
         <div class="scanning-dex-line">
           <span class="text-info fw-semibold">FeeWD:</span>

@@ -96,10 +96,9 @@ const scannerMixin = {
 
                 // ADOPSI APLIKASI LAMA: Delay settings dari config
                 jedaTimeGroup: this.$root.config?.SCANNING_DELAYS?.jedaTimeGroup || 2000,
-                jedaKoin: this.$root.config?.SCANNING_DELAYS?.jedaKoin || 500,
+                jedaKoin: this.$root.globalSettings?.jedaKoin ?? this.$root.config?.SCANNING_DELAYS?.jedaKoin ?? 500,
                 JedaCexs: this.$root.config?.SCANNING_DELAYS?.JedaCexs || {},
                 JedaDexs: this.$root.config?.SCANNING_DELAYS?.JedaDexs || {},
-                jedaPerAnggota: this.$root.config?.SCANNING_DELAYS?.jedaPerAnggota || 200,
                 dexTimeout: this.$root.config?.SCANNING_DELAYS?.dexTimeout || 10000,
 
                 autoSendTelegram: true,
