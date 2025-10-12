@@ -1,0 +1,248 @@
+/**
+ * ===================================================================================
+ * CEX Price Fetcher Service
+ * ===================================================================================
+ *
+ * Tanggung Jawab:
+ * - Mengambil data orderbook (bids & asks) dari CEX (Binance, Gate.io, dll)
+ * - Mendapatkan harga terbaik untuk buy/sell
+ * - Mengelola rate-limiting untuk API CEX
+ * - OPTIMIZED: Menggunakan CentralizedApiService untuk caching dan deduplication
+ * - OPTIMIZED: Menggunakan PriceCache untuk shared price data
+ */
+class CexPriceFetcher {
+    constructor(config, httpModule, globalSettings) {
+        this.config = config;
+        this.Http = httpModule;
+        this.globalSettings = globalSettings || {};
+        // REVISI: Gunakan jeda global per token, fallback ke konfigurasi default.
+        this.delayPerCall = globalSettings?.jedaKoin ?? this.config?.SCANNING_DELAYS?.jedaKoin ?? 200;
+        // Timeout default untuk CEX API
+        this.defaultTimeout = 10000; // 10 detik
+
+        // OPTIMIZATION: Enable caching by default (can be disabled via settings)
+        this.enableCache = true;
+    }
+
+    /**
+     * Mengambil orderbook dari CEX untuk token tertentu
+     * @param {string} cexKey - Nama CEX (binance, gateio, dll)
+     * @param {string} symbol - Trading pair symbol (contoh: BTC/USDT)
+     * @param {string} tokenId - Optional token ID for cache key
+     * @param {string} chain - Optional chain for cache key
+     * @returns {Promise<object>} - { bestBid, bestAsk, bids, asks }
+     */
+    async getOrderbook(cexKey, symbol, tokenId = null, chain = null) {
+        // REVISI: Jika simbol adalah USDT, tidak perlu fetch. Langsung kembalikan data mock.
+        if (symbol && symbol.toUpperCase() === 'USDT') {
+            return {
+                bestBid: 1,
+                bestAsk: 1,
+                bids: [{ price: 1, quantity: 10000 }],
+                asks: [{ price: 1, quantity: 10000 }]
+            };
+        }
+
+        // REVISI: Mengambil konfigurasi langsung dari this.config (config_app.js)
+        const cexConfig = this.config.CEX?.[cexKey.toUpperCase()];
+        // REVISI: Path yang benar adalah di dalam URLS.
+        const orderbookUrl = cexConfig?.URLS?.ORDERBOOK;
+
+        if (!orderbookUrl) {
+            logger.warn(`[CexPriceFetcher] Konfigurasi ORDERBOOK untuk CEX '${cexKey}' tidak ditemukan di config_app.js`);
+            return null;
+        }
+
+        // OPTIMIZATION: Try PriceCache first if tokenId and chain are provided
+        if (this.enableCache && tokenId && chain && typeof window.PriceCache !== 'undefined') {
+            const cached = window.PriceCache.get(chain, tokenId, cexKey);
+            if (cached) {
+                logger.log(`[CexPriceFetcher] Using cached orderbook for ${symbol} on ${cexKey}`);
+                return cached;
+            }
+        }
+
+        try {
+            // REVISI: URL dibangun dengan mengganti placeholder {symbol} dengan ticker yang sudah diformat.
+            const url = orderbookUrl.replace('{symbol}', symbol);
+            // REVISI: Dapatkan tipe parser dari helper internal untuk konsistensi.
+            const parserType = this._getParserType(cexKey);
+
+            // TIMEOUT CONFIGURATION (prioritas tertinggi ke terendah):
+            // 1. globalSettings.config_cex[cexKey].timeout (user setting)
+            // 2. config.CEX[cexKey].TIMEOUT (config default)
+            // 3. defaultTimeout (10000ms)
+            const cexKeyLower = cexKey.toLowerCase();
+            const cexKeyUpper = cexKey.toUpperCase();
+            const timeout = this.globalSettings?.config_cex?.[cexKeyLower]?.timeout ??
+                           this.config?.CEX?.[cexKeyUpper]?.TIMEOUT ??
+                           this.defaultTimeout;
+
+            // OPTIMIZATION: Use CentralizedApiService if available
+            let response;
+            if (this.enableCache && typeof window.CentralizedApiService !== 'undefined') {
+                response = await window.CentralizedApiService.fetch({
+                    service: `cex-${cexKey.toLowerCase()}`,
+                    endpoint: 'orderbook',
+                    params: { symbol },
+                    ttlType: 'orderbook',
+                    fetchFn: async () => {
+                        return await this.Http.request({
+                            url,
+                            method: 'GET',
+                            responseType: 'json',
+                            timeout
+                        });
+                    }
+                });
+            } else {
+                // Fallback to direct HTTP call
+                response = await this.Http.request({
+                    url,
+                    method: 'GET',
+                    responseType: 'json',
+                    timeout
+                });
+            }
+
+            // REVISI: Parser ditentukan oleh config, bukan switch-case.
+            const parsed = this._parseOrderbook(response, parserType);
+
+            // OPTIMIZATION: Store in PriceCache if tokenId and chain are provided
+            if (this.enableCache && tokenId && chain && parsed && typeof window.PriceCache !== 'undefined') {
+                window.PriceCache.set(chain, tokenId, cexKey, parsed);
+            }
+
+            return parsed;
+
+        } catch (error) {
+            logger.error(`[CexPriceFetcher] Failed to fetch orderbook from ${cexKey}:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Menentukan tipe parser berdasarkan konfigurasi CEX.
+     * @private
+     */
+    _getParserType(cexKey) {
+        const cex = cexKey.toUpperCase();
+        // Logika ini dibuat untuk kompatibilitas dengan berbagai format API
+        switch (cex) {
+            case 'KUCOIN':
+                return 'kucoin';
+            case 'BITGET':
+            case 'MEXC': // MEXC v3 punya struktur data yang mirip
+                return 'bitget';
+            case 'BYBIT':
+                return 'bybit';
+            case 'INDODAX':
+                // Indodax memiliki format { buy: [[price, amount]], sell: [[price, amount]] }
+                return 'indodax';
+            case 'BINANCE':
+            case 'GATE': // Gate.io v4 API
+                return 'standard';
+            default:
+                return 'standard';
+        }
+    }
+
+    /**
+     * Parse orderbook response dari berbagai CEX
+     * @private
+     * @param {object} response - Data JSON dari API CEX.
+     * @param {string} parserType - Tipe parser dari config (e.g., 'standard', 'kucoin', 'bybit').
+     */
+    _parseOrderbook(response, parserType) {
+        let bids = [];
+        let asks = [];
+
+        // REVISI: Menggunakan parserType dari config untuk menentukan cara parsing.
+        switch (parserType) {
+            case 'standard': // Gate.io juga menggunakan 'standard'
+                bids = response.bids || [];
+                asks = response.asks || [];
+                break;
+            case 'kucoin':
+            case 'bitget':
+            case 'mexc': // MEXC API v3 memiliki struktur yang sama dengan Kucoin/Bitget
+                // Parser untuk KuCoin dan Bitget yang memiliki struktur { data: { bids: [], asks: [] } }
+                bids = response.data?.bids || [];
+                asks = response.data?.asks || [];
+                break;
+            case 'bybit':
+                // Parser untuk Bybit yang memiliki struktur { result: { b: [], a: [] } }
+                bids = response.result?.b || [];
+                asks = response.result?.a || [];
+                break;
+
+            case 'indodax':
+                bids = response.bids || response.buy || []; // 'bids' adalah format baru, 'buy' adalah fallback untuk API lama
+                asks = response.asks || response.sell || []; // 'asks' adalah format baru, 'sell' adalah fallback
+                break;
+
+            default:
+                bids = response.bids || [];
+                asks = response.asks || [];
+        }
+
+        // Konversi ke format standar: array of objects { price, quantity }
+        const parsedBids = bids.map(b => ({
+            price: parseFloat(b[0]),
+            quantity: parseFloat(b[1])
+        }));
+
+        const parsedAsks = asks.map(a => ({
+            price: parseFloat(a[0]), // Harga jual
+            quantity: parseFloat(a[1]) // Jumlah
+        }));
+
+        return {
+            bestBid: parsedBids[0]?.price || 0,  // Harga beli tertinggi
+            bestAsk: parsedAsks[0]?.price || 0,  // Harga jual terendah
+            bids: parsedBids,
+            asks: parsedAsks
+        };
+    }
+
+    /**
+     * Delay helper untuk rate limiting
+     * @private
+     */
+    async _delay() {
+        return new Promise(resolve => setTimeout(resolve, this.delayPerCall));
+    }
+
+    updateGlobalSettings(globalSettings = {}) {
+        this.globalSettings = globalSettings || {};
+        this.delayPerCall = this.globalSettings?.jedaKoin ?? this.config?.SCANNING_DELAYS?.jedaKoin ?? 200;
+    }
+
+    /**
+     * OPTIMIZATION: Enable or disable caching
+     * @param {boolean} enabled
+     */
+    setCacheEnabled(enabled) {
+        this.enableCache = enabled;
+        logger.log(`[CexPriceFetcher] Caching ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    /**
+     * OPTIMIZATION: Clear all cached prices
+     */
+    clearCache() {
+        if (typeof window.PriceCache !== 'undefined') {
+            window.PriceCache.clear();
+            logger.log('[CexPriceFetcher] Price cache cleared');
+        }
+        if (typeof window.CentralizedApiService !== 'undefined') {
+            window.CentralizedApiService.clearCache(/^cex-/);
+            logger.log('[CexPriceFetcher] API cache cleared');
+        }
+    }
+}
+
+// Export untuk digunakan di window global
+if (typeof window !== 'undefined') {
+    window.CexPriceFetcher = CexPriceFetcher;
+}

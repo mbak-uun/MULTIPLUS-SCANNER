@@ -1,0 +1,455 @@
+/* ====================================================================== */
+/* TYPOGRAPHY SYSTEM - Standardized Font Sizes & Hierarchy              */
+/* ====================================================================== */
+
+/**
+ * Masalah yang Diperbaiki:
+ * - Inkonsistensi ukuran font untuk CEX/DEX/CHAIN/PAIR (0.6rem - 1rem)
+ * - Title/heading tidak jelas hierarchy-nya
+ * - Badge dan chip ukurannya bervariasi (0.56rem - 0.9rem)
+ * - Button font size tidak konsisten
+ *
+ * Solusi:
+ * - Standardized typography scale
+ * - Clear hierarchy (Title > Subtitle > Body > Caption > Label)
+ * - Consistent sizing untuk elements yang sama
+ */
+
+:root {
+  /* ====== TYPOGRAPHY SCALE (Extended) ====== */
+  --font-size-2xs: 0.625rem;   /* 10px - Micro labels */
+  --font-size-xs: 0.75rem;     /* 12px - Small labels, badges */
+  --font-size-sm: 0.875rem;    /* 14px - Body small, buttons */
+  --font-size-base: 1rem;      /* 16px - Base body text */
+  --font-size-md: 1.125rem;    /* 18px - Large body */
+  --font-size-lg: 1.25rem;     /* 20px - H4, Large buttons */
+  --font-size-xl: 1.5rem;      /* 24px - H3 */
+  --font-size-2xl: 1.875rem;   /* 30px - H2 */
+  --font-size-3xl: 2.25rem;    /* 36px - H1 */
+
+  /* ====== FONT WEIGHTS ====== */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* ====== LINE HEIGHTS ====== */
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* ====== LETTER SPACING ====== */
+  --letter-spacing-tighter: -0.05em;
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wider: 0.05em;
+  --letter-spacing-widest: 0.1em;
+}
+
+/* ====================================================================== */
+/* HEADING HIERARCHY                                                     */
+/* ====================================================================== */
+
+/* Page Title */
+.text-page-title,
+.page-title {
+  font-size: var(--font-size-2xl);    /* 30px */
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* Section Title */
+.text-section-title,
+.section-title {
+  font-size: var(--font-size-xl);     /* 24px */
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* Card Title / Subsection Title */
+.text-card-title,
+.card-title {
+  font-size: var(--font-size-lg);     /* 20px */
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+/* Small Title / Strong Label */
+.text-title-sm {
+  font-size: var(--font-size-md);     /* 18px */
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+/* ====================================================================== */
+/* BODY TEXT HIERARCHY                                                   */
+/* ====================================================================== */
+
+/* Large Body (Default for important content) */
+.text-body-lg {
+  font-size: var(--font-size-base);   /* 16px */
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+/* Standard Body */
+.text-body,
+body {
+  font-size: var(--font-size-sm);     /* 14px */
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+/* Small Body */
+.text-body-sm {
+  font-size: var(--font-size-xs);     /* 12px */
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+/* Caption / Helper Text */
+.text-caption {
+  font-size: var(--font-size-2xs);    /* 10px */
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-snug);
+  color: var(--text-muted);
+}
+
+/* ====================================================================== */
+/* STANDARDIZED BADGES & CHIPS                                           */
+/* ====================================================================== */
+
+/**
+ * STANDARDISASI: Semua badge CEX/DEX/CHAIN/PAIR menggunakan ukuran yang sama
+ */
+
+/* Default Badge Size - Untuk CEX, DEX, CHAIN, PAIR */
+.badge,
+.badge-cex,
+.badge-dex,
+.badge-chain,
+.badge-pair {
+  font-size: var(--font-size-xs);     /* 12px - STANDARD */
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+/* Small Badge - Untuk space terbatas */
+.badge-sm {
+  font-size: var(--font-size-2xs);    /* 10px */
+  font-weight: var(--font-weight-medium);
+  padding: 0.2rem 0.4rem;
+}
+
+/* Large Badge - Untuk emphasis */
+.badge-lg {
+  font-size: var(--font-size-sm);     /* 14px */
+  font-weight: var(--font-weight-semibold);
+  padding: 0.35rem 0.75rem;
+}
+
+/* Chips (pills with icon) */
+.chip {
+  font-size: var(--font-size-xs);     /* 12px - STANDARD */
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-pill);
+}
+
+/* ====================================================================== */
+/* STANDARDIZED BUTTONS                                                  */
+/* ====================================================================== */
+
+/* Button Default */
+.btn {
+  font-size: var(--font-size-sm);     /* 14px - STANDARD */
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  padding: var(--btn-padding-y) var(--btn-padding-x);
+}
+
+/* Small Button */
+.btn-sm {
+  font-size: var(--font-size-xs);     /* 12px */
+  padding: 0.375rem 0.75rem;
+}
+
+/* Large Button */
+.btn-lg {
+  font-size: var(--font-size-base);   /* 16px */
+  padding: 0.625rem 1.25rem;
+}
+
+/* Icon Button */
+.btn-icon {
+  font-size: var(--font-size-lg);     /* 20px icon */
+}
+
+/* ====================================================================== */
+/* TABLE TYPOGRAPHY                                                      */
+/* ====================================================================== */
+
+/* Table Header */
+.table thead th {
+  font-size: var(--font-size-xs);     /* 12px */
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+/* Table Body */
+.table tbody td {
+  font-size: var(--font-size-sm);     /* 14px - STANDARD */
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+/* Table Small (untuk data dense) */
+.table-sm thead th {
+  font-size: var(--font-size-2xs);    /* 10px */
+}
+
+.table-sm tbody td {
+  font-size: var(--font-size-xs);     /* 12px */
+}
+
+/* ====================================================================== */
+/* INPUT & FORM ELEMENTS                                                 */
+/* ====================================================================== */
+
+/* Input Fields */
+.form-control,
+.form-select {
+  font-size: var(--font-size-sm);     /* 14px - STANDARD */
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+/* Input Labels */
+.form-label {
+  font-size: var(--font-size-sm);     /* 14px */
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+}
+
+/* Input Helper Text */
+.form-text {
+  font-size: var(--font-size-xs);     /* 12px */
+  color: var(--text-muted);
+}
+
+/* ====================================================================== */
+/* SPECIFIC COMPONENT OVERRIDES                                          */
+/* ====================================================================== */
+
+/**
+ * SCANNING TAB - Standardisasi ukuran
+ */
+.scanning-tab {
+  /* Token Name/Symbol */
+  --token-name-size: var(--font-size-sm);      /* 14px */
+  --token-symbol-size: var(--font-size-xs);    /* 12px */
+
+  /* CEX/DEX Names */
+  --exchange-name-size: var(--font-size-xs);   /* 12px - STANDARD */
+
+  /* Prices */
+  --price-size: var(--font-size-sm);           /* 14px */
+  --price-small-size: var(--font-size-xs);     /* 12px */
+
+  /* PNL Values */
+  --pnl-size: var(--font-size-sm);             /* 14px */
+
+  /* Table Headers */
+  --table-header-size: var(--font-size-2xs);   /* 10px */
+
+  /* Table Body */
+  --table-body-size: var(--font-size-xs);      /* 12px */
+}
+
+.scanning-tab .token-name {
+  font-size: var(--token-name-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+.scanning-tab .token-symbol {
+  font-size: var(--token-symbol-size);
+  color: var(--text-muted);
+}
+
+.scanning-tab .exchange-badge {
+  font-size: var(--exchange-name-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.scanning-tab .price-value {
+  font-size: var(--price-size);
+  font-weight: var(--font-weight-medium);
+}
+
+.scanning-tab .pnl-value {
+  font-size: var(--pnl-size);
+  font-weight: var(--font-weight-semibold);
+}
+
+/**
+ * MANAGEMENT TAB - Standardisasi ukuran
+ */
+.management-tab .token-info {
+  font-size: var(--font-size-sm);              /* 14px - STANDARD */
+}
+
+.management-tab .token-meta {
+  font-size: var(--font-size-xs);              /* 12px */
+  color: var(--text-muted);
+}
+
+/**
+ * PORTFOLIO TAB - Standardisasi ukuran
+ */
+.portfolio-tab .asset-name {
+  font-size: var(--font-size-sm);              /* 14px */
+  font-weight: var(--font-weight-semibold);
+}
+
+.portfolio-tab .asset-value {
+  font-size: var(--font-size-base);            /* 16px */
+  font-weight: var(--font-weight-bold);
+}
+
+.portfolio-tab .asset-change {
+  font-size: var(--font-size-sm);              /* 14px */
+}
+
+/**
+ * SYNC TAB - Standardisasi ukuran
+ */
+.sync-tab .cex-card-title {
+  font-size: var(--font-size-md);              /* 18px */
+  font-weight: var(--font-weight-semibold);
+}
+
+.sync-tab .token-count {
+  font-size: var(--font-size-lg);              /* 20px */
+  font-weight: var(--font-weight-bold);
+}
+
+/**
+ * SETTINGS TAB - Standardisasi ukuran
+ */
+.settings-tab .setting-label {
+  font-size: var(--font-size-sm);              /* 14px */
+  font-weight: var(--font-weight-medium);
+}
+
+.settings-tab .setting-description {
+  font-size: var(--font-size-xs);              /* 12px */
+  color: var(--text-muted);
+}
+
+/* ====================================================================== */
+/* UTILITY CLASSES                                                       */
+/* ====================================================================== */
+
+/* Font Sizes */
+.text-2xs { font-size: var(--font-size-2xs) !important; }
+.text-xs { font-size: var(--font-size-xs) !important; }
+.text-sm { font-size: var(--font-size-sm) !important; }
+.text-base { font-size: var(--font-size-base) !important; }
+.text-md { font-size: var(--font-size-md) !important; }
+.text-lg { font-size: var(--font-size-lg) !important; }
+.text-xl { font-size: var(--font-size-xl) !important; }
+.text-2xl { font-size: var(--font-size-2xl) !important; }
+.text-3xl { font-size: var(--font-size-3xl) !important; }
+
+/* Font Weights */
+.font-normal { font-weight: var(--font-weight-normal) !important; }
+.font-medium { font-weight: var(--font-weight-medium) !important; }
+.font-semibold { font-weight: var(--font-weight-semibold) !important; }
+.font-bold { font-weight: var(--font-weight-bold) !important; }
+.font-extrabold { font-weight: var(--font-weight-extrabold) !important; }
+
+/* Line Heights */
+.leading-tight { line-height: var(--line-height-tight) !important; }
+.leading-snug { line-height: var(--line-height-snug) !important; }
+.leading-normal { line-height: var(--line-height-normal) !important; }
+.leading-relaxed { line-height: var(--line-height-relaxed) !important; }
+.leading-loose { line-height: var(--line-height-loose) !important; }
+
+/* Letter Spacing */
+.tracking-tighter { letter-spacing: var(--letter-spacing-tighter) !important; }
+.tracking-tight { letter-spacing: var(--letter-spacing-tight) !important; }
+.tracking-normal { letter-spacing: var(--letter-spacing-normal) !important; }
+.tracking-wide { letter-spacing: var(--letter-spacing-wide) !important; }
+.tracking-wider { letter-spacing: var(--letter-spacing-wider) !important; }
+.tracking-widest { letter-spacing: var(--letter-spacing-widest) !important; }
+
+/* Text Transform */
+.uppercase { text-transform: uppercase !important; }
+.lowercase { text-transform: lowercase !important; }
+.capitalize { text-transform: capitalize !important; }
+.normal-case { text-transform: none !important; }
+
+/* ====================================================================== */
+/* RESPONSIVE ADJUSTMENTS                                                */
+/* ====================================================================== */
+
+/* Mobile: Slightly smaller for better space utilization */
+@media (max-width: 768px) {
+  :root {
+    --font-size-base: 0.9375rem;   /* 15px instead of 16px */
+    --font-size-sm: 0.8125rem;     /* 13px instead of 14px */
+  }
+
+  .text-page-title,
+  .page-title {
+    font-size: var(--font-size-xl);  /* 24px instead of 30px */
+  }
+
+  .text-section-title,
+  .section-title {
+    font-size: var(--font-size-lg);  /* 20px instead of 24px */
+  }
+
+  /* Tables on mobile - even more compact */
+  .table thead th {
+    font-size: 0.625rem;             /* 10px */
+  }
+
+  .table tbody td {
+    font-size: var(--font-size-xs);  /* 12px */
+  }
+}
+
+/* Tablet: Standard sizes */
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Use default sizes */
+}
+
+/* Desktop: Comfortable reading sizes */
+@media (min-width: 1025px) {
+  :root {
+    --font-size-base: 1rem;          /* 16px */
+    --font-size-sm: 0.875rem;        /* 14px */
+  }
+}
+
+/* Large Desktop: Slightly larger for readability */
+@media (min-width: 1440px) {
+  :root {
+    --font-size-base: 1.0625rem;     /* 17px */
+    --font-size-sm: 0.9375rem;       /* 15px */
+  }
+}
