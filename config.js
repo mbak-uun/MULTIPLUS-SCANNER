@@ -155,7 +155,7 @@ const CONFIG_CHAINS = {
            KUCOIN: { address : '0x9AC5637d295FEA4f51E086C329d791cC157B1C84', address2 : '0xD6216fC19DB775Df9774a6E33526131dA7D19a2c', chainCEX : 'Polygon POS' },
            BITGET: { address : '0x0639556F03714A74a5fEEaF5736a4A64fF70D206', address2 : '0x51971c86b04516062c1e708CDC048CB04fbe959f', address3 : '0xBDf5bAfEE1291EEc45Ae3aadAc89BE8152D4E673', chainCEX : 'Polygon' },
            BYBIT: { address : '0xf89d7b9c864f589bbF53a82105107622B35EaA40', chainCEX : 'Polygon PoS' },
-          // INDODAX: { address : '0x3C02290922a3618A4646E3BbCa65853eA45FE7C6', address2 : '0x91Dca37856240E5e1906222ec79278b16420Dc92', chainCEX : 'POLYGON' },   
+           INDODAX: { address : '0x3C02290922a3618A4646E3BbCa65853eA45FE7C6', address2 : '0x91Dca37856240E5e1906222ec79278b16420Dc92', chainCEX : 'POLYGON' },   
         },
         PAIRDEXS: {
            "USDT": { symbolPair: 'USDT', scAddressPair: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', desPair: '6' },

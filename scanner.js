@@ -289,6 +289,22 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
     // Kirim notifikasi status 'ONLINE' ke Telegram.
     sendStatusTELE(ConfigScan.nickname, 'ONLINE');
 
+    // Atur warna progress bar berdasarkan mode
+    try {
+        let progressBarColor = '#42b72a'; // Warna default (hijau)
+        if (mMode.type === 'single' && mMode.chain) {
+            const chainConfig = (window.CONFIG_CHAINS || {})[mMode.chain];
+            if (chainConfig && chainConfig.WARNA) {
+                progressBarColor = chainConfig.WARNA;
+            }
+        }
+        // Terapkan warna ke elemen progress bar
+        const progressBar = document.getElementById('progress-bar');
+        if (progressBar) {
+            progressBar.style.backgroundColor = progressBarColor;
+        }
+    } catch (e) { console.warn("Gagal mengatur warna progress bar:", e); }
+
     // Ambil parameter jeda dan kecepatan dari settings.
     let scanPerKoin = parseInt(ConfigScan.scanPerKoin || 1);
     let jedaKoin = parseInt(ConfigScan.jedaKoin || 500);
