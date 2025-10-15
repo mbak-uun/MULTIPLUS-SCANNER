@@ -243,6 +243,19 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
 
     // --- PERSIAPAN STATE & UI SEBELUM SCAN ---
 
+    // === SET GLOBAL SCANNING LOCK ===
+    try {
+        const chainLabel = allowedChains.map(c => String(c).toUpperCase()).join(', ');
+        saveToLocalStorage('GLOBAL_SCAN_LOCK', {
+            isScanning: true,
+            chain: chainLabel,
+            timestamp: Date.now()
+        });
+       // console.log(`[GLOBAL LOCK] Set untuk chain: ${chainLabel}`);
+    } catch(e) {
+       // console.error('[GLOBAL LOCK] Error setting lock:', e);
+    }
+
     // Set state aplikasi menjadi 'berjalan' (run: 'YES').
     setAppState({ run: 'YES' });
     setPageTitleForRun(true);
@@ -426,12 +439,12 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
 
         // Proses item dari antrian selama masih ada dan budget waktu belum habis.
         if (uiUpdateQueue.length > 0) {
-            console.log(`[PROCESS QUEUE] Processing ${uiUpdateQueue.length} items in queue`);
+            //(`[PROCESS QUEUE] Processing ${uiUpdateQueue.length} items in queue`);
         }
         while (uiUpdateQueue.length) {
             const updateData = uiUpdateQueue.shift();
             if (updateData) {
-                console.log(`[PROCESS ITEM]`, { type: updateData?.type, id: updateData?.id || updateData?.idPrefix + updateData?.baseId });
+               // console.log(`[PROCESS ITEM]`, { type: updateData?.type, id: updateData?.id || updateData?.idPrefix + updateData?.baseId });
             }
             // Jika item adalah error, update sel dengan pesan error.
             if (updateData && updateData.type === 'error') {
@@ -921,7 +934,7 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                                         try { if (window.SCAN_LOG_ENABLED) console.log(lines); } catch(_) {}
                                     } catch(_) {}
                                     // Masukkan hasil kalkulasi ke antrian pembaruan UI.
-                                    console.log(`[PUSH TO QUEUE] Pushing update to uiUpdateQueue`, { idCELL, isFallback, type: update.type });
+                                   // console.log(`[PUSH TO QUEUE] Pushing update to uiUpdateQueue`, { idCELL, isFallback, type: update.type });
                                     uiUpdateQueue.push(update);
                                     if (!isScanRunning) {
                                         try {
@@ -958,7 +971,7 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                                     if (dexConfig && dexConfig.allowFallback) {
                                         // REFACTORED: Tidak update UI dengan error dari primary DEX
                                         // Langsung tampilkan status fallback (SWOOP) tanpa menampilkan error primary
-                                        console.log(`[FALLBACK] Primary DEX ${dex.toUpperCase()} error, trying fallback...`, { idCELL, error: msg });
+                                       // console.log(`[FALLBACK] Primary DEX ${dex.toUpperCase()} error, trying fallback...`, { idCELL, error: msg });
                                         updateDexCellStatus('fallback', dex, '');
                                         // Mulai countdown untuk SWOOP fallback (menggunakan speedScan dari setting user)
                                         try {
@@ -1025,7 +1038,7 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                                                     source = routeTool;
                                                 }
                                             }
-                                            console.log(`[FALLBACK SUCCESS] ${dex.toUpperCase()} fallback succeeded via ${source}`, { idCELL, amount_out: fallbackRes.amount_out });
+                                           // console.log(`[FALLBACK SUCCESS] ${dex.toUpperCase()} fallback succeeded via ${source}`, { idCELL, amount_out: fallbackRes.amount_out });
                                             handleSuccess(fallbackRes, true, source);
                                         })
                                         // Jika fallback juga gagal, tampilkan error final.
@@ -1044,7 +1057,7 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                                             } catch(_) {}
                                             try { clearDexTickerById(idCELL); } catch(_) {}
                                             // REFACTORED: Tampilkan error dari alternatif, bukan error dari primary
-                                            console.log(`[FALLBACK ERROR] ${dex.toUpperCase()} fallback also failed`, { idCELL, error: finalMessage });
+                                            //console.log(`[FALLBACK ERROR] ${dex.toUpperCase()} fallback also failed`, { idCELL, error: finalMessage });
                                             updateDexCellStatus('fallback_error', dex, finalMessage);
                                             try {
                                                 // Align console info with requested orderbook logic
@@ -1279,17 +1292,17 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
         updateProgress(tokensToProcess.length, tokensToProcess.length, startTime, 'SELESAI');
 
         // REFACTORED: Tunggu semua request DEX (termasuk fallback) benar-benar selesai.
-        console.log('[FINAL] Waiting for pending DEX requests to settle...');
+       //('[FINAL] Waiting for pending DEX requests to settle...');
         await waitForPendingDexRequests(8000);
         if (activeDexRequests > 0) {
             console.warn(`[FINAL] Continuing with ${activeDexRequests} pending DEX request(s) after timeout window.`);
         }
 
         // Trigger final processUiUpdates untuk memastikan semua item di queue diproses
-        console.log(`[FINAL] Queue length before final processing: ${uiUpdateQueue.length}`);
+       // console.log(`[FINAL] Queue length before final processing: ${uiUpdateQueue.length}`);
 
         if (uiUpdateQueue.length > 0) {
-            console.log(`[FINAL] Processing remaining ${uiUpdateQueue.length} items in queue...`);
+           // console.log(`[FINAL] Processing remaining ${uiUpdateQueue.length} items in queue...`);
 
             // Process semua item yang ada di queue
             while (uiUpdateQueue.length > 0) {
@@ -1320,22 +1333,35 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                     }
                     continue;
                 }
-                console.log(`[FINAL PROCESS]`, { idCELL: updateData.idPrefix + updateData.baseId });
+               // console.log(`[FINAL PROCESS]`, { idCELL: updateData.idPrefix + updateData.baseId });
                 try {
                     DisplayPNL(updateData);
                 } catch(e) {
                     console.error('[FINAL PROCESS ERROR]', e);
                 }
             }
-            console.log('[FINAL] All items processed.');
+           // console.log('[FINAL] All items processed.');
         } else {
-            console.log('[FINAL] No items in queue to process.');
+           // console.log('[FINAL] No items in queue to process.');
         }
 
         // Set flag dan hentikan loop UI.
         isScanRunning = false;
         cancelAnimationFrame(animationFrameId);
         setPageTitleForRun(false);
+
+        // === RELEASE GLOBAL SCANNING LOCK ===
+        try {
+            saveToLocalStorage('GLOBAL_SCAN_LOCK', {
+                isScanning: false,
+                chain: null,
+                timestamp: Date.now()
+            });
+           // console.log('[GLOBAL LOCK] Released - scanning selesai');
+        } catch(e) {
+            console.error('[GLOBAL LOCK] Error releasing lock:', e);
+        }
+
         // Aktifkan kembali UI.
         form_on();
         $("#stopSCAN").hide().prop("disabled", true);
@@ -1397,6 +1423,19 @@ async function stopScanner() {
     window.__autoRunInterval = null;
     setPageTitleForRun(false);
     if (typeof form_on === 'function') form_on();
+
+    // === RELEASE GLOBAL SCANNING LOCK ===
+    try {
+        saveToLocalStorage('GLOBAL_SCAN_LOCK', {
+            isScanning: false,
+            chain: null,
+            timestamp: Date.now()
+        });
+       // console.log('[GLOBAL LOCK] Released - scan stopped manually');
+    } catch(e) {
+       // console.error('[GLOBAL LOCK] Error releasing lock on stop:', e);
+    }
+
     // Set flag agar halaman yang di-reload tahu bahwa scan dihentikan.
     try { sessionStorage.setItem('APP_FORCE_RUN_NO', '1'); } catch(_) {}
     // Simpan state 'run:NO' dan update indikator UI sebelum reload.
@@ -1411,6 +1450,19 @@ async function stopScanner() {
 function stopScannerSoft() {
     isScanRunning = false;
     try { cancelAnimationFrame(animationFrameId); } catch(_) {}
+
+    // === RELEASE GLOBAL SCANNING LOCK ===
+    try {
+        saveToLocalStorage('GLOBAL_SCAN_LOCK', {
+            isScanning: false,
+            chain: null,
+            timestamp: Date.now()
+        });
+       // console.log('[GLOBAL LOCK] Released - soft stop');
+    } catch(e) {
+       // console.error('[GLOBAL LOCK] Error releasing lock on soft stop:', e);
+    }
+
     // Simpan state 'run:NO' tanpa me-reload halaman.
     try { (async()=>{ await persistRunStateNo(); })(); } catch(_) {}
     clearInterval(window.__autoRunInterval);

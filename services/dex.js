@@ -571,11 +571,11 @@
             const quoteRates = quoteData?.quoteRates;
 
             // Manual console log untuk respons dari provider DEX utama di Dzap
-            if (quoteRates && quoteRates[exchangeSlug]) {
-              console.log(`[DZAP ALT RESPONSE for ${exchangeSlug.toUpperCase()}]`, quoteRates[exchangeSlug]);
-            } else {
-              console.log(`[DZAP ALT RESPONSE] (Provider for ${exchangeSlug.toUpperCase()} not found, showing full response)`, response);
-            }
+            // if (quoteRates && quoteRates[exchangeSlug]) {
+            //   console.log(`[DZAP ALT RESPONSE for ${exchangeSlug.toUpperCase()}]`, quoteRates[exchangeSlug]);
+            // } else {
+            //   console.log(`[DZAP ALT RESPONSE] (Provider for ${exchangeSlug.toUpperCase()} not found, showing full response)`, response);
+            // }
 
             if (!quoteRates || Object.keys(quoteRates).length === 0) {
               return reject({ pesanDEX: 'DZAP quote rates not found' });

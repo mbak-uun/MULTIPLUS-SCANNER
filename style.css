@@ -48,6 +48,69 @@
   color: #6c757d !important; /* Bootstrap Muted (Abu-abu redup) */
 }
 
+/* FORCE OVERRIDE: Aplikasi TIDAK mengikuti mode sistem laptop */
+@media (prefers-color-scheme: dark) {
+  /* Light mode aplikasi - PAKSA tetap terang meskipun laptop dark */
+  body:not(.dark-mode) {
+    background-color: #f0f2f5 !important;
+    background-image: linear-gradient(180deg, #f7f9fc 0%, #eef2f7 50%, #e7ecf3 100%) !important;
+    color: #1c1e21 !important;
+  }
+
+  /* Cards & containers tetap putih di light mode */
+  body:not(.dark-mode) .uk-card-default,
+  body:not(.dark-mode) .header-card,
+  body:not(.dark-mode) #scanner-config,
+  body:not(.dark-mode) #filter-card,
+  body:not(.dark-mode) #token-management,
+  body:not(.dark-mode) .uk-modal-dialog,
+  body:not(.dark-mode) #menu-app {
+    background-color: #ffffff !important;
+    color: #1c1e21 !important;
+    border-color: #000000 !important;
+  }
+
+  /* Tables tetap putih di light mode */
+  body:not(.dark-mode) .uk-table tbody tr {
+    background-color: #ffffff !important;
+    color: #1c1e21 !important;
+  }
+
+  body:not(.dark-mode) .uk-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa !important;
+  }
+
+  body:not(.dark-mode) .uk-table thead th {
+    color: #ffffff !important;
+  }
+
+  /* Buttons tetap normal di light mode */
+  body:not(.dark-mode) .uk-button-default {
+    background-color: #f8f9fa !important;
+    color: #1c1e21 !important;
+    border-color: #dee2e6 !important;
+  }
+
+  /* Text colors tetap gelap di light mode */
+  body:not(.dark-mode) h1,
+  body:not(.dark-mode) h2,
+  body:not(.dark-mode) h3,
+  body:not(.dark-mode) h4,
+  body:not(.dark-mode) h5,
+  body:not(.dark-mode) h6 {
+    color: #1c1e21 !important;
+  }
+
+  /* Inputs tetap putih di light mode */
+  body:not(.dark-mode) input:not([type="checkbox"]):not([type="radio"]),
+  body:not(.dark-mode) select,
+  body:not(.dark-mode) textarea {
+    background-color: #ffffff !important;
+    color: #1c1e21 !important;
+    border-color: #ced4da !important;
+  }
+}
+
 body {
     font-family: Arial, Helvetica, sans-serif;
     padding: 1px;
@@ -207,6 +270,96 @@ body.dark-mode .dex-error { background-color: #651313 !important; }
 #sinyal-container .signal-card_content {
   min-height: 20px; /* compact base height */
   padding: 6px 4px; /* gentle inner padding */
+}
+
+/* Signal card styling - Light mode */
+.signal-card {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.signal-card .uk-card-header {
+  /* Warna chain dengan brightness cerah untuk light mode */
+  filter: brightness(1.0) saturate(1.1);
+  color: #ffffff !important;
+}
+
+.signal-card .uk-card-body {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+
+/* Badges tetap dengan warna yang jelas */
+body.dark-mode .signal-card .uk-badge {
+  background-color: #4a90e2 !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .signal-card .uk-badge-success {
+  background-color: #2ea043 !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .signal-card .uk-badge-danger {
+  background-color: #d32f2f !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .signal-card .uk-badge-warning {
+  background-color: #ff9800 !important;
+  color: #000000 !important;
+}
+
+/* Signal item pewarnaan - pastikan konsisten di light & dark mode */
+.signal-item .uk-text-success {
+  color: #198754 !important; /* Hijau untuk Token→Pair */
+}
+
+.signal-item .uk-text-danger {
+  color: #dc3545 !important; /* Merah untuk Pair→Token */
+}
+
+.signal-item .uk-text-dark {
+  color: #212529 !important; /* Hitam untuk Modal & PNL */
+}
+
+/* Dark mode: pastikan warna signal item tetap readable */
+body.dark-mode .signal-item .uk-text-success {
+  color: #2ea043 !important; /* Hijau lebih terang untuk dark mode */
+}
+
+body.dark-mode .signal-item .uk-text-danger {
+  color: #f44336 !important; /* Merah lebih terang untuk dark mode */
+}
+
+
+/* Override prefers-color-scheme untuk signal cards - pastikan tetap ikut tema aplikasi */
+@media (prefers-color-scheme: dark) {
+
+
+  /* Signal item pewarnaan di media query - override system preference */
+  body:not(.dark-mode) .signal-item .uk-text-success {
+    color: #198754 !important; /* Hijau untuk light mode aplikasi */
+  }
+
+  body:not(.dark-mode) .signal-item .uk-text-danger {
+    color: #dc3545 !important; /* Merah untuk light mode aplikasi */
+  }
+
+  body:not(.dark-mode) .signal-item .uk-text-dark {
+    color: #212529 !important; /* Hitam untuk light mode aplikasi */
+  }
+
+  body.dark-mode .signal-item .uk-text-success {
+    color: #2ea043 !important; /* Hijau terang untuk dark mode aplikasi */
+  }
+
+  body.dark-mode .signal-item .uk-text-danger {
+    color: #f44336 !important; /* Merah terang untuk dark mode aplikasi */
+  }
+
+
 }
 
 /* Header */
@@ -435,7 +588,7 @@ div#scanner-config, div#filter-card,#form-setting-app,#manager-config {
 
 /* refactor: ensure custom uk-background adapts in dark mode */
 body.dark-mode .uk-background {
-  background-color: #2c2c2e !important;
+  background-color: #525254 !important;
   border-bottom: 1px solid #444444 !important;
 }
 
@@ -471,7 +624,7 @@ body.dark-mode {
 .dark-mode .uk-modal-dialog {
     background-color: #2c2c2e; /* Charcoal gray */
     border-color: #444444;
-    color: #222aef;
+    color: #adafce;
 }
 
 .dark-mode h1, .dark-mode h2, .dark-mode h3, .dark-mode h5, .dark-mode h6,

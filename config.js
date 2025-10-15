@@ -215,7 +215,7 @@ const CONFIG_CHAINS = {
         } 
     }, 
     bsc: { 
-        Kode_Chain: 56, Nama_Chain: "bsc", Nama_Pendek: "bsc", URL_Chain: "https://bscscan.com", WARNA:"#f0af18", ICON:"https://images.seeklogo.com/logo-png/44/2/binance-smart-chain-bsc-logo-png_seeklogo-446621.png", DATAJSON: 'https://multiplus-scanner.vercel.app/JSON_KOIN/BSC.json', BaseFEEDEX : "BNBUSDT", RPC: 'https://bsc-dataseed.binance.org/', GASLIMIT: 80000,
+        Kode_Chain: 56, Nama_Chain: "bsc", Nama_Pendek: "bsc", URL_Chain: "https://bscscan.com", WARNA:"#f0af18", ICON:"https://images.seeklogo.com/logo-png/44/2/binance-smart-chain-bsc-logo-png_seeklogo-446621.png", DATAJSON: 'https://multiplus-scanner.vercel.app/JSON_KOIN/BSC.json', BaseFEEDEX : "BNBUSDT", RPC: 'https://public-bsc-mainnet.fastnode.io', GASLIMIT: 80000,
         LINKS: {
             explorer: {
                 token: (address) => `https://bscscan.com/token/${address}`,
@@ -491,8 +491,8 @@ const CONFIG_DEXS = {
                 pairtotoken: 'kyber'
             },
             alternative: {
-                tokentopair: 'dzap',
-                pairtotoken: 'swoop'
+                tokentopair: 'swoop',
+                pairtotoken: 'dzap'
             }
         },
         allowFallback: false,

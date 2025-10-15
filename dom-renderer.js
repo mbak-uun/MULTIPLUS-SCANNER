@@ -759,13 +759,13 @@ function DisplayPNL(data) {
   }
 
   // Success log
-  console.log(`✅ [DisplayPNL] Cell FOUND & Updated:`, {
-    elementId,
-    dex: dextype,
-    pnl: profitLoss.toFixed(2),
-    isFallback,
-    fallbackSource
-  });
+  // console.log(`✅ [DisplayPNL] Cell FOUND & Updated:`, {
+  //   elementId,
+  //   dex: dextype,
+  //   pnl: profitLoss.toFixed(2),
+  //   isFallback,
+  //   fallbackSource
+  // });
   // REFACTORED: Clear any prior error background and finalize cell
   try { el.classList.remove('dex-error'); } catch(_) {}
   // REFACTORED: Finalize cell untuk mencegah overwrite oleh error lainnya
@@ -1102,7 +1102,6 @@ function DisplayPNL(data) {
   } catch(_) {}
 }
 
-/** Append a compact item to the DEX signal panel and play audio. */
 function InfoSinyal(DEXPLUS, TokenPair, PNL, totalFee, cex, NameToken, NamePair, profitLossPercent, modal, nameChain, codeChain, trx, idPrefix, domIdOverride) {
   const chainData = getChainData(nameChain);
   const chainShort = String(chainData?.SHORT_NAME || chainData?.Nama_Chain || nameChain).toUpperCase();
@@ -1150,8 +1149,8 @@ function InfoSinyal(DEXPLUS, TokenPair, PNL, totalFee, cex, NameToken, NamePair,
 
   const audio = new Audio('audio.mp3');
   audio.play();
-}
- 
+} 
+
 /**
  * Compute rates, value, and PNL for a DEX route result; return data for DisplayPNL.
  */
