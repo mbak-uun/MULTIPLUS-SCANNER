@@ -184,6 +184,34 @@
         return { amount_out, FeeSwap, dexTitle: 'FLY' };
       }
     },
+    'hinkal-1inch': {
+      buildRequest: ({ codeChain, SavedSettingData, amount_in_big, sc_input, sc_output }) => {
+        const apiUrl = 'https://ethmainnet.server.hinkal.pro/OneInchSwapData';
+        const wallet = SavedSettingData?.walletMeta || '0x0000000000000000000000000000000000000000';
+        const swapUrl = `https://api.1inch.dev/swap/v5.2/${codeChain}/swap?fromTokenAddress=${sc_input}&toTokenAddress=${sc_output}&amount=${amount_in_big.toString()}&fromAddress=${wallet}&slippage=10&destReceiver=${wallet}&disableEstimate=true`;
+        return {
+          url: apiUrl,
+          method: 'POST',
+          data: JSON.stringify({ url: swapUrl })
+        };
+      },
+      parseResponse: (response, { des_output, chainName }) => {
+        const amountStr = response?.oneInchResponse?.toAmount;
+        const gasEstimate = parseFloat(response?.oneInchResponse?.tx?.gas || 0) || 350000;
+        if (!amountStr) throw new Error('Invalid Hinkal 1inch response');
+        const amountNum = parseFloat(amountStr);
+        if (!Number.isFinite(amountNum) || amountNum <= 0) throw new Error('Invalid Hinkal 1inch amount');
+        const amount_out = amountNum / Math.pow(10, des_output);
+        const FeeSwap = getFeeSwap(chainName);
+        return {
+          amount_out,
+          FeeSwap,
+          dexTitle: '1INCH',
+          gasEstimate
+        };
+      },
+      useProxy: false
+    },
     'zero-1inch': {
       buildRequest: ({ sc_input, sc_output, amount_in_big, des_input, des_output, codeChain }) => {
         const baseUrl = 'https://api.zeroswap.io/quote/1inch';
@@ -425,7 +453,7 @@
           const code = Number(e1 && e1.statusCode);
           const primaryKey = String(primary || '').toLowerCase();
           // Treat ODOS variants + Hinkal proxy sebagai satu keluarga
-          const isOdosFamily = ['odos','odos2','odos3','hinkal'].includes(primaryKey);
+          const isOdosFamily = ['odos','odos2','odos3','hinkal','hinkal-1inch'].includes(primaryKey);
           // Policy: fallback hanya untuk error tertentu
           const noResp = (!Number.isFinite(code) || code === 0);
           const isNoRespFallback = noResp && (isOdosFamily || primaryKey === 'kyber');
