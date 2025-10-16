@@ -65,11 +65,33 @@ function clearDexTickerById(id){
 // ID untuk loop `requestAnimationFrame` yang meng-update UI.
 let animationFrameId;
 // Flag boolean yang menandakan apakah proses pemindaian sedang berjalan atau tidak.
+// NOTE: Ini adalah per-tab state, tidak akan conflict dengan tab lain
 let isScanRunning = false;
 // Counter untuk melacak jumlah request DEX yang masih berjalan (termasuk fallback).
 let activeDexRequests = 0;
 // Resolver yang menunggu seluruh request DEX selesai sebelum finalisasi.
 let dexRequestWaiters = [];
+
+/**
+ * Helper function untuk check apakah tab ini sedang scanning
+ * Menggunakan sessionStorage untuk per-tab isolation
+ */
+function isThisTabScanning() {
+    try {
+        // Check internal flag
+        if (isScanRunning) return true;
+
+        // Check session storage sebagai backup
+        if (typeof sessionStorage !== 'undefined') {
+            const tabScanning = sessionStorage.getItem('TAB_SCANNING');
+            return tabScanning === 'YES';
+        }
+
+        return false;
+    } catch(e) {
+        return isScanRunning;
+    }
+}
 
 function markDexRequestStart() {
     try { activeDexRequests += 1; } catch(_) { activeDexRequests = 1; }
@@ -243,17 +265,34 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
 
     // --- PERSIAPAN STATE & UI SEBELUM SCAN ---
 
-    // === SET GLOBAL SCANNING LOCK ===
+    // === NOTIFY TAB MANAGER ABOUT SCAN START ===
     try {
         const chainLabel = allowedChains.map(c => String(c).toUpperCase()).join(', ');
+
+        // Set per-tab scanning lock (sessionStorage - tidak conflict antar tab)
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('TAB_SCANNING', 'YES');
+            sessionStorage.setItem('TAB_SCAN_CHAIN', chainLabel);
+            sessionStorage.setItem('TAB_SCAN_START', Date.now().toString());
+        }
+
+        // Notify TabManager untuk broadcast ke tab lain
+        if (window.TabManager && typeof window.TabManager.notifyScanStart === 'function') {
+            window.TabManager.notifyScanStart(chainLabel);
+            console.log(`[SCANNER] Tab ${window.getTabId()} started scanning: ${chainLabel}`);
+        }
+
+        // Set global lock for tracking only (NOT used for blocking multi-tab scanning)
+        // Multi-tab scanning is fully supported - each tab scans independently
+        // This lock is kept for monitoring/debugging purposes via Tab Manager
         saveToLocalStorage('GLOBAL_SCAN_LOCK', {
             isScanning: true,
             chain: chainLabel,
+            tabId: window.getTabId ? window.getTabId() : 'UNKNOWN',
             timestamp: Date.now()
         });
-       // console.log(`[GLOBAL LOCK] Set untuk chain: ${chainLabel}`);
     } catch(e) {
-       // console.error('[GLOBAL LOCK] Error setting lock:', e);
+        console.error('[SCANNER] Error setting scan start state:', e);
     }
 
     // Set state aplikasi menjadi 'berjalan' (run: 'YES').
@@ -288,22 +327,6 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
 
     // Kirim notifikasi status 'ONLINE' ke Telegram.
     sendStatusTELE(ConfigScan.nickname, 'ONLINE');
-
-    // Atur warna progress bar berdasarkan mode
-    try {
-        let progressBarColor = '#42b72a'; // Warna default (hijau)
-        if (mMode.type === 'single' && mMode.chain) {
-            const chainConfig = (window.CONFIG_CHAINS || {})[mMode.chain];
-            if (chainConfig && chainConfig.WARNA) {
-                progressBarColor = chainConfig.WARNA;
-            }
-        }
-        // Terapkan warna ke elemen progress bar
-        const progressBar = document.getElementById('progress-bar');
-        if (progressBar) {
-            progressBar.style.backgroundColor = progressBarColor;
-        }
-    } catch (e) { console.warn("Gagal mengatur warna progress bar:", e); }
 
     // Ambil parameter jeda dan kecepatan dari settings.
     let scanPerKoin = parseInt(ConfigScan.scanPerKoin || 1);
@@ -1366,16 +1389,30 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
         cancelAnimationFrame(animationFrameId);
         setPageTitleForRun(false);
 
-        // === RELEASE GLOBAL SCANNING LOCK ===
+        // === NOTIFY TAB MANAGER ABOUT SCAN STOP ===
         try {
+            // Clear per-tab scanning state
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.removeItem('TAB_SCANNING');
+                sessionStorage.removeItem('TAB_SCAN_CHAIN');
+                sessionStorage.removeItem('TAB_SCAN_START');
+            }
+
+            // Notify TabManager untuk broadcast ke tab lain
+            if (window.TabManager && typeof window.TabManager.notifyScanStop === 'function') {
+                window.TabManager.notifyScanStop();
+                console.log(`[SCANNER] Tab ${window.getTabId()} stopped scanning`);
+            }
+
+            // Release global lock (tracking only - does NOT block other tabs)
             saveToLocalStorage('GLOBAL_SCAN_LOCK', {
                 isScanning: false,
                 chain: null,
+                tabId: window.getTabId ? window.getTabId() : 'UNKNOWN',
                 timestamp: Date.now()
             });
-           // console.log('[GLOBAL LOCK] Released - scanning selesai');
         } catch(e) {
-            console.error('[GLOBAL LOCK] Error releasing lock:', e);
+            console.error('[SCANNER] Error releasing scan state:', e);
         }
 
         // Aktifkan kembali UI.
@@ -1440,20 +1477,33 @@ async function stopScanner() {
     setPageTitleForRun(false);
     if (typeof form_on === 'function') form_on();
 
-    // === RELEASE GLOBAL SCANNING LOCK ===
+    // === NOTIFY TAB MANAGER ABOUT MANUAL STOP ===
     try {
+        // Clear per-tab scanning state
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('TAB_SCANNING');
+            sessionStorage.removeItem('TAB_SCAN_CHAIN');
+            sessionStorage.removeItem('TAB_SCAN_START');
+            sessionStorage.setItem('APP_FORCE_RUN_NO', '1');
+        }
+
+        // Notify TabManager untuk broadcast ke tab lain
+        if (window.TabManager && typeof window.TabManager.notifyScanStop === 'function') {
+            window.TabManager.notifyScanStop();
+            console.log(`[SCANNER] Tab ${window.getTabId()} stopped scanning (manual stop)`);
+        }
+
+        // Release global lock (tracking only - does NOT block other tabs)
         saveToLocalStorage('GLOBAL_SCAN_LOCK', {
             isScanning: false,
             chain: null,
+            tabId: window.getTabId ? window.getTabId() : 'UNKNOWN',
             timestamp: Date.now()
         });
-       // console.log('[GLOBAL LOCK] Released - scan stopped manually');
     } catch(e) {
-       // console.error('[GLOBAL LOCK] Error releasing lock on stop:', e);
+        console.error('[SCANNER] Error releasing scan state on manual stop:', e);
     }
 
-    // Set flag agar halaman yang di-reload tahu bahwa scan dihentikan.
-    try { sessionStorage.setItem('APP_FORCE_RUN_NO', '1'); } catch(_) {}
     // Simpan state 'run:NO' dan update indikator UI sebelum reload.
     await persistRunStateNo();
     location.reload();
@@ -1467,16 +1517,30 @@ function stopScannerSoft() {
     isScanRunning = false;
     try { cancelAnimationFrame(animationFrameId); } catch(_) {}
 
-    // === RELEASE GLOBAL SCANNING LOCK ===
+    // === NOTIFY TAB MANAGER ABOUT SOFT STOP ===
     try {
+        // Clear per-tab scanning state
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('TAB_SCANNING');
+            sessionStorage.removeItem('TAB_SCAN_CHAIN');
+            sessionStorage.removeItem('TAB_SCAN_START');
+        }
+
+        // Notify TabManager untuk broadcast ke tab lain
+        if (window.TabManager && typeof window.TabManager.notifyScanStop === 'function') {
+            window.TabManager.notifyScanStop();
+            console.log(`[SCANNER] Tab ${window.getTabId()} soft stopped scanning`);
+        }
+
+        // Release global lock (tracking only - does NOT block other tabs)
         saveToLocalStorage('GLOBAL_SCAN_LOCK', {
             isScanning: false,
             chain: null,
+            tabId: window.getTabId ? window.getTabId() : 'UNKNOWN',
             timestamp: Date.now()
         });
-       // console.log('[GLOBAL LOCK] Released - soft stop');
     } catch(e) {
-       // console.error('[GLOBAL LOCK] Error releasing lock on soft stop:', e);
+        console.error('[SCANNER] Error releasing scan state on soft stop:', e);
     }
 
     // Simpan state 'run:NO' tanpa me-reload halaman.
@@ -1549,6 +1613,14 @@ if (typeof window !== 'undefined' && window.App && typeof window.App.register ==
         startScanner,
         stopScanner,
         stopScannerSoft,
-        isScanRunning: () => isScanRunning
+        // Return per-tab scanning state (not global)
+        isScanRunning: () => isThisTabScanning(),
+        // Expose helper untuk external access
+        isThisTabScanning: isThisTabScanning
     });
+}
+
+// Expose untuk backward compatibility
+if (typeof window !== 'undefined') {
+    window.isThisTabScanning = isThisTabScanning;
 }
