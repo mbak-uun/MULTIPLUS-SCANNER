@@ -227,6 +227,48 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
         return;
     }
 
+    // === PRE-FLIGHT CHECK: Auto-clean stale run states dari chain lain ===
+    // Ini mencegah conflict saat user berganti chain tanpa stop manual
+    try {
+        const currentKey = (typeof getActiveFilterKey === 'function') ? getActiveFilterKey() : 'FILTER_MULTICHAIN';
+        const currentChain = mMode.type === 'single' ? String(mMode.chain).toLowerCase() : 'multichain';
+
+        // Check dan reset state chain lain yang masih 'YES' tapi bukan chain yang akan di-scan
+        Object.keys(CONFIG_CHAINS || {}).forEach(chainKey => {
+            const chainLower = String(chainKey).toLowerCase();
+            // Skip chain yang akan di-scan
+            if (allowedChains.includes(chainLower)) return;
+
+            const filterKey = `FILTER_${String(chainKey).toUpperCase()}`;
+            const filter = getFromLocalStorage(filterKey, {}) || {};
+
+            // Jika chain lain masih run: 'YES', reset ke 'NO'
+            if (String(filter.run || 'NO').toUpperCase() === 'YES') {
+                try {
+                    saveToLocalStorage(filterKey, Object.assign({}, filter, { run: 'NO' }));
+                    if (typeof window.updateRunStateCache === 'function') {
+                        window.updateRunStateCache(filterKey, { run: 'NO' });
+                    }
+                } catch(_) {}
+            }
+        });
+
+        // Check multichain state (jika sekarang mode single-chain)
+        if (mMode.type === 'single') {
+            const multiFilter = getFromLocalStorage('FILTER_MULTICHAIN', {}) || {};
+            if (String(multiFilter.run || 'NO').toUpperCase() === 'YES') {
+                try {
+                    saveToLocalStorage('FILTER_MULTICHAIN', Object.assign({}, multiFilter, { run: 'NO' }));
+                    if (typeof window.updateRunStateCache === 'function') {
+                        window.updateRunStateCache('FILTER_MULTICHAIN', { run: 'NO' });
+                    }
+                } catch(_) {}
+            }
+        }
+    } catch(e) {
+        console.warn('[SCANNER] Pre-flight state cleanup error:', e);
+    }
+
     // Simpan data setting dan chain aktif ke variabel global untuk diakses oleh fungsi lain.
     window.SavedSettingData = ConfigScan;
     window.CURRENT_CHAINS = allowedChains;
@@ -889,20 +931,13 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                                         const viaName = (function(){
                                             try {
                                                 if (isFallback === true) {
-                                                    // Deteksi sumber alternatif DEX
                                                     const routeTool = String(finalDexRes?.routeTool || '').toUpperCase();
-
-                                                    // Jika ada routeTool, gunakan itu sebagai sumber
                                                     if (routeTool) {
-                                                        // Jika routeTool adalah nama DEX spesifik dari DZAP
                                                         if (/DZAP|PARASWAP|1INCH|0X|KYBER/i.test(routeTool)) {
                                                             return `DZAP (${routeTool})`;
                                                         }
-                                                        // Fallback: tampilkan routeTool langsung
                                                         return routeTool;
                                                     }
-
-                                                    // Default: SWOOP
                                                     return 'SWOOP';
                                                 }
                                             } catch(_) {}
@@ -918,7 +953,7 @@ async function startScanner(tokensToScan, settings, tableBodyId) {
                                             '======================================',
                                             `Time: ${nowStr}`,
                                            // `ID CELL: ${idCELL}`,
-                                            prosesLine,
+                                            `PROSES : ${isKiri ? `${ce} => ${dx}` : `${dx} => ${ce}`} (VIA ${viaName})`,
                                             statusLine
                                         ].join('\n');
                                         // Token info untuk debugging
@@ -1580,6 +1615,9 @@ try { window.updateRunningChainsBanner = window.updateRunningChainsBanner || upd
 /**
  * Helper terpusat untuk menyimpan state `run: 'NO'` ke storage,
  * dan memperbarui indikator UI yang relevan.
+ *
+ * FIX: Reset SEMUA chain (bukan hanya CURRENT_CHAINS) untuk mencegah state "nyangkut"
+ * saat user scan chain berbeda secara bergantian (misal: BSC → ETH → BSC)
  */
 async function persistRunStateNo() {
     try {
@@ -1592,12 +1630,40 @@ async function persistRunStateNo() {
         }
         if (typeof window.updateRunStateCache === 'function') { try { window.updateRunStateCache(key, { run: 'NO' }); } catch(_) {} }
     } catch(_) { try { setAppState({ run: 'NO' }); } catch(__) {} }
+
+    // === FIX: Reset SEMUA chain untuk mencegah state conflict ===
     try {
         if (typeof window.updateRunStateCache === 'function') {
+            // Reset active filter key (redundant safety check)
             try { window.updateRunStateCache(getActiveFilterKey(), { run: 'NO' }); } catch(_) {}
+
+            // Reset SEMUA chain yang ada di CONFIG_CHAINS (bukan hanya CURRENT_CHAINS)
+            // Ini memastikan tidak ada chain yang "nyangkut" di state run: 'YES'
+            try {
+                Object.keys(CONFIG_CHAINS || {}).forEach(chainKey => {
+                    const filterKey = `FILTER_${String(chainKey).toUpperCase()}`;
+
+                    // Update in-memory cache
+                    window.updateRunStateCache(filterKey, { run: 'NO' });
+
+                    // Persist ke storage (untuk cross-tab sync & page reload)
+                    try {
+                        const chainFilter = getFromLocalStorage(filterKey, {}) || {};
+                        saveToLocalStorage(filterKey, Object.assign({}, chainFilter, { run: 'NO' }));
+                    } catch(_) {}
+                });
+            } catch(_) {}
+
+            // Reset multichain mode juga
+            try {
+                window.updateRunStateCache('FILTER_MULTICHAIN', { run: 'NO' });
+                const multiFilter = getFromLocalStorage('FILTER_MULTICHAIN', {}) || {};
+                saveToLocalStorage('FILTER_MULTICHAIN', Object.assign({}, multiFilter, { run: 'NO' }));
+            } catch(_) {}
         }
-        try { (window.CURRENT_CHAINS || []).forEach(c => window.updateRunStateCache(`FILTER_${String(c).toUpperCase()}`, { run: 'NO' })); } catch(_) {}
     } catch(_){}
+
+    // Update UI indicators setelah semua state direset
     try {
         if (typeof window.updateRunningChainsBanner === 'function') window.updateRunningChainsBanner();
         if (typeof window.updateToolbarRunIndicators === 'function') window.updateToolbarRunIndicators();
