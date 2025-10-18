@@ -132,57 +132,90 @@
     /**
      * Merge wallet data hasil fetch dengan data existing
      * Update hanya dataCexs untuk CEX yang di-fetch
+     *
+     * PERBAIKAN: Iterate per existing pair, lalu cek apakah ada update untuk token/pair nya
      */
     function mergeWalletData(existingCoins, newCoinsMap, updatedCexes) {
         const merged = [...existingCoins];
 
-        // Update dataCexs untuk coins yang sudah ada
-        Object.keys(newCoinsMap).forEach(coinKey => {
-            const newCoin = newCoinsMap[coinKey];
+        // Iterate setiap existing pair di storage
+        merged.forEach((existingPair, pairIndex) => {
+            const tokenSymbol = (existingPair.symbol_in || '').toUpperCase();
+            const pairSymbol = (existingPair.symbol_out || '').toUpperCase();
+            const chainLower = String(existingPair.chain || '').toLowerCase();
 
-            // Cari existing coin dengan matching symbol_in dan chain
-            const existingIndex = merged.findIndex(c => {
-                const symbolMatch = (c.symbol_in || c.tokenName) === (newCoin.symbol_in || newCoin.tokenName);
-                const chainMatch = String(c.chain || '').toLowerCase() === String(newCoin.chain || '').toLowerCase();
-                return symbolMatch && chainMatch;
+            // Cari data baru untuk TOKEN (symbol_in)
+            const tokenKey = `${tokenSymbol}_${chainLower}`;
+            const newTokenData = newCoinsMap[tokenKey];
+
+            // Cari data baru untuk PAIR (symbol_out)
+            const pairKey = `${pairSymbol}_${chainLower}`;
+            const newPairData = newCoinsMap[pairKey];
+
+            // Pastikan dataCexs ada
+            merged[pairIndex].dataCexs = merged[pairIndex].dataCexs || {};
+
+            // Update data untuk setiap CEX yang di-fetch
+            updatedCexes.forEach(cexName => {
+                // Cek apakah ada data baru untuk token atau pair
+                const hasTokenData = newTokenData && newTokenData.dataCexs && newTokenData.dataCexs[cexName];
+                const hasPairData = newPairData && newPairData.dataCexs && newPairData.dataCexs[cexName];
+
+                // HANYA initialize jika ada data untuk di-update
+                if (!hasTokenData && !hasPairData) {
+                    return; // Skip jika tidak ada data baru
+                }
+
+                // Initialize CEX data object jika belum ada
+                merged[pairIndex].dataCexs[cexName] = merged[pairIndex].dataCexs[cexName] || {};
+
+                // Update TOKEN data (symbol_in)
+                if (hasTokenData) {
+                    const tokenCexData = newTokenData.dataCexs[cexName];
+                    merged[pairIndex].dataCexs[cexName].depositToken = tokenCexData.depositEnable;
+                    merged[pairIndex].dataCexs[cexName].withdrawToken = tokenCexData.withdrawEnable;
+                    merged[pairIndex].dataCexs[cexName].feeWDToken = tokenCexData.feeWDs;
+
+                    // Update SC dan decimals untuk token jika ada
+                    if (newTokenData.sc_in && newTokenData.sc_in !== '-') {
+                        merged[pairIndex].sc_in = newTokenData.sc_in;
+                    }
+                    if (newTokenData.des_in && newTokenData.des_in !== '-') {
+                        merged[pairIndex].des_in = newTokenData.des_in;
+                        merged[pairIndex].decimals = newTokenData.des_in;
+                    }
+                }
+
+                // Update PAIR data (symbol_out)
+                if (hasPairData) {
+                    const pairCexData = newPairData.dataCexs[cexName];
+                    merged[pairIndex].dataCexs[cexName].depositPair = pairCexData.depositEnable;
+                    merged[pairIndex].dataCexs[cexName].withdrawPair = pairCexData.withdrawEnable;
+                    merged[pairIndex].dataCexs[cexName].feeWDPair = pairCexData.feeWDs;
+
+                    // Update SC_out dan des_out untuk pair jika ada
+                    if (newPairData.sc_in && newPairData.sc_in !== '-') {
+                        merged[pairIndex].sc_out = newPairData.sc_in; // sc_in dari newPairData = sc untuk pair symbol
+                    }
+                    if (newPairData.des_in && newPairData.des_in !== '-') {
+                        merged[pairIndex].des_out = newPairData.des_in;
+                    }
+                }
+
+                // Update trading status (gunakan data dari token atau pair, preferensi token)
+                const tradingData = hasTokenData ? newTokenData.dataCexs[cexName] :
+                                    hasPairData ? newPairData.dataCexs[cexName] : null;
+                if (tradingData) {
+                    merged[pairIndex].dataCexs[cexName].tradingActive = tradingData.tradingActive;
+                }
             });
 
-            if (existingIndex >= 0) {
-                // Pastikan dataCexs ada
-                merged[existingIndex].dataCexs = merged[existingIndex].dataCexs || {};
-
-                // Loop melalui CEX yang diupdate dari newCoin
-                Object.keys(newCoin.dataCexs).forEach(cexName => {
-                    const newCexData = newCoin.dataCexs[cexName];
-                    merged[existingIndex].dataCexs[cexName] = merged[existingIndex].dataCexs[cexName] || {};
-
-                    // Update status WD/DP untuk Token dan Pair
-                    merged[existingIndex].dataCexs[cexName].depositToken = newCexData.depositEnable;
-                    merged[existingIndex].dataCexs[cexName].withdrawToken = newCexData.withdrawEnable;
-                    merged[existingIndex].dataCexs[cexName].depositPair = newCexData.depositEnable;
-                    merged[existingIndex].dataCexs[cexName].withdrawPair = newCexData.withdrawEnable;
-
-                    // Update fee WD untuk Token (asumsi feeWDs dari API adalah untuk token utama)
-                    merged[existingIndex].dataCexs[cexName].feeWDToken = newCexData.feeWDs;
-
-                    // Update status trading
-                    merged[existingIndex].dataCexs[cexName].tradingActive = newCexData.tradingActive;
-                });
-
-                // Update SC dan decimals jika ada data baru dari CEX
-                if (newCoin.sc_in && newCoin.sc_in !== '-') {
-                    merged[existingIndex].sc_in = newCoin.sc_in;
-                }
-                if (newCoin.des_in && newCoin.des_in !== '-') {
-                    merged[existingIndex].des_in = newCoin.des_in;
-                    merged[existingIndex].decimals = newCoin.des_in;
-                }
-
-                console.log(`[Merge] Updated existing coin: ${newCoin.symbol_in} on chain ${newCoin.chain} for CEXes: ${Object.keys(newCoin.dataCexs).join(', ')}`);
-            } else {
-                // Add new coin
-                merged.push(newCoin);
-                console.log(`[Merge] Added new coin: ${newCoin.symbol_in} on chain ${newCoin.chain}`);
+            // Log update
+            const updatedTokens = [];
+            if (newTokenData) updatedTokens.push(tokenSymbol);
+            if (newPairData) updatedTokens.push(pairSymbol);
+            if (updatedTokens.length > 0) {
+                console.log(`[Merge] Updated pair ${tokenSymbol}→${pairSymbol} on ${chainLower}: ${updatedTokens.join(', ')} for CEXes: ${updatedCexes.join(', ')}`);
             }
         });
 
